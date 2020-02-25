@@ -1,0 +1,8 @@
+# .inputrc
+# This file configures Readline, the library that handles your typed input in
+# many command-line programs.  You can set key bindings and configuration
+# options ("variables") here.  See https://fburl.com/inputrc for more info.
+set blink-matching-paren on
+set colored-stats on
+
+"\C-xb": "\&>> /tmp/console.log \&"
