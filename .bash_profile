@@ -26,3 +26,17 @@ then
     eval "$(thefuck --alias)"
 
 fi
+
+# devserver section
+if [-z "$IS_DEVSERVER"]
+then
+    alias vimdiff='/home/alexpopov/bin/vim -d'
+
+    function jk_diff_vim() {
+        echo 'hg diff | vimdiff -R'
+        hg diff | vimdiff -R
+    }
+fi
+
+
+
