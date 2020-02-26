@@ -23,6 +23,9 @@ nnoremap <C-K> <C-W><C-K>
 nnoremap <C-L> <C-W><C-L>
 nnoremap <C-H> <C-W><C-H>
 
+" map insert-mode movements
+imap <C-f> <C-o>l
+imap <C-b> <C-o>h
 
 " numbers and make them relative
 "set number
