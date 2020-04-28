@@ -4,7 +4,7 @@ set softtabstop=4 	" number of spaces in a tab when editing
 set shiftwidth=4    " how much to shift by
 set expandtab				" tabs vs spaces, mwahahaha
 
-set scrolloff=3 " Keep 3 lines below and above the cursor
+set scrolloff=12 " Keep 3 lines below and above the cursor
 
 set mouse= " turn off mouse inputs
 
@@ -13,6 +13,12 @@ let maplocalleader = '\'
 
 colorscheme xcode
 set autoread
+
+"set termguicolors
+" ???
+"let &t_8f = "\[38;2;%lu;%lu;%lum"
+"let &t_8b = "\[48;2;%lu;%lu;%lum"
+" </???>
 
 " remove whitespace at end of lines
 autocmd BufWritePre * :%s/\s\+$//e
@@ -52,6 +58,28 @@ set signcolumn=no
 " in theory, better diffing
 set diffopt+=internal,algorithm:patience
 
+call plug#begin()
+Plug 'roxma/nvim-yarp'  " some thing for remote plugins
+Plug 'vim-airline/vim-airline' " vim bottom-bar  + themes
+Plug 'vim-airline/vim-airline-themes'
+Plug 'scrooloose/nerdcommenter' " comment code out
+Plug 'numirias/semshi'  " awesome python highlighter
+Plug '~/local/random_crap/fzf' " fuzzy file finder
+Plug 'junegunn/fzf.vim'  " extra vim bindings for fzf
+Plug 'machakann/vim-Verdin' " autocomplete for vimscript
+Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
+Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
+Plug 'haya14busa/incsearch.vim'  " better incremental search
+Plug 'tpope/vim-surround'        " surround stuff in shit
+Plug 'neoclide/coc.nvim', {'branch': 'release'}
+Plug 'derekwyatt/vim-scala'
+Plug 'jrozner/vim-antlr'
+Plug 'vim-python/python-syntax'
+Plug 'junegunn/rainbow_parentheses.vim'
+Plug 'dylanaraps/fff.vim'
+Plug 'voldikss/vim-floaterm'
+call plug#end()
+
 "
 " COC STUFF
 "
@@ -78,17 +106,16 @@ nmap <silent> <Leader>at <Plug>(coc-type-definition)
 nmap <silent> <Leader>ai <Plug>(coc-implementation)
 " u for 'uses'
 nmap <silent> <Leader>au <Plug>(coc-references)
-nmap <silent> <Leader>ar :CocList -A outline <CR>
+nmap <silent> <Leader>ar :CocList -A symbols <CR>
 nmap <silent> <Leader>al :CocList <CR>
 nmap <silent> <Leader>as :CocList -I -A symbols<CR>
 nmap <silent> <Leader>ah :call CocAction("doHover")<CR>
-
-
 
 " adds comment highlighting to JSON
 autocmd FileType json syntax match Comment +\/\/.\+$+
 " adds highlighting for Buck
 autocmd BufRead,BufNewFile TARGETS setfiletype conf
+autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 
 " Use `[g` and `]g` to navigate diagnostics
 nmap <silent> [g <Plug>(coc-diagnostic-prev)
@@ -103,31 +130,6 @@ let g:python3_host_prog= expand("~/virtualenvs/nvim/bin/python3")
 let g:coc_node_path = expand("~/bin/node")
 
 "
-" COC DONE
-"
-
-call plug#begin()
-Plug 'roxma/nvim-yarp'  " some thing for remote plugins
-Plug 'vim-airline/vim-airline' " vim bottom-bar  + themes
-Plug 'vim-airline/vim-airline-themes'
-Plug 'scrooloose/nerdcommenter' " comment code out
-Plug 'numirias/semshi'  " awesome python highlighter
-Plug '~/local/random_crap/fzf' " fuzzy file finder
-Plug 'junegunn/fzf.vim'  " extra vim bindings for fzf
-Plug 'machakann/vim-Verdin' " autocomplete for vimscript
-Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
-Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
-Plug 'haya14busa/incsearch.vim'  " better incremental search
-Plug 'tpope/vim-surround'        " surround stuff in shit
-Plug 'neoclide/coc.nvim', {'branch': 'release'}
-Plug 'derekwyatt/vim-scala'
-Plug 'jrozner/vim-antlr'
-Plug 'vim-python/python-syntax'
-Plug 'junegunn/rainbow_parentheses.vim'
-Plug 'dylanaraps/fff.vim'
-call plug#end()
-
-"
 " 'fff' setup
 "
 "                           30 high horizontal split
@@ -138,8 +140,8 @@ nmap <Leader>fo :F<CR>
 " Airline theme
 let g:airline_theme='silver' "kind of mac-y
 " airline support for CoC
- let g:airline#extensions#coc#enabled = 1
- let g:airline_section_y = '%{coc#status()}'
+let g:airline#extensions#coc#enabled = 1
+let g:airline_section_y = '%{coc#status()}'
 let g:airline_section_x = ''
 
 " all leader rebindings will be here
@@ -248,8 +250,6 @@ function! DeleteHiddenBuffers()
 endfunction
 map <localleader>bd :call DeleteHiddenBuffers()
 
-" Scala stuff
-"au BufRead,BufNewFile *.sbt set filetype=scala
 
 "" Automatically toggle paste mode
 "" + wrapping for being inside of tmux
@@ -275,3 +275,37 @@ function! XTermPasteBegin()
 endfunction
 
 inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+
+"
+" Float Term Setup
+"
+let g:floaterm_keymap_new    = '<F7>'
+let g:floaterm_keymap_prev   = '<F8>'
+let g:floaterm_keymap_next   = '<F9>'
+let g:floaterm_keymap_toggle = '<F5>'
+let g:floaterm_rootmarkets   = ['TARGETS']
+let g:floaterm_position      = 'center'
+let g:floaterm_width = 0.6
+
+map <localleader>sn     :FloatermNew<Space>
+map <localleader>sr     :FloatermNew buck run //upm<CR>
+
+
+"
+" Facebook Stuff
+"
+"
+function! FbDiffusionLink()
+    let url_prefix = "https://our.internmc.facebook.com/intern/diffusion/FBS/browse/master/"
+    let current_file = expand('%:p')
+    let fbcode_path = split(current_file, "fbsource/")
+    let file_path = fbcode_path[1]
+    let url = join([url_prefix, file_path, "?lines=", line(".")], "")
+    :echo url
+endfunction
+
+command! FbDiffusionLink call FbDiffusionLink()
+
+map <localleader>fd :FbDiffusionLink<CR>
+
+

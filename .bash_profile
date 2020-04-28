@@ -1,4 +1,4 @@
-alias tmux="TERM=screen-256color-bce tmux"
+#alias tmux="TERM=tmux-256color tmux"
 
 PS1="\[\033[1;38m\]\]\[\$\] \[\033[0;38m\]"
 
@@ -15,28 +15,26 @@ bind -r '\C-l'
 
 
 # macOS specific section
-if [-z "$IS_MACOS"]
-then
-    # bash completion
-    if [ -f $(brew --prefix)/etc/bash_completion ]; then
-      . $(brew --prefix)/etc/bash_completion
-    fi
+#if [ -z "$IS_MACOS"]
+#then
+    ## bash completion
+    #if [ -f $(brew --prefix)/etc/bash_completion ]; then
+      #. $(brew --prefix)/etc/bash_completion
+    #fi
 
-    # fuck config
-    eval "$(thefuck --alias)"
+    ## fuck config
+    #eval "$(thefuck --alias)"
 
-fi
+#fi
 
 # devserver section
-if [-z "$IS_DEVSERVER"]
-then
+#if [ -z "$IS_DEVSERVER"]
+#then
     alias vimdiff='/home/alexpopov/bin/vim -d'
 
     function jk_diff_vim() {
-        echo 'hg diff | vimdiff -R'
-        hg diff | vimdiff -R
+        echo 'hg diff $@ | vimdiff -R'
+        hg diff $@ | vimdiff -R
     }
-fi
-
-
-
+#fi
+# vi: ft=sh
