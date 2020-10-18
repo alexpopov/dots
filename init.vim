@@ -4,7 +4,7 @@ set softtabstop=4 	" number of spaces in a tab when editing
 set shiftwidth=4    " how much to shift by
 set expandtab				" tabs vs spaces, mwahahaha
 
-set scrolloff=12 " Keep 3 lines below and above the cursor
+set scrolloff=12 " Keep 12 lines below and above the cursor
 
 set mouse= " turn off mouse inputs
 
@@ -64,21 +64,28 @@ Plug 'vim-airline/vim-airline' " vim bottom-bar  + themes
 Plug 'vim-airline/vim-airline-themes'
 Plug 'scrooloose/nerdcommenter' " comment code out
 Plug 'numirias/semshi'  " awesome python highlighter
-Plug '~/local/random_crap/fzf' " fuzzy file finder
-Plug 'junegunn/fzf.vim'  " extra vim bindings for fzf
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim' " extra vim bindings for fzf
 Plug 'machakann/vim-Verdin' " autocomplete for vimscript
 Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
 Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
 Plug 'haya14busa/incsearch.vim'  " better incremental search
 Plug 'tpope/vim-surround'        " surround stuff in shit
-Plug 'neoclide/coc.nvim', {'branch': 'release'}
+"Plug 'neoclide/coc.nvim', {'branch': 'release'}
 Plug 'derekwyatt/vim-scala'
 Plug 'jrozner/vim-antlr'
 Plug 'vim-python/python-syntax'
 Plug 'junegunn/rainbow_parentheses.vim'
 Plug 'dylanaraps/fff.vim'
 Plug 'voldikss/vim-floaterm'
+Plug 'junegunn/vim-peekaboo'
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
 call plug#end()
+
+let g:UltiSnipsExpandTrigger="<C-Space>"
+let g:UltiSnipsJumpForwardTrigger="<c-b>"
+let g:UltiSnipsJumpBackwardTrigger="<c-z>"
 
 "
 " COC STUFF
@@ -86,30 +93,30 @@ call plug#end()
 
 " Use tab for trigger completion with characters ahead and navigate.
 " Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
- inoremap <silent><expr> <TAB>
-      \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ coc#refresh()
-inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+ "inoremap <silent><expr> <TAB>
+      "\ pumvisible() ? "\<C-n>" :
+      "\ <SID>check_back_space() ? "\<TAB>" :
+      "\ coc#refresh()
+"inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
 
-function! s:check_back_space() abort
-  let col = col('.') - 1
-  return !col || getline('.')[col - 1]  =~# '\s'
-endfunction
+"function! s:check_back_space() abort
+  "let col = col('.') - 1
+  "return !col || getline('.')[col - 1]  =~# '\s'
+"endfunction
 
-" Use <c-space> to trigger completion.
-inoremap <silent><expr> <c-space> coc#refresh()
+"" Use <c-space> to trigger completion.
+"inoremap <silent><expr> <c-space> coc#refresh()
 
-" Remap keys for gotos
-nmap <silent> <Leader>ad <Plug>(coc-definition)
-nmap <silent> <Leader>at <Plug>(coc-type-definition)
-nmap <silent> <Leader>ai <Plug>(coc-implementation)
-" u for 'uses'
-nmap <silent> <Leader>au <Plug>(coc-references)
-nmap <silent> <Leader>ar :CocList -A symbols <CR>
-nmap <silent> <Leader>al :CocList <CR>
-nmap <silent> <Leader>as :CocList -I -A symbols<CR>
-nmap <silent> <Leader>ah :call CocAction("doHover")<CR>
+"" Remap keys for gotos
+"nmap <silent> <Leader>ad <Plug>(coc-definition)
+"nmap <silent> <Leader>at <Plug>(coc-type-definition)
+"nmap <silent> <Leader>ai <Plug>(coc-implementation)
+"" u for 'uses'
+"nmap <silent> <Leader>au <Plug>(coc-references)
+"nmap <silent> <Leader>ar :CocList -A symbols <CR>
+"nmap <silent> <Leader>al :CocList <CR>
+"nmap <silent> <Leader>as :CocList -I -A symbols<CR>
+"nmap <silent> <Leader>ah :call CocAction("doHover")<CR>
 
 " adds comment highlighting to JSON
 autocmd FileType json syntax match Comment +\/\/.\+$+
@@ -169,6 +176,9 @@ map <leader>fb :Buffers<CR>
 map <leader>fh :BLines<CR>
 map <leader>fl :Lines<CR>
 map <leader>ff :Files<CR>
+
+map <localleader>fd :BLines<CR>^def<space>
+map <localleader>fc :BLines<CR>^class<space>
 
 "
 " EasyMotion Settings
@@ -250,31 +260,39 @@ function! DeleteHiddenBuffers()
 endfunction
 map <localleader>bd :call DeleteHiddenBuffers()
 
+function! ViewDiff()
+    enew
+    1,$ !hg diff
+    setf diff
+endfunction
+
+map <localleader>hd :call ViewDiff()<CR>
+
 
 "" Automatically toggle paste mode
 "" + wrapping for being inside of tmux
 "" see for more details: https://coderwall.com/p/if9mda/automatically-set-paste-mode-in-vim-when-pasting-in-insert-mode
-function! WrapForTmux(s)
-  if !exists('$TMUX')
-    return a:s
-  endif
+"function! WrapForTmux(s)
+  "if !exists('$TMUX')
+    "return a:s
+  "endif
 
-  let tmux_start = "\<Esc>Ptmux;"
-  let tmux_end = "\<Esc>\\"
+  "let tmux_start = "\<Esc>Ptmux;"
+  "let tmux_end = "\<Esc>\\"
 
-  return tmux_start . substitute(a:s, "\<Esc>", "\<Esc>\<Esc>", 'g') . tmux_end
-endfunction
+  "return tmux_start . substitute(a:s, "\<Esc>", "\<Esc>\<Esc>", 'g') . tmux_end
+"endfunction
 
-let &t_SI .= WrapForTmux("\<Esc>[?2004h")
-let &t_EI .= WrapForTmux("\<Esc>[?2004l")
+"let &t_SI .= WrapForTmux("\<Esc>[?2004h")
+"let &t_EI .= WrapForTmux("\<Esc>[?2004l")
 
-function! XTermPasteBegin()
-  set pastetoggle=<Esc>[201~
-  set paste
-  return ""
-endfunction
+"function! XTermPasteBegin()
+  "set pastetoggle=<Esc>[201~
+  "set paste
+  "return ""
+"endfunction
 
-inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+"inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
 
 "
 " Float Term Setup
@@ -283,7 +301,7 @@ let g:floaterm_keymap_new    = '<F7>'
 let g:floaterm_keymap_prev   = '<F8>'
 let g:floaterm_keymap_next   = '<F9>'
 let g:floaterm_keymap_toggle = '<F5>'
-let g:floaterm_rootmarkets   = ['TARGETS']
+let g:floaterm_rootmarkers   = ['TARGETS']
 let g:floaterm_position      = 'center'
 let g:floaterm_width = 0.6
 
@@ -301,11 +319,28 @@ function! FbDiffusionLink()
     let fbcode_path = split(current_file, "fbsource/")
     let file_path = fbcode_path[1]
     let url = join([url_prefix, file_path, "?lines=", line(".")], "")
-    :echo url
+    execute "!" . "fburl" . " " . url
 endfunction
 
 command! FbDiffusionLink call FbDiffusionLink()
 
-map <localleader>fd :FbDiffusionLink<CR>
+map <localleader>id :FbDiffusionLink<CR>
 
+"function! PropagatePasteBufferToOSX()
+  "let @n=getreg('"')
+  "call system('pbcopy-remote', @n)
+  "echo "done"
+"endfunction
+
+"function! PopulatePasteBufferFromOSX()
+  "let @' = system('pbpaste-remote')
+  "echo "done"
+"endfunction
+
+nnoremap <Leader>c :call PopulatePasteBufferFromOSX()<CR>
+nnoremap <Leader>v :call PropagatePasteBufferToOSX()<CR>
+
+source /usr/facebook/ops/rc/vim/filetype.vim
+source /usr/facebook/ops/rc/vim/gitgrep.vim
+source /usr/facebook/ops/rc/vim/pyre.vim
 
