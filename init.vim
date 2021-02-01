@@ -71,52 +71,73 @@ Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
 Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
 Plug 'haya14busa/incsearch.vim'  " better incremental search
 Plug 'tpope/vim-surround'        " surround stuff in shit
-"Plug 'neoclide/coc.nvim', {'branch': 'release'}
+Plug 'autozimu/LanguageClient-neovim', {
+    \ 'branch': 'next',
+    \ 'do': 'bash install.sh',
+\ }
+Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'derekwyatt/vim-scala'
 Plug 'jrozner/vim-antlr'
 Plug 'vim-python/python-syntax'
 Plug 'junegunn/rainbow_parentheses.vim'
 Plug 'dylanaraps/fff.vim'
 Plug 'voldikss/vim-floaterm'
-Plug 'junegunn/vim-peekaboo'
 Plug 'SirVer/ultisnips'
 Plug 'honza/vim-snippets'
+Plug 'neovim/nvim-lspconfig'
 call plug#end()
 
 let g:UltiSnipsExpandTrigger="<C-Space>"
 let g:UltiSnipsJumpForwardTrigger="<c-b>"
 let g:UltiSnipsJumpBackwardTrigger="<c-z>"
 
+" Nerd Commenter
+let g:NERDDefaultAlign = 'left'
+
+" Deoplete Completion
+let g:deoplete#enable_at_startup = 1
+let g:deoplete#auto_complete_delay = 100
+function! s:check_back_space() abort "{{{
+  let col = col('.') - 1
+  return !col || getline('.')[col - 1]  =~ '\s'
+endfunction"}}}
+inoremap <silent><expr> <TAB>
+      \ pumvisible() ? "\<C-n>" :
+      \ <SID>check_back_space() ? "\<TAB>" :
+      \ deoplete#manual_complete()
 "
-" COC STUFF
+" PYLS stuff
 "
+" LanguageClient-neovim
+nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
+nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
+nnoremap <silent> cn :call LanguageClient#textDocument_rename()<CR>
 
-" Use tab for trigger completion with characters ahead and navigate.
-" Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
- "inoremap <silent><expr> <TAB>
-      "\ pumvisible() ? "\<C-n>" :
-      "\ <SID>check_back_space() ? "\<TAB>" :
-      "\ coc#refresh()
-"inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+" custom path for pyls
+let g:LanguageClient_serverCommands = {
+    \ 'python': ['/usr/local/bin/pyls-language-server'],
+\ }
+let g:LanguageClient_rootMarkers = ['.flake8', 'pom.xml']
 
-"function! s:check_back_space() abort
-  "let col = col('.') - 1
-  "return !col || getline('.')[col - 1]  =~# '\s'
-"endfunction
+"
+" ALE stuff
+"
+" Only run linters named in ale_linters settings.
+"let g:ale_linters_explicit = 1
+"" Set this. Airline will handle the rest.
+"let g:airline#extensions#ale#enabled = 1
 
-"" Use <c-space> to trigger completion.
-"inoremap <silent><expr> <c-space> coc#refresh()
 
-"" Remap keys for gotos
-"nmap <silent> <Leader>ad <Plug>(coc-definition)
-"nmap <silent> <Leader>at <Plug>(coc-type-definition)
-"nmap <silent> <Leader>ai <Plug>(coc-implementation)
-"" u for 'uses'
-"nmap <silent> <Leader>au <Plug>(coc-references)
-"nmap <silent> <Leader>ar :CocList -A symbols <CR>
-"nmap <silent> <Leader>al :CocList <CR>
-"nmap <silent> <Leader>as :CocList -I -A symbols<CR>
-"nmap <silent> <Leader>ah :call CocAction("doHover")<CR>
+" Remap keys for gotos
+nmap <silent> <Leader>ad <Plug>(lcn-definition)
+nmap <silent> <Leader>at <Plug>(lcn-type-definition)
+nmap <silent> <Leader>ai <Plug>(lcn-implementation)
+nmap <silent> <Leader>ar <Plug>(lcn-rename)
+" u for 'uses'
+nmap <silent> <Leader>au <Plug>(lcn-references)
+nmap <silent> <Leader>as <Plug>(lcn-symbols)
+nmap <silent> <Leader>ah <Plug>(lcn-hover)
+nmap <silent> <Leader>am <Plug>(lcn-menu)
 
 " adds comment highlighting to JSON
 autocmd FileType json syntax match Comment +\/\/.\+$+
@@ -124,17 +145,11 @@ autocmd FileType json syntax match Comment +\/\/.\+$+
 autocmd BufRead,BufNewFile TARGETS setfiletype conf
 autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 
-" Use `[g` and `]g` to navigate diagnostics
-nmap <silent> [g <Plug>(coc-diagnostic-prev)
-nmap <silent> ]g <Plug>(coc-diagnostic-next/
-
 " Use K to show documentation in preview window
 nnoremap <silent> K :call <SID>show_documentation()<CR>
 
-let g:python_host_prog = expand("~/virtualenvs/nvim_py2/bin/python")
-let g:python3_host_prog= expand("~/virtualenvs/nvim/bin/python3")
+let g:python3_host_prog=expand('~/bin/python3')
 
-let g:coc_node_path = expand("~/bin/node")
 
 "
 " 'fff' setup
@@ -146,9 +161,6 @@ nmap <Leader>fo :F<CR>
 
 " Airline theme
 let g:airline_theme='silver' "kind of mac-y
-" airline support for CoC
-let g:airline#extensions#coc#enabled = 1
-let g:airline_section_y = '%{coc#status()}'
 let g:airline_section_x = ''
 
 " all leader rebindings will be here
@@ -326,21 +338,13 @@ command! FbDiffusionLink call FbDiffusionLink()
 
 map <localleader>id :FbDiffusionLink<CR>
 
-"function! PropagatePasteBufferToOSX()
-  "let @n=getreg('"')
-  "call system('pbcopy-remote', @n)
-  "echo "done"
-"endfunction
+function! FbQueryOwner()
+    let current_file = expand('%:p')
+    let fbcode_path = split(current_file, "fbcode/upm/")
+    let file_path = fbcode_path[1]
+    execute "!" . "buck query " . "\"owner(" . file_path . ")\""
+endfunction
 
-"function! PopulatePasteBufferFromOSX()
-  "let @' = system('pbpaste-remote')
-  "echo "done"
-"endfunction
+command! FbQueryOwner call FbQueryOwner()
 
-nnoremap <Leader>c :call PopulatePasteBufferFromOSX()<CR>
-nnoremap <Leader>v :call PropagatePasteBufferToOSX()<CR>
-
-source /usr/facebook/ops/rc/vim/filetype.vim
-source /usr/facebook/ops/rc/vim/gitgrep.vim
-source /usr/facebook/ops/rc/vim/pyre.vim
-
+map <localleader>io :FbQueryOwner<CR>

@@ -29,6 +29,7 @@ export http_proxy=fwdproxy:8080
 export https_proxy=fwdproxy:8080
 
 PATH=$PATH:/home/alexpopov/.local/bin
+PATH=$PATH:/home/alexpopov/local/my_clones/bin
 export PATH
 PATH=/home/alexpopov/bin:$PATH
 PATH=$HOME/fbsource/xplat/third-party/yarn/:$PATH
@@ -54,13 +55,12 @@ function jk_goto_upm() {
 }
 
 function jk_test_frontend() {
-    jk_PWD=$(pwd);
+    local jk_PWD=$(pwd);
     cd $UPM_PATH;
     echo '> buck test //upm/frontend/tests:tests' $@
     buck test //upm/frontend/tests:tests $@;
     cd $jk_PWD;
-    unset jk_PWD;
-    echo '> buck test //upm/tests:frontend_tests' $@
+    echo '> buck test //upm/frontend/tests:tests' $@
 }
 
 function jk_test_sql() {
@@ -81,13 +81,12 @@ function jk_test_sql() {
 }
 
 function jk_test_all() {
-    jk_PWD=$(pwd);
+    local jk_PWD=$(pwd);
     cd $UPM_PATH;
     echo '> buck test //upm/tests/...'
     buck test //upm/frontend/...;
     echo '> buck test //upm/tests/...'
     cd $jk_PWD;
-    unset jk_PWD
 }
 
 function jk_amend() {
@@ -120,26 +119,33 @@ function jk_source_profile() {
 }
 
 function jk_diff_stat() {
-    jk_PWD=$(pwd)
+    local jk_PWD=$(pwd)
     cd $UPM_PATH;
     echo '> hg diff -r master --stat'
     hg diff -r master --stat
     cd $jk_PWD
-    unset jk_PWD
 }
 
 function jk_warm() {
-    jk_PWD=$(pwd)
+    local jk_PWD=$(pwd)
     cd $UPM_PATH;
     echo '> hg up remote/fbcode/warm'
     hg up remote/fbcode/warm
     cd $jk_PWD
-    unset jk_PWD
 }
 
 function jk_diff_vim() {
     echo 'hg diff | vimdiff -R'
     hg diff $@ | vimdiff -R
+}
+
+function jk_rebase_diffs() {
+    local warm="remote/fbcode/warm"
+    for hash in $@
+    do
+        echo "  jk: rebasing $hash onto $warm"
+        hg rebase -b $hash -d $warm
+    done
 }
 
 function agr {
