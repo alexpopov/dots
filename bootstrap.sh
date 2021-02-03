@@ -9,81 +9,109 @@ trap 'last_command=$current_command; current_command=$BASH_COMMAND' DEBUG
 # echo an error message before exiting
 trap 'echo "\"${last_command}\" command filed with exit code $?."' EXIT
 
+# important dirs
 bootstrap_dir=$HOME/bootstrap
+dots_dir=$bootstrap_dir/dots
+home_bin=$HOME/local/bin
+config_dir=$HOME/.config
+nvim_dir=$config_dir/nvim
+nvim_colors=$nvim_dir/colors
+tmux_dir=$HOME/.tmux
+
+# Create the directory structures we need ahead of time
+mkdir -p $bootstrap_dir $dots_dir $home_bin $config_dir $nvim_dir $nvim_colors $tmux_dir
+
+# important dot files
+my_bash_profile=$HOME/.my_bash_profile
+nvim_init=$nvim_dir/init.vim
+tmux_conf=$HOME/.tmux.conf
+input_rc=$HOME/.inputrc
 
 mkdir -p $bootstrap_dir
-cd $bootstrap_dir
+mkdir -p $home_bin
 
-function install_lua() {
-	echo 'lua not found. Downloading and installing lua'
-	curl -R -O http://www.lua.org/ftp/lua-5.4.2.tar.gz 
-	tar zxf lua-5.4.2.tar.gz
-	cd lua-5.4.2
-	sudo make install
-}
+unameOut="$(uname -s)"
+case "${unameOut}" in
+	Linux*)     machine=Linux;;
+	Darwin*)    machine=Mac;;
+	*)          machine="UNKNOWN:${unameOut}"
+esac
 
-# Step 0: Do we have git? It's a pre-req
-if ! command -v git &> /dev/null
+
+echo "successfully aliased $pkg_install"
+
+if ! command -v apt-get
 then
-	echo "no git; please manually install git"
-	set +e
-	trap - DEBUG
-	trap - EXIT
+	echo "error; apt-get is not valid on this system."
+	echo "please specify how to get packages and retry"
 	exit 1
 fi
 
-# Step 1: Get Lua
-if ! command -v lua &> /dev/null
+#
+#
+# Begin Script!
+#
+#
+function pkg_install () {
+	# choose which package manager to use
+	sudo apt-get install $@
+}
+
+function maybe_install() {
+	if ! command -v $1
+	then
+		echo "installing $1"
+		pkg_install $1
+	fi
+}
+
+# Install the basics
+maybe_install git
+maybe_install mosh
+maybe_install tmux
+
+# Clone the dots dir if we don't have it
+if [[ $(ls -A $dots_dir) = "" ]]
 then
-	echo "no lua at all"
-	install_lua
+	echo "cloning dots repo into $dots_dir"
+	git clone git@github.com:alexpopov/dots.git $dots_dir
 fi
 
-lua_v=$(lua -e "print(_VERSION)")  
+# Symlink the files we need:
+ln -sf $dots_dir/bash_profile $my_bash_profile
+ln -sf $dots_dir/init.vim $nvim_init
+ln -sf $dots_dir/tmux.conf $tmux_conf
+ln -sf $dots_dir/tmux/plugins $tmux_dir/plugins
+ln -sf $dots_dir/inputrc $input_rc
 
-if ! [[ $lua_v = "Lua 5.4" ]]
+# Append and source my bash profile
+echo "source $my_bash_profile" >> $HOME/.bashrc
+source $my_bash_profile
+
+#
+
+# Figure out what to do with nvim... 
+# app images won't work on raspberry pi due to architecture and they won't work on Macs
+
+# Manually install latest nvim
+if [[ $machine = "Mac" ]]
 then
-	echo "wrong lua version"
-	install_lua
+	echo "You must handle installing nvim yourself. Try to get a nightly version if possible!"
+else
+	# we're assuming we're on linux now and can use app-images
+	wget -P $bootstrap_dir https://github.com/neovim/neovim/releases/download/nightly/nvim.appimage 
+	chmod u+x $bootstrap_dir/nvim.appimage
+	# make the links
+	ln -sf $bootstrap_dir/nvim.appimage $home_bin/vim
+	ln -sf $bootstrap_dir/xcode.vim $nvim_colors/xcode.vim
 fi
 
-cd $bootstrap_dir
-echo ''
-echo 'lua okay'
-echo ''
 
-if ! lua -e 'require("socket")' &> /dev/null
+
+# Install Plug
+if [[ ! -f $nvim_dir/site/autoload/plug.vim ]]
 then
-	echo 'lua rocks not found. Downloading and installing lua rock'
-	wget https://luarocks.org/releases/luarocks-3.5.0.tar.gz
-	tar zxpf luarocks-3.5.0.tar.gz
-	cd luarocks-3.5.0
-	./configure --with-lua-include=/usr/local/include/ --with-lua-version=5.4
-	make 
-	sudo make install
-	cd $HOME
-	luarocks install luasocket --local
-	lua -e 'require("socket")'
-
+	curl -fLo "$nvim_dir/site/autoload/plug.vim" --create-dirs 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 fi
 
-cd $bootstrap_dir
-echo ''
-echo 'lua rocks okay'
-echo ''
-
-if ! lua -e 'require("sh")' &> /dev/null
-then
-	echo 'missing luas sh package. Installing'
-	luarocks install --server=http://luarocks.org/dev luash --local
-	lua -e 'require("sh")'
-fi
-
-cd $bootstrap_dir
-echo ''
-echo 'luash installed'
-echo ''
-
-unset -f install_lua
-
-
+nvim --headless +PlugInstall +qa
