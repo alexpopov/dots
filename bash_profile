@@ -148,6 +148,11 @@ function jk_rebase_diffs() {
     done
 }
 
+function jk_flire() {
+    echo "arc f && arc lint && pyre"
+    arc f && arc lint && pyre
+}
+
 function agr {
     ag -0 -l "$1" | AGR_FROM="$1" AGR_TO="$2" xargs -r0 perl -pi -e 's/$ENV{AGR_FROM}/$ENV{AGR_TO}/g';
 }

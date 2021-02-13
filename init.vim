@@ -59,11 +59,11 @@ set signcolumn=no
 set diffopt+=internal,algorithm:patience
 
 call plug#begin()
+Plug 'guns/xterm-color-table.vim'
 Plug 'roxma/nvim-yarp'  " some thing for remote plugins
 Plug 'vim-airline/vim-airline' " vim bottom-bar  + themes
 Plug 'vim-airline/vim-airline-themes'
 Plug 'scrooloose/nerdcommenter' " comment code out
-Plug 'numirias/semshi'  " awesome python highlighter
 Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
 Plug 'junegunn/fzf.vim' " extra vim bindings for fzf
 Plug 'machakann/vim-Verdin' " autocomplete for vimscript
@@ -71,73 +71,63 @@ Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
 Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
 Plug 'haya14busa/incsearch.vim'  " better incremental search
 Plug 'tpope/vim-surround'        " surround stuff in shit
-Plug 'autozimu/LanguageClient-neovim', {
-    \ 'branch': 'next',
-    \ 'do': 'bash install.sh',
-\ }
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'derekwyatt/vim-scala'
-Plug 'jrozner/vim-antlr'
-Plug 'vim-python/python-syntax'
-Plug 'junegunn/rainbow_parentheses.vim'
-Plug 'dylanaraps/fff.vim'
 Plug 'voldikss/vim-floaterm'
 Plug 'SirVer/ultisnips'
 Plug 'honza/vim-snippets'
 Plug 'neovim/nvim-lspconfig'
+Plug 'numirias/semshi'  " awesome python highlighter
+"Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 call plug#end()
 
-let g:UltiSnipsExpandTrigger="<C-Space>"
+let g:UltiSnipsExpandTrigger="<c-y>"
 let g:UltiSnipsJumpForwardTrigger="<c-b>"
 let g:UltiSnipsJumpBackwardTrigger="<c-z>"
+let g:UltiSnipsSnippetsDir=[$HOME.'/.config/nvim/UltiSnips']
+
 
 " Nerd Commenter
 let g:NERDDefaultAlign = 'left'
 
 " Deoplete Completion
 let g:deoplete#enable_at_startup = 1
-let g:deoplete#auto_complete_delay = 100
+call deoplete#custom#option('auto_complete_delay', 100)
 function! s:check_back_space() abort "{{{
   let col = col('.') - 1
   return !col || getline('.')[col - 1]  =~ '\s'
 endfunction"}}}
-inoremap <silent><expr> <TAB>
-      \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ deoplete#manual_complete()
+call deoplete#custom#source('_', 'sorters', ['sorter_word'])
+call deoplete#custom#source('ultisnips', 'rank', 7500)
 "
 " PYLS stuff
 "
 " LanguageClient-neovim
-nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
-nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
-nnoremap <silent> cn :call LanguageClient#textDocument_rename()<CR>
+"nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
+"nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
+"nnoremap <silent> cn :call LanguageClient#textDocument_rename()<CR>
 
 " custom path for pyls
-let g:LanguageClient_serverCommands = {
-    \ 'python': ['/usr/local/bin/pyls-language-server'],
-\ }
-let g:LanguageClient_rootMarkers = ['.flake8', 'pom.xml']
+"let g:LanguageClient_serverCommands = {
+"    \ 'python': ['/usr/local/bin/pyls-language-server'],
+"\ }
+"let g:LanguageClient_rootMarkers = ['.flake8', 'pom.xml']
 
-"
-" ALE stuff
-"
-" Only run linters named in ale_linters settings.
-"let g:ale_linters_explicit = 1
-"" Set this. Airline will handle the rest.
-"let g:airline#extensions#ale#enabled = 1
+" built-in LSP
+lua << EOF
+config = require('config')
+EOF
 
 
 " Remap keys for gotos
-nmap <silent> <Leader>ad <Plug>(lcn-definition)
-nmap <silent> <Leader>at <Plug>(lcn-type-definition)
-nmap <silent> <Leader>ai <Plug>(lcn-implementation)
-nmap <silent> <Leader>ar <Plug>(lcn-rename)
-" u for 'uses'
-nmap <silent> <Leader>au <Plug>(lcn-references)
-nmap <silent> <Leader>as <Plug>(lcn-symbols)
-nmap <silent> <Leader>ah <Plug>(lcn-hover)
-nmap <silent> <Leader>am <Plug>(lcn-menu)
+"nmap <silent> <Leader>ad <Plug>(lcn-definition)
+"nmap <silent> <Leader>at <Plug>(lcn-type-definition)
+"nmap <silent> <Leader>ai <Plug>(lcn-implementation)
+"nmap <silent> <Leader>ar <Plug>(lcn-rename)
+"" u for 'uses'
+"nmap <silent> <Leader>au <Plug>(lcn-references)
+"nmap <silent> <Leader>as <Plug>(lcn-symbols)
+"nmap <silent> <Leader>ah <Plug>(lcn-hover)
+"nmap <silent> <Leader>am <Plug>(lcn-menu)
 
 " adds comment highlighting to JSON
 autocmd FileType json syntax match Comment +\/\/.\+$+
@@ -182,7 +172,6 @@ map <localleader>b :edit ~/.bash_profile<CR>
 "
 " Fuzzy File Finder
 "
-
 map <leader>fa :Ag<CR>
 map <leader>fb :Buffers<CR>
 map <leader>fh :BLines<CR>
@@ -280,32 +269,6 @@ endfunction
 
 map <localleader>hd :call ViewDiff()<CR>
 
-
-"" Automatically toggle paste mode
-"" + wrapping for being inside of tmux
-"" see for more details: https://coderwall.com/p/if9mda/automatically-set-paste-mode-in-vim-when-pasting-in-insert-mode
-"function! WrapForTmux(s)
-  "if !exists('$TMUX')
-    "return a:s
-  "endif
-
-  "let tmux_start = "\<Esc>Ptmux;"
-  "let tmux_end = "\<Esc>\\"
-
-  "return tmux_start . substitute(a:s, "\<Esc>", "\<Esc>\<Esc>", 'g') . tmux_end
-"endfunction
-
-"let &t_SI .= WrapForTmux("\<Esc>[?2004h")
-"let &t_EI .= WrapForTmux("\<Esc>[?2004l")
-
-"function! XTermPasteBegin()
-  "set pastetoggle=<Esc>[201~
-  "set paste
-  "return ""
-"endfunction
-
-"inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
-
 "
 " Float Term Setup
 "
@@ -348,3 +311,6 @@ endfunction
 command! FbQueryOwner call FbQueryOwner()
 
 map <localleader>io :FbQueryOwner<CR>
+
+command! PrintLspClients lua print(vim.inspect(vim.lsp.buf_get_clients()))
+command! RestartLspClients lua require'config'.launch_pyls()
