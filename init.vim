@@ -79,6 +79,7 @@ Plug 'neovim/nvim-lspconfig'
 Plug 'numirias/semshi'  " awesome python highlighter
 Plug 'rktjmp/lush.nvim' " themeing thing
 Plug 'pwntester/nautilus.nvim'
+Plug 'dylon/vim-antlr'
 "Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 call plug#end()
 
@@ -245,6 +246,17 @@ function! SemshiOverrides()
 endfunction
 autocmd FileType python call SemshiOverrides()
 call SemshiOverrides()
+
+function! RegisterAntlrCommands()
+    " Add command mappings for Antlr
+
+    " Jump to definition of current symbol under cursor;
+    " search for word but for line starting with it
+    nnoremap <Leader>ad /^\<<C-r><C-w>\>/<CR>
+
+endfunction
+
+autocmd FileType antlr4 call RegisterAntlrCommands()
 
 "" Semshi bindings
 map <leader>sr  :Semshi rename <CR>
