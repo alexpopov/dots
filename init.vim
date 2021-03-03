@@ -77,6 +77,8 @@ Plug 'SirVer/ultisnips'
 Plug 'honza/vim-snippets'
 Plug 'neovim/nvim-lspconfig'
 Plug 'numirias/semshi'  " awesome python highlighter
+Plug 'rktjmp/lush.nvim' " themeing thing
+Plug 'pwntester/nautilus.nvim'
 "Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 call plug#end()
 
@@ -163,6 +165,8 @@ map <leader>m %
 " Clear search
 map <silent> <C-x> :nohl<CR>
 map <silent> <leader>r :nohl<CR>
+
+map <silent> <leader>fc /<<<<<<<\\|=======\\|>>>>>>><CR>
 
 "
 map <localleader>r :source ~/.config/nvim/init.vim<CR>

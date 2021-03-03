@@ -1,6 +1,9 @@
 lspconfig = require'lspconfig'
 
-local on_attach = function(client, bufnr)
+
+local module = {}
+
+function module.on_attach(client, bufnr)
   local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
   local function buf_set_option(...) vim.api.nvim_buf_set_option(bufnr, ...) end
 
@@ -46,49 +49,15 @@ local on_attach = function(client, bufnr)
   end
 end
 
-launch_pyls = function()
-    lspconfig.pyls.setup {
-        cmd = { "pyls-language-server" };
+function module.launch_pyls()
+    lspconfig.pyls.setup{
+        cmd = { "/usr/local/bin/pyls-language-server" };
         root_dir = lspconfig.util.root_pattern('.flake8');
-        on_attach = on_attach;
+        on_attach = module.on_attach;
+        log_level = vim.lsp.protocol.MessageType.Log;
     }
 end
-launch_pyls()
 
+module.launch_pyls()
 
---lspconfig["pyls"].setup {
---}
---local servers = { "pyls" }
---for _, lsp in ipairs(servers) do
---  lspconfig[lsp].setup { on_attach = on_attach }
---end
-
-
--- Treesitter Configs
--- This is pretty cool but not as powerful as Semshi
--- putting away for now
---
---
---local treesitter_config = require'nvim-treesitter.configs'
---treesitter_config.setup {
---  ensure_installed = "maintained", -- one of "all", "maintained" (parsers with maintainers), or a list of languages
---  highlight = {
---      enable = true,
---      -- Highlight the @foo.bar capture group with the "Identifier" highlight group
---      custom_captures = {
---          ["keyword"] = "Statement",
---          ["include"] = "Statement",
---          ["operator"] = "Operator",
---          ["function.builtin"] = "Constant",
---          ["variable.builtin"] = "Self",
---          ["function.method"] = "Identifier",
---          ["boolean"] = "Boolean",
---          ["type"] = "Type",
---          ["punctuation.bracket"] = "Delimiter",
---          ["punctuation.special"] = "Constant",
---          ["type.builtin"] = "BuiltinFunction",
---          ["method"] = "Identifier",
---          ["isinstance"] = "Statement",
---      },
---  },
---}
+return module

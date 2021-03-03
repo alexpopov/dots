@@ -28,11 +28,10 @@ export no_proxy=".fbcdn.net,.facebook.com,.thefacebook.com,.tfbnw.net,.fb.com,.f
 export http_proxy=fwdproxy:8080
 export https_proxy=fwdproxy:8080
 
-PATH=$PATH:/home/alexpopov/.local/bin
-PATH=$PATH:/home/alexpopov/local/my_clones/bin
+PATH=/home/alexpopov/.local/bin:$PATH
+PATH=/home/alexpopov/local/my_clones/bin:$PATH
 export PATH
 PATH=/home/alexpopov/bin:$PATH
-PATH=$HOME/fbsource/xplat/third-party/yarn/:$PATH
 export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
 
@@ -167,7 +166,7 @@ alias ls="ls -G --color=always"
 
 # Set this to what editor you want to use if
 # Bash needs to show you one
-export EDITOR=/home/alexpopov/bin/vim
+export EDITOR=/usr/local/bin/nvim
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
 # too often when I think I'm in vim
