@@ -80,7 +80,10 @@ Plug 'numirias/semshi'  " awesome python highlighter
 Plug 'rktjmp/lush.nvim' " themeing thing
 Plug 'pwntester/nautilus.nvim'
 Plug 'dylon/vim-antlr'
+Plug 'solarnz/thrift.vim'
 "Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
+Plug 'qpkorr/vim-bufkill'
+Plug 'wesQ3/vim-windowswap'
 call plug#end()
 
 let g:UltiSnipsExpandTrigger="<c-y>"
@@ -101,36 +104,11 @@ function! s:check_back_space() abort "{{{
 endfunction"}}}
 call deoplete#custom#source('_', 'sorters', ['sorter_word'])
 call deoplete#custom#source('ultisnips', 'rank', 7500)
-"
-" PYLS stuff
-"
-" LanguageClient-neovim
-"nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
-"nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
-"nnoremap <silent> cn :call LanguageClient#textDocument_rename()<CR>
 
-" custom path for pyls
-"let g:LanguageClient_serverCommands = {
-"    \ 'python': ['/usr/local/bin/pyls-language-server'],
-"\ }
-"let g:LanguageClient_rootMarkers = ['.flake8', 'pom.xml']
-
-" built-in LSP
 lua << EOF
 config = require('config')
 EOF
 
-
-" Remap keys for gotos
-"nmap <silent> <Leader>ad <Plug>(lcn-definition)
-"nmap <silent> <Leader>at <Plug>(lcn-type-definition)
-"nmap <silent> <Leader>ai <Plug>(lcn-implementation)
-"nmap <silent> <Leader>ar <Plug>(lcn-rename)
-"" u for 'uses'
-"nmap <silent> <Leader>au <Plug>(lcn-references)
-"nmap <silent> <Leader>as <Plug>(lcn-symbols)
-"nmap <silent> <Leader>ah <Plug>(lcn-hover)
-"nmap <silent> <Leader>am <Plug>(lcn-menu)
 
 " adds comment highlighting to JSON
 autocmd FileType json syntax match Comment +\/\/.\+$+
@@ -141,7 +119,7 @@ autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 " Use K to show documentation in preview window
 nnoremap <silent> K :call <SID>show_documentation()<CR>
 
-let g:python3_host_prog=expand('~/bin/python3')
+let g:python3_host_prog=expand('~/venv/bin/python')
 
 
 "
@@ -171,6 +149,8 @@ map <silent> <leader>fc /<<<<<<<\\|=======\\|>>>>>>><CR>
 
 "
 map <localleader>r :source ~/.config/nvim/init.vim<CR>
+" reload color
+map <localleader>rc :syntax sync fromstart<CR>
 map <localleader>e :edit ~/.config/nvim/init.vim<CR>
 map <localleader>b :edit ~/.bash_profile<CR>
 

@@ -50,7 +50,7 @@ function module.on_attach(client, bufnr)
 end
 
 function module.launch_pyls()
-    lspconfig.pyls.setup{
+    lspconfig.pylsp.setup{
         cmd = { "/usr/local/bin/pyls-language-server" };
         root_dir = lspconfig.util.root_pattern('.flake8');
         on_attach = module.on_attach;
