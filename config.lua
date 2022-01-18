@@ -1,4 +1,4 @@
-lspconfig = require'lspconfig'
+nvim_lsp = require('lspconfig')
 
 
 local module = {}
@@ -50,9 +50,9 @@ function module.on_attach(client, bufnr)
 end
 
 function module.launch_pyls()
-    lspconfig.pylsp.setup{
+    nvim_lsp['pylsp'].setup{
         cmd = { "/usr/local/bin/pyls-language-server" };
-        root_dir = lspconfig.util.root_pattern('.flake8');
+        root_dir = nvim_lsp.util.root_pattern('.flake8');
         on_attach = module.on_attach;
         log_level = vim.lsp.protocol.MessageType.Log;
     }
