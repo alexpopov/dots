@@ -1,3 +1,4 @@
+source $ADMIN_SCRIPTS/master.vimrc
 " some tab shit
 set tabstop=4				" 2 space tabs
 set softtabstop=4 	" number of spaces in a tab when editing
@@ -279,7 +280,6 @@ let g:floaterm_width = 0.6
 map <localleader>sn     :FloatermNew<Space>
 map <localleader>sr     :FloatermNew buck run //upm<CR>
 
-
 "
 " Facebook Stuff
 "
@@ -310,3 +310,4 @@ map <localleader>io :FbQueryOwner<CR>
 
 command! PrintLspClients lua print(vim.inspect(vim.lsp.buf_get_clients()))
 command! RestartLspClients lua require'config'.launch_pyls()
+

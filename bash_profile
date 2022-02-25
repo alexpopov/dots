@@ -156,6 +156,23 @@ function agr {
     ag -0 -l "$1" | AGR_FROM="$1" AGR_TO="$2" xargs -r0 perl -pi -e 's/$ENV{AGR_FROM}/$ENV{AGR_TO}/g';
 }
 
+HOLLYWOOD_ROOT=$HOME/local/oculus-10.0
+HOLLYWOOD_LUNCH=hollywood-userdebug
+
+function jk_prephollywood() {
+    pushd $HOLLYWOOD_ROOT
+    echo 'Sourcing `envsetup.sh`'
+    source build/envsetup.sh
+    echo 'running `lunch`'
+    lunch $HOLLYWOOD_LUNCH
+    popd
+}
+
+function jk_adb_restart() {
+    adb kill-server
+    adb devices
+}
+
 
 #alias tmux="TERM=tmux-256color tmux"
 
@@ -176,3 +193,10 @@ bind -r '\C-l'
 
 warm=fbcode/warm
 
+. ~/.bash_profile_aosp
+
+# added by setup_fb4a.sh
+export ANDROID_SDK=/opt/android_sdk
+export ANDROID_NDK_REPOSITORY=/opt/android_ndk
+export ANDROID_HOME=${ANDROID_SDK}
+export PATH=${PATH}:${ANDROID_SDK}/emulator:${ANDROID_SDK}/tools:${ANDROID_SDK}/tools/bin:${ANDROID_SDK}/platform-tools

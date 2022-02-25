@@ -1,7 +1,13 @@
-lspconfig = require'lspconfig'
+nvim_lsp = require('lspconfig')
 
 
 local module = {}
+
+local opts = { noremap=true, silent=true }
+vim.api.nvim_set_keymap('n', '<Leader>e', '<cmd>lua vim.diagnostic.open_float()<CR>', opts)
+vim.api.nvim_set_keymap('n', '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>', opts)
+vim.api.nvim_set_keymap('n', ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>', opts)
+vim.api.nvim_set_keymap('n', '<Leader>q', '<cmd>lua vim.diagnostic.setloclist()<CR>', opts)
 
 function module.on_attach(client, bufnr)
   local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
@@ -23,9 +29,6 @@ function module.on_attach(client, bufnr)
   buf_set_keymap('n', '<Leader>ar', '<cmd>lua vim.lsp.buf.rename()<CR>', opts)
   buf_set_keymap('n', '<Leader>au', '<cmd>lua vim.lsp.buf.references()<CR>', opts)
   --buf_set_keymap('n', '<space>e', '<cmd>lua vim.lsp.diagnostic.show_line_diagnostics()<CR>', opts)
-  buf_set_keymap('n', '[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>', opts)
-  buf_set_keymap('n', ']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<CR>', opts)
-  buf_set_keymap('n', '<Leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<CR>', opts)
 
   -- Set some keybinds conditional on server capabilities
   if client.resolved_capabilities.document_formatting then
@@ -50,9 +53,9 @@ function module.on_attach(client, bufnr)
 end
 
 function module.launch_pyls()
-    lspconfig.pylsp.setup{
-        cmd = { "/usr/local/bin/pyls-language-server" };
-        root_dir = lspconfig.util.root_pattern('.flake8');
+    nvim_lsp['pylsp'].setup{
+        cmd = { "/home/alexpopov/fbsource/xplat/vscode/vscode-extensions/pyls/src/pyls" };
+        root_dir = nvim_lsp.util.root_pattern('.flake8');
         on_attach = module.on_attach;
         log_level = vim.lsp.protocol.MessageType.Log;
     }
