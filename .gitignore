@@ -6,8 +6,6 @@ config/nvim/lua/private/
 config/nvim/private/
 config/lazygit/state.yml
 
-
-
 ### macOS:
 # General
 .DS_Store
