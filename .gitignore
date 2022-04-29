@@ -1,9 +1,12 @@
-
 ### Internal
 config/nvim/plugged
 config/nvim/plugin
 config/bash/private
 config/nvim/lua/private/
+config/nvim/private/
+config/lazygit/state.yml
+
+
 
 ### macOS:
 # General

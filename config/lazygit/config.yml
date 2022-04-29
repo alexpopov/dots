@@ -1,0 +1,10 @@
+gui:
+  theme:
+    lightTheme: true
+    activeBorderColor:
+      - magenta
+      - bold
+    inactiveBorderColor:
+      - black
+    selectedLineBgColor:
+      - default
