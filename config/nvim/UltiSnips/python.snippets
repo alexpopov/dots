@@ -1,0 +1,74 @@
+snippet na
+$1=$1,
+endsnippet
+
+snippet defv
+def visit_${1:Query}(
+	self, node: ${2:api.}$1
+) -> $2$1:
+	$0
+	return node
+endsnippet
+
+snippet defr1
+def replace_${1:Query}(
+	node: $4$1,
+	*,
+	$2: Union[$3, MissingField] = MISSING,
+) -> $1:
+	$2 = node.$2 if is_missing($2) else unwrap($2)
+	if (
+		$2 is node.$2
+	):
+	return $4$1.create(
+		location=node.location,
+		$2=$2,
+		$0
+	)
+endsnippet
+
+snippet defr2
+def replace_${1:Query}(
+	node: $4$1,
+	*,
+	$2: Union[$3, MissingField] = MISSING,
+	$5: Union[$6, MissingField] = MISSING,
+) -> $1:
+	$2 = node.$2 if is_missing($2) else unwrap($2)
+	$5 = node.$5 if is_missing($5) else unwrap($5)
+	if (
+		$2 is node.$2
+		and $5 is node.$5
+	):
+	return $4$1.create(
+		location=node.location,
+		$2=$2,
+		$5=$5,
+		$0
+	)
+endsnippet
+
+snippet defr3
+def replace_${1:Query}(
+	node: $4$1,
+	*,
+	$2: Union[$3, MissingField] = MISSING,
+	$5: Union[$6, MissingField] = MISSING,
+	$7: Union[$8, MissingField] = MISSING,
+) -> $1:
+	$2 = node.$2 if is_missing($2) else unwrap($2)
+	$5 = node.$5 if is_missing($5) else unwrap($5)
+	$7 = node.$7 if is_missing($7) else unwrap($7)
+	if (
+		$2 is node.$2
+		and $5 is node.$5
+		and $5 is node.$5
+	):
+	return $4$1.create(
+		location=node.location,
+		$2=$2,
+		$5=$5,
+		$7=$7,
+		$0
+	)
+endsnippet

@@ -15,12 +15,6 @@ let maplocalleader = '\'
 colorscheme xcode
 set autoread
 
-"set termguicolors
-" ???
-"let &t_8f = "\[38;2;%lu;%lu;%lum"
-"let &t_8b = "\[48;2;%lu;%lu;%lum"
-" </???>
-
 " remove whitespace at end of lines
 autocmd BufWritePre * :%s/\s\+$//e
 
@@ -72,7 +66,7 @@ Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
 Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
 Plug 'haya14busa/incsearch.vim'  " better incremental search
 Plug 'tpope/vim-surround'        " surround stuff in shit
-Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+"Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'voldikss/vim-floaterm'
 Plug 'SirVer/ultisnips'
 Plug 'honza/vim-snippets'
@@ -82,32 +76,26 @@ Plug 'rktjmp/lush.nvim' " themeing thing
 Plug 'pwntester/nautilus.nvim'
 Plug 'dylon/vim-antlr'
 Plug 'solarnz/thrift.vim'
-"Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 Plug 'qpkorr/vim-bufkill'
 Plug 'wesQ3/vim-windowswap'
 call plug#end()
-
-let g:UltiSnipsExpandTrigger="<c-y>"
-let g:UltiSnipsJumpForwardTrigger="<c-b>"
-let g:UltiSnipsJumpBackwardTrigger="<c-z>"
-let g:UltiSnipsSnippetsDir=[$HOME.'/.config/nvim/UltiSnips']
 
 
 " Nerd Commenter
 let g:NERDDefaultAlign = 'left'
 
 " Deoplete Completion
-let g:deoplete#enable_at_startup = 1
-call deoplete#custom#option('auto_complete_delay', 100)
-function! s:check_back_space() abort "{{{
-  let col = col('.') - 1
-  return !col || getline('.')[col - 1]  =~ '\s'
-endfunction"}}}
-call deoplete#custom#source('_', 'sorters', ['sorter_word'])
-call deoplete#custom#source('ultisnips', 'rank', 7500)
+"let g:deoplete#enable_at_startup = 1
+"call deoplete#custom#option('auto_complete_delay', 100)
+"function! s:check_back_space() abort "{{{
+"  let col = col('.') - 1
+"  return !col || getline('.')[col - 1]  =~ '\s'
+"endfunction"}}}
+"call deoplete#custom#source('_', 'sorters', ['sorter_word'])
+"call deoplete#custom#source('ultisnips', 'rank', 7500)
 
 lua << EOF
-config = require('config')
+config = require('lua_init')
 EOF
 
 
@@ -190,7 +178,6 @@ map <Leader>gp <Plug>(easymotion-prev)
 
 map  <Leader>/ <Plug>(easymotion-sn)
 omap <Leader>/ <Plug>(easymotion-tn)
-
 
 "
 "Python Highlighting with Semshi
@@ -278,36 +265,6 @@ let g:floaterm_position      = 'center'
 let g:floaterm_width = 0.6
 
 map <localleader>sn     :FloatermNew<Space>
-map <localleader>sr     :FloatermNew buck run //upm<CR>
 
-"
-" Facebook Stuff
-"
-"
-function! FbDiffusionLink()
-    let url_prefix = "https://our.internmc.facebook.com/intern/diffusion/FBS/browse/master/"
-    let current_file = expand('%:p')
-    let fbcode_path = split(current_file, "fbsource/")
-    let file_path = fbcode_path[1]
-    let url = join([url_prefix, file_path, "?lines=", line(".")], "")
-    execute "!" . "fburl" . " " . url
-endfunction
-
-command! FbDiffusionLink call FbDiffusionLink()
-
-map <localleader>id :FbDiffusionLink<CR>
-
-function! FbQueryOwner()
-    let current_file = expand('%:p')
-    let fbcode_path = split(current_file, "fbcode/upm/")
-    let file_path = fbcode_path[1]
-    execute "!" . "buck query " . "\"owner(" . file_path . ")\""
-endfunction
-
-command! FbQueryOwner call FbQueryOwner()
-
-map <localleader>io :FbQueryOwner<CR>
-
-command! PrintLspClients lua print(vim.inspect(vim.lsp.buf_get_clients()))
-command! RestartLspClients lua require'config'.launch_pyls()
-
+" Facebook stuff
+source ~/.config/nvim/private/facebook.vim

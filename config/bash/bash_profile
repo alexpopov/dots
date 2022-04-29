@@ -1,0 +1,137 @@
+# interactive shells.  However, in some circumstances, bash sources bashrc even
+# in non-interactive shells (e.g., when using scp), so it is standard practice
+# to check for interactivity at the top of .bashrc and return immediately if
+# the shell is not interactive.  The following line does that; don't remove it!
+#fi
+
+# vi: ft=sh
+
+#if [ -z "$PS1" ]; then
+    #return
+#fi
+
+# Load CentOS stuff and Facebook stuff (don't remove these lines).
+source /etc/bashrc
+
+# Private and not to be commited
+. ~/.bash_profile_aosp
+. ~/.bash_profile_fbcode
+
+# Keep oodles of command history (see https://fburl.com/bashhistory).
+HISTFILESIZE=-1
+HISTSIZE=1000000
+shopt -s histappend
+
+# Set up personal aliases, functions, etc.  See https://fburl.com/bash.
+alias notify='echo SEND_TERMINAL_NOTIFICATION'
+alias vimdiff='/home/alexpopov/bin/vim -d'
+# Add colors to `ls`
+alias ls="ls -G --color=always"
+alias lg=lazygit
+
+
+PS1="\[\033[1;38m\]\]\[\$\] \[\033[0;38m\]"
+PS1="\n$PS1"
+
+PATH=/home/alexpopov/.local/bin:$PATH
+PATH=/home/alexpopov/random_clones/bin:$PATH
+export PATH
+PATH=/home/alexpopov/bin:$PATH
+export PATH
+export NODE_PATH="/usr/local/lib/node_modules"
+
+test -e "${HOME}/.iterm2_shell_integration.bash" && source "${HOME}/.iterm2_shell_integration.bash"
+
+
+# My Functions
+
+function jk_amend() {
+    echo '> hg amend';
+    hg amend;
+}
+
+function jk_source_profile() {
+    echo '> sourcing bash_profile...';
+    source ~/.bash_profile;
+}
+
+function jk_diff_stat() {
+    local jk_PWD=$(pwd)
+    cd $UPM_PATH;
+    echo '> hg diff -r master --stat'
+    hg diff -r master --stat
+    cd $jk_PWD
+}
+
+function jk_diff_vim() {
+    echo 'hg diff | vimdiff -R'
+    hg diff $@ | vimdiff -R
+}
+
+function jk_flire() {
+    echo "arc f && arc lint && pyre"
+    arc f && arc lint && pyre
+}
+
+function agr {
+    ag -0 -l "$1" | AGR_FROM="$1" AGR_TO="$2" xargs -r0 perl -pi -e 's/$ENV{AGR_FROM}/$ENV{AGR_TO}/g';
+}
+
+function jk_m_sync {
+    echo 'm '"$1"' && adb sync'
+    m "$1" && adb sync
+}
+
+function jk_clean {
+    pushd ~/local/oculus-10.0
+    echo 'm installclean'
+    m installclean
+    echo 'rm -rf $OUT/obj/KERNEL_OBJ'
+    rm -rf $OUT/obj/KERNEL_OBJ
+    popd
+}
+
+function jk_build_os {
+    m flash-all-staging
+}
+
+function jk_adb_restart() {
+    adb kill-server
+    adb devices
+}
+
+function jk_monday() {
+    jk_repo_sync
+    jk_clean
+    jk_build_os
+}
+
+# tmux resizing
+function jk_tmux_resize_third () {
+    ~/.tmux/scripts/resize-adaptable.sh -p 33 -l main-vertical
+}
+
+function jk_tmux_resize_small () {
+    ~/.tmux/scripts/resize-adaptable.sh -p 25 -l main-vertical
+}
+
+function jk_tmux_resize_equal () {
+    tmux select-layout even-horizontal
+}
+
+# Set this to what editor you want to use if
+# Bash needs to show you one
+export EDITOR=nvim
+
+# Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
+# too often when I think I'm in vim
+bind -r '\C-l'
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+# added by setup_fb4a.sh
+export ANDROID_SDK=/opt/android_sdk
+export ANDROID_NDK_REPOSITORY=/opt/android_ndk
+export ANDROID_HOME=${ANDROID_SDK}
+export PATH=${PATH}:${ANDROID_SDK}/emulator:${ANDROID_SDK}/tools:${ANDROID_SDK}/tools/bin:${ANDROID_SDK}/platform-tools
+
