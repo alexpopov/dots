@@ -1,8 +1,6 @@
-[submodule "config/tmux/tpm"]
-	path = config/tmux/tpm
-	url = https://github.com/tmux-plugins/tpm
-    ignore = all
 [submodule "config/tmux/plugins/tmux-themepack"]
 	path = config/tmux/plugins/tmux-themepack
 	url = https://github.com/jimeh/tmux-themepack.git
-    ignore = all
+[submodule "config/tmux/plugins/tpm"]
+	path = config/tmux/plugins/tpm
+	url = https://github.com/tmux-plugins/tpm.git
