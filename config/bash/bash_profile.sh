@@ -16,11 +16,11 @@ PS1="\[\033[1;38m\]\]\[\$\] \[\033[0;38m\]"
 export PS1="\n$PS1"  # Add a new line so it's easier to find where long command start/end
 
 PATH=/home/alexpopov/.local/bin:$PATH
-PATH=/home/alexpopov/random_clones/bin:$PATH
-export PATH
-PATH=/home/alexpopov/bin:$PATH
 export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
+# Set this to what editor you want to use if
+# Bash needs to show you one
+export EDITOR=vim
 
 test -e "${HOME}/.iterm2_shell_integration.bash" && source "${HOME}/.iterm2_shell_integration.bash"
 
@@ -44,9 +44,6 @@ function jk_tmux_resize_equal () {
     tmux select-layout even-horizontal
 }
 
-# Set this to what editor you want to use if
-# Bash needs to show you one
-export EDITOR=vim
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
 # too often when I think I'm in vim

@@ -108,7 +108,7 @@ autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 " Use K to show documentation in preview window
 nnoremap <silent> K :call <SID>show_documentation()<CR>
 
-let g:python3_host_prog=expand('~/venv/bin/python')
+let g:python3_host_prog=expand("$NVIM_PYTHON")
 
 
 "
