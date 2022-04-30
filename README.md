@@ -25,6 +25,7 @@ Create your own `.bash_profile` and fill in the variables with what you want
 MAIN_BASH_PROFILE="$HOME/.config/bash/bash_profile.sh"
 HG_SUPPORT="$HOME/.config/bash/hg_support.sh"
 OTHER_SCRIPT="$HOME/.config/bash/private/other_support.sh"
+SANITY_CHECK="$HOME/.config/bash/sanity_check.sh"
 
 for file in $MAIN_BASH_PROFILE $HG_SUPPORT $OTHER_SCRIPT
 do
@@ -34,6 +35,8 @@ do
         echo "WARNING: Could not source $file; file does not exist"
     fi
 done
+
+. $SANITY_CHECK
 ```
 
 ## Tmux
