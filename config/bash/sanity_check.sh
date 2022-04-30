@@ -1,6 +1,6 @@
 source ~/.config/bash/color.sh
 
-if [ -z ${VIM_PYTHON+x} ]
+if [ -z ${NVIM_PYTHON+x} ]
 then
     echo -e "${red}ERROR:$reset" '$NVIM_PYTHON not set. This will break neovim'
     echo '  Suggestion: create a virtual environment just for neovim with the following commands:'
