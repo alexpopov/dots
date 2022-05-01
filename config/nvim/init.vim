@@ -109,6 +109,9 @@ autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 nnoremap <silent> K :call <SID>show_documentation()<CR>
 
 let g:python3_host_prog=expand($NVIM_PYTHON)
+let g:loaded_node_provider = 0
+let g:loaded_perl_provider = 0
+let g:loaded_ruby_provider = 0 " this probaby doesn't do anything
 
 
 "
