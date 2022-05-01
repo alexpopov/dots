@@ -11,6 +11,7 @@ opt.smartindent = true -- use c-like indents when no indentexpr is used
 opt.showmatch = true -- show matching brackets
 opt.scrolloff = 12 -- keep 12 lines below and above cursor always
 
+opt.timeoutlen = 500
 
 
 -- split reasonably

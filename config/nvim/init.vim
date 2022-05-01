@@ -1,19 +1,6 @@
 source $ADMIN_SCRIPTS/master.vimrc
 
-" TODO: remove
-"let mapleader="," " change leader to ,
-"let maplocalleader = '\'
-
 colorscheme xcode
-
-" remove whitespace at end of lines
-autocmd BufWritePre * :%s/\s\+$//e
-
-" remap window movement
-nnoremap <C-J> <C-W><C-J>
-nnoremap <C-K> <C-W><C-K>
-nnoremap <C-L> <C-W><C-L>
-nnoremap <C-H> <C-W><C-H>
 
 " TODO: set this in lua
 set noswapfile " recovery files are just a pain
@@ -24,51 +11,17 @@ lua << EOF
 config = require('lua_init')
 EOF
 
-"call plug#begin()
-"Plug 'guns/xterm-color-table.vim'
-"Plug 'roxma/nvim-yarp'  " some thing for remote plugins
-"Plug 'scrooloose/nerdcommenter' " comment code out
-"Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
-"Plug 'junegunn/fzf.vim' " extra vim bindings for fzf
-"Plug 'machakann/vim-Verdin' " autocomplete for vimscript
-"Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
-"Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
-"Plug 'haya14busa/incsearch.vim'  " better incremental search
-""Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-"Plug 'voldikss/vim-floaterm'
-"Plug 'SirVer/ultisnips'
-"Plug 'honza/vim-snippets'
-"Plug 'neovim/nvim-lspconfig'
-"Plug 'numirias/semshi'  " awesome python highlighter
-"Plug 'rktjmp/lush.nvim' " themeing thing
-"Plug 'pwntester/nautilus.nvim'
-"Plug 'dylon/vim-antlr'
-"Plug 'solarnz/thrift.vim'
-"Plug 'qpkorr/vim-bufkill'
-"Plug 'wesQ3/vim-windowswap'
-"call plug#end()
-
-
-" Nerd Commenter
-let g:NERDDefaultAlign = 'left'
-
-" Deoplete Completion
-"let g:deoplete#enable_at_startup = 1
-"call deoplete#custom#option('auto_complete_delay', 100)
-"function! s:check_back_space() abort "{{{
-"  let col = col('.') - 1
-"  return !col || getline('.')[col - 1]  =~ '\s'
-"endfunction"}}}
-"call deoplete#custom#source('_', 'sorters', ['sorter_word'])
-"call deoplete#custom#source('ultisnips', 'rank', 7500)
-
-
-
-" adds comment highlighting to JSON
-autocmd FileType json syntax match Comment +\/\/.\+$+
+" below: adds comment highlighting to JSON
+" autocmd FileType json syntax match Comment +\/\/.\+$+
 " adds highlighting for Buck
 autocmd BufRead,BufNewFile TARGETS setfiletype conf
 autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
+" remove whitespace at end of lines
+autocmd BufWritePre * :%s/\s\+$//e
+" Python-specific find def/class
+autocmd FileType python map <buffer> map <localleader>fc :BLines<CR>^class<space>
+autocmd FileType python map <buffer> <localleader>fd :BLines<CR>^def<space>
+autocmd FileType antlr4 call RegisterAntlrCommands()
 
 " Use K to show documentation in preview window
 nnoremap <silent> K :call <SID>show_documentation()<CR>
@@ -78,50 +31,12 @@ let g:loaded_node_provider = 0
 let g:loaded_perl_provider = 0
 let g:loaded_ruby_provider = 0 " this probaby doesn't do anything
 
-
-"
-" 'fff' setup
-"
-"                           30 high horizontal split
-let g:fff#split = "30new"
-"                           Open fff
-nmap <Leader>fo :F<CR>
-
-" Airline theme
-let g:airline_theme='silver' "kind of mac-y
-let g:airline_section_x = ''
-
-" all leader rebindings will be here
-" new tab new with <leader> t
-map <localleader>t :tabnew<CR>
-
-" Jump to matching delimiter; 'm' for 'match'
-map <leader>m %
-
 " Clear search
 map <silent> <C-x> :nohl<CR>
 map <silent> <leader>r :nohl<CR>
 
 map <silent> <leader>fc /<<<<<<<\\|=======\\|>>>>>>><CR>
 
-"
-map <localleader>r :source ~/.config/nvim/init.vim<CR>
-" reload color
-map <localleader>rc :syntax sync fromstart<CR>
-map <localleader>e :edit ~/.config/nvim/init.vim<CR>
-map <localleader>b :edit ~/.bash_profile<CR>
-
-"
-" Fuzzy File Finder
-"
-map <leader>fa :Ag<CR>
-map <leader>fb :Buffers<CR>
-map <leader>fh :BLines<CR>
-map <leader>fl :Lines<CR>
-map <leader>ff :Files<CR>
-
-map <localleader>fd :BLines<CR>^def<space>
-map <localleader>fc :BLines<CR>^class<space>
 
 "
 " EasyMotion Settings
@@ -189,10 +104,8 @@ function! RegisterAntlrCommands()
     " Jump to definition of current symbol under cursor;
     " search for word but for line starting with it
     nnoremap <Leader>ad /^\<<C-r><C-w>\>/<CR>
-
 endfunction
 
-autocmd FileType antlr4 call RegisterAntlrCommands()
 
 "" Semshi bindings
 map <leader>sr  :Semshi rename <CR>
@@ -201,8 +114,7 @@ map <leader>sgC :Semshi goto class prev <CR>
 map <leader>sgf :Semshi goto function next <CR>
 map <leader>sgF :Semshi goto function prev <CR>
 
-let g:python_highlight_all = 1
-
+" TODO: move to lua?
 " Delete Buffers
 function! DeleteHiddenBuffers()
     let tpbl=[]
@@ -211,8 +123,8 @@ function! DeleteHiddenBuffers()
         silent execute 'bwipeout' buf
     endfor
 endfunction
-map <localleader>bd :call DeleteHiddenBuffers()
 
+" TODO: remove
 function! ViewDiff()
     enew
     1,$ !hg diff
@@ -221,18 +133,6 @@ endfunction
 
 map <localleader>hd :call ViewDiff()<CR>
 
-"
-" Float Term Setup
-"
-let g:floaterm_keymap_new    = '<F7>'
-let g:floaterm_keymap_prev   = '<F8>'
-let g:floaterm_keymap_next   = '<F9>'
-let g:floaterm_keymap_toggle = '<F5>'
-let g:floaterm_rootmarkers   = ['TARGETS']
-let g:floaterm_position      = 'center'
-let g:floaterm_width = 0.6
-
-map <localleader>sn     :FloatermNew<Space>
 
 " Facebook stuff
 source ~/.config/nvim/private/facebook.vim

@@ -16,8 +16,8 @@ end
 -- Run PackerCompile whenever we edit this file with `nvim`.
 vim.cmd([[
   augroup packer_user_config
-    autocmd!
-    autocmd BufWritePost plugins.lua source <afile> | PackerCompile
+  autocmd!
+  autocmd BufWritePost plugins.lua source <afile> | PackerCompile
   augroup end
 ]])
 
@@ -26,22 +26,32 @@ return require("packer").startup(function(use)
   use("wbthomason/packer.nvim")
 
   -- From VimPlug:
-  use("roxma/nvim-yarp") -- ??
   use("machakann/vim-Verdin") -- ??autocomplete for vimscript
   use("guns/xterm-color-table.vim") -- color table
   -- Keep these:
   use("vim-airline/vim-airline") -- vim bottom-bar  + themes
-  use("vim-airline/vim-airline-themes")
-  use("crooloose/nerdcommenter") -- comment code out
-  use({"junegunn/fzf", config = function()
-    vim.cmd("call fzf#install()")
-  end,
-  }) -- do fzf#install
+  use({
+    "vim-airline/vim-airline-themes",
+    config = function()
+      vim.g.airline_theme = "silver" -- mac-like
+    end
+  })
+  use("junegunn/fzf") -- do fzf#install
   use("junegunn/fzf.vim") -- do fzf#install
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
   use("easymotion/vim-easymotion")  -- move quickly; bindings at bottom
   use("haya14busa/incsearch.vim")  -- better incremental search
-  use("voldikss/vim-floaterm")
+  use({
+    "voldikss/vim-floaterm",
+    config = function()
+      vim.g.floaterm_keymap_new = '<F7>'
+      vim.g.floaterm_keymap_prev = '<F8>'
+      vim.g.floaterm_keymap_next = '<F9>'
+      vim.g.floaterm_keymap_toggle = '<F5>'
+      vim.g.floaterm_position = 'center'
+      vim.g.floaterm_width = 0.6
+    end
+  })
   use("dylon/vim-antlr")
   use("solarnz/thrift.vim")
   use("qpkorr/vim-bufkill")
@@ -63,7 +73,7 @@ return require("packer").startup(function(use)
         },
         indent = {
           enable = true,
-          disable = { "python", "lua", "latex" },
+          disable = { "python", "latex" },
         },
       })
     end,
@@ -262,7 +272,7 @@ return require("packer").startup(function(use)
   use({
     "folke/which-key.nvim",
     config = function()
-      require("which-key").setup({})
+      require("which-key").setup({ })
     end,
   })
 
