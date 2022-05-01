@@ -25,6 +25,30 @@ return require("packer").startup(function(use)
   -- Packer can manage itself
   use("wbthomason/packer.nvim")
 
+  -- From VimPlug:
+  use("roxma/nvim-yarp") -- ??
+  use("machakann/vim-Verdin") -- ??autocomplete for vimscript
+  use("guns/xterm-color-table.vim") -- color table
+  -- Keep these:
+  use("vim-airline/vim-airline") -- vim bottom-bar  + themes
+  use("vim-airline/vim-airline-themes")
+  use("crooloose/nerdcommenter") -- comment code out
+  use({"junegunn/fzf", config = function()
+    vim.cmd("call fzf#install()")
+  end,
+  }) -- do fzf#install
+  use("junegunn/fzf.vim") -- do fzf#install
+  use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
+  use("easymotion/vim-easymotion")  -- move quickly; bindings at bottom
+  use("haya14busa/incsearch.vim")  -- better incremental search
+  use("voldikss/vim-floaterm")
+  use("dylon/vim-antlr")
+  use("solarnz/thrift.vim")
+  use("qpkorr/vim-bufkill")
+  use("wesQ3/vim-windowswap")
+  use("numirias/semshi")
+  -- End VimPlug
+
   use("rubberduck203/aosp-vim") -- add syntax highlighting for AOSP files
 
   use("neovim/nvim-lspconfig")
@@ -32,7 +56,7 @@ return require("packer").startup(function(use)
     "nvim-treesitter/nvim-treesitter",
     config = function()
       require("nvim-treesitter.configs").setup({
-        ensure_installed = "maintained",
+        ensure_installed = {"bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml"},
         highlight = {
           enable = true,
           disable = { "latex" },

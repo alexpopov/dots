@@ -1,19 +1,10 @@
 source $ADMIN_SCRIPTS/master.vimrc
-" some tab shit
-set tabstop=4				" 2 space tabs
-set softtabstop=4 	" number of spaces in a tab when editing
-set shiftwidth=4    " how much to shift by
-set expandtab				" tabs vs spaces, mwahahaha
 
-set scrolloff=12 " Keep 12 lines below and above the cursor
-
-set mouse= " turn off mouse inputs
-
-let mapleader="," " change leader to ,
-let maplocalleader = '\'
+" TODO: remove
+"let mapleader="," " change leader to ,
+"let maplocalleader = '\'
 
 colorscheme xcode
-set autoread
 
 " remove whitespace at end of lines
 autocmd BufWritePre * :%s/\s\+$//e
@@ -24,61 +15,38 @@ nnoremap <C-K> <C-W><C-K>
 nnoremap <C-L> <C-W><C-L>
 nnoremap <C-H> <C-W><C-H>
 
-" map insert-mode movements
-imap <C-f> <C-o>l
-imap <C-b> <C-o>h
-
-" numbers and make them relative
-"set number
-"set relativenumber
-
-" split more reasonable
-set splitbelow
-set splitright
-
-" misc settings
+" TODO: set this in lua
 set noswapfile " recovery files are just a pain
 set nobackup
 set nowb
-set ignorecase " case insensitive
-set smartcase " all caps will be searched as all caps
-set incsearch " incremental search
-set hidden
 
-set cmdheight=1
-set updatetime=300 " diagnostic message time
-set shortmess+=c
-set signcolumn=no
+lua << EOF
+config = require('lua_init')
+EOF
 
-" in theory, better diffing
-set diffopt+=internal,algorithm:patience
-
-call plug#begin()
-Plug 'guns/xterm-color-table.vim'
-Plug 'roxma/nvim-yarp'  " some thing for remote plugins
-Plug 'vim-airline/vim-airline' " vim bottom-bar  + themes
-Plug 'vim-airline/vim-airline-themes'
-Plug 'scrooloose/nerdcommenter' " comment code out
-Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
-Plug 'junegunn/fzf.vim' " extra vim bindings for fzf
-Plug 'machakann/vim-Verdin' " autocomplete for vimscript
-Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
-Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
-Plug 'haya14busa/incsearch.vim'  " better incremental search
-Plug 'tpope/vim-surround'        " surround stuff in shit
-"Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'voldikss/vim-floaterm'
-Plug 'SirVer/ultisnips'
-Plug 'honza/vim-snippets'
-Plug 'neovim/nvim-lspconfig'
-Plug 'numirias/semshi'  " awesome python highlighter
-Plug 'rktjmp/lush.nvim' " themeing thing
-Plug 'pwntester/nautilus.nvim'
-Plug 'dylon/vim-antlr'
-Plug 'solarnz/thrift.vim'
-Plug 'qpkorr/vim-bufkill'
-Plug 'wesQ3/vim-windowswap'
-call plug#end()
+"call plug#begin()
+"Plug 'guns/xterm-color-table.vim'
+"Plug 'roxma/nvim-yarp'  " some thing for remote plugins
+"Plug 'scrooloose/nerdcommenter' " comment code out
+"Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+"Plug 'junegunn/fzf.vim' " extra vim bindings for fzf
+"Plug 'machakann/vim-Verdin' " autocomplete for vimscript
+"Plug 'Vimjas/vim-python-pep8-indent' " sane indentation for python
+"Plug 'easymotion/vim-easymotion'  " move quickly; bindings at bottom
+"Plug 'haya14busa/incsearch.vim'  " better incremental search
+""Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+"Plug 'voldikss/vim-floaterm'
+"Plug 'SirVer/ultisnips'
+"Plug 'honza/vim-snippets'
+"Plug 'neovim/nvim-lspconfig'
+"Plug 'numirias/semshi'  " awesome python highlighter
+"Plug 'rktjmp/lush.nvim' " themeing thing
+"Plug 'pwntester/nautilus.nvim'
+"Plug 'dylon/vim-antlr'
+"Plug 'solarnz/thrift.vim'
+"Plug 'qpkorr/vim-bufkill'
+"Plug 'wesQ3/vim-windowswap'
+"call plug#end()
 
 
 " Nerd Commenter
@@ -94,9 +62,6 @@ let g:NERDDefaultAlign = 'left'
 "call deoplete#custom#source('_', 'sorters', ['sorter_word'])
 "call deoplete#custom#source('ultisnips', 'rank', 7500)
 
-lua << EOF
-config = require('lua_init')
-EOF
 
 
 " adds comment highlighting to JSON
