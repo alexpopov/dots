@@ -28,15 +28,6 @@ return require("packer").startup(function(use)
   -- From VimPlug:
   use("machakann/vim-Verdin") -- ??autocomplete for vimscript
   use("guns/xterm-color-table.vim") -- color table
-  -- Keep these:
-  -- use({
-  --   "vim-airline/vim-airline",
-  --   config = function()
-  --     -- from vim-airline-themes below
-  --     vim.g.airline_theme = "silver"
-  --   end,
-  -- }) -- vim bottom-bar  + themes
-  -- use("vim-airline/vim-airline-themes")
   use("junegunn/fzf") -- do fzf#install
   use("junegunn/fzf.vim") -- do fzf#install
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
@@ -423,7 +414,7 @@ return require("packer").startup(function(use)
   --  end,
   --})
 
-  --use("ggandor/lightspeed.nvim")
+  use("ggandor/lightspeed.nvim")
 
   --use({
   --  "mhinz/vim-signify",
@@ -458,7 +449,7 @@ return require("packer").startup(function(use)
   --})
 
   -- use 'mfussenegger/nvim-dap'
-  -- use 'williamboman/nvim-lsp-installer'
+  use 'williamboman/nvim-lsp-installer'
 
   use({ "/usr/share/fb-editor-support/nvim", as = "meta.nvim" })
 
