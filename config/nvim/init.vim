@@ -22,9 +22,17 @@ autocmd BufWritePre * :%s/\s\+$//e
 autocmd FileType python map <buffer> map <localleader>fc :BLines<CR>^class<space>
 autocmd FileType python map <buffer> <localleader>fd :BLines<CR>^def<space>
 autocmd FileType antlr4 call RegisterAntlrCommands()
+autocmd FileType cpp call SetIndentTwo()
+autocmd FileType json call SetIndentFour()
 
-" Use K to show documentation in preview window
-nnoremap <silent> K :call <SID>show_documentation()<CR>
+function! SetIndentTwo()
+    set tabstop=2
+    set shiftwidth=2
+endfunction
+function! SetIndentFour()
+    set tabstop=4
+    set shiftwidth=4
+endfunction
 
 let g:python3_host_prog=expand($NVIM_PYTHON)
 let g:loaded_node_provider = 0
@@ -132,6 +140,8 @@ function! ViewDiff()
 endfunction
 
 map <localleader>hd :call ViewDiff()<CR>
+
+map <leader>aff :%py3f /usr/local/share/clang/clang-format.py<CR>
 
 
 " Facebook stuff
