@@ -29,19 +29,37 @@ return require("packer").startup(function(use)
   use("machakann/vim-Verdin") -- ??autocomplete for vimscript
   use("guns/xterm-color-table.vim") -- color table
   -- Keep these:
-  use({
-    "vim-airline/vim-airline",
-    config = function()
-      -- from vim-airline-themes below
-      vim.g.airline_theme = "silver"
-    end,
-  }) -- vim bottom-bar  + themes
-  use("vim-airline/vim-airline-themes")
+  -- use({
+  --   "vim-airline/vim-airline",
+  --   config = function()
+  --     -- from vim-airline-themes below
+  --     vim.g.airline_theme = "silver"
+  --   end,
+  -- }) -- vim bottom-bar  + themes
+  -- use("vim-airline/vim-airline-themes")
   use("junegunn/fzf") -- do fzf#install
   use("junegunn/fzf.vim") -- do fzf#install
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
   use("easymotion/vim-easymotion")  -- move quickly; bindings at bottom
-  use("haya14busa/incsearch.vim")  -- better incremental search
+  use({
+    "haya14busa/incsearch.vim",
+    config = function()
+      vim.cmd([[
+        map /  <Plug>(incsearch-forward)
+        map ?  <Plug>(incsearch-backward)
+        map g/ <Plug>(incsearch-stay)
+        " Additional stuff:
+        set hlsearch
+        let g:incsearch#auto_nohlsearch = 1
+        map n  <Plug>(incsearch-nohl-n)
+        map N  <Plug>(incsearch-nohl-N)
+        map *  <Plug>(incsearch-nohl-*)
+        map #  <Plug>(incsearch-nohl-#)
+        map g* <Plug>(incsearch-nohl-g*)
+        map g# <Plug>(incsearch-nohl-g#)
+      ]])
+    end
+  })  -- better incremental search
   use({
     "voldikss/vim-floaterm",
     config = function()
@@ -363,25 +381,32 @@ return require("packer").startup(function(use)
   --  end,
   --})
   --
-  --use({
-  --  "nvim-lualine/lualine.nvim",
-  --  requires = "kyazdani42/nvim-web-devicons",
-  --  config = function()
-  --    require("lualine").setup({
-  --      --options = {
-  --      --  theme = "tokyonight",
-  --      --},
-  --      sections = {
-  --        lualine_c = {
-  --          {
-  --            "filename",
-  --            path = 1,
-  --          },
-  --        },
-  --      },
-  --    })
-  --  end,
-  --})
+  use({
+    "nvim-lualine/lualine.nvim",
+    requires = "kyazdani42/nvim-web-devicons",
+    config = function()
+      local onelight = require("lualine.themes.onelight")
+
+
+      require("lualine").setup({
+        options = {
+          theme = onelight,
+        },
+        sections = {
+          lualine_b = {
+            "diff"
+          },
+          lualine_c = {
+            {
+              "filename",
+              path = 1,
+            },
+          },
+          lualine_x = { 'encoding', 'filetype' }
+        },
+      })
+    end,
+  })
 
   --use({
   --  "kyazdani42/nvim-tree.lua",
