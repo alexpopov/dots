@@ -1,12 +1,17 @@
 local opt = vim.opt
+local M = {}
 
-opt.hidden = true
+local set_tabs = function(count)
+    opt.tabstop = count     -- 2 space tabs
+    opt.softtabstop = count -- number of spaces in a tab when editing
+    opt.shiftwidth = count  -- how much to shift by
+end
 
-opt.tabstop = 4	        -- 2 space tabs
-opt.softtabstop = 4     -- number of spaces in a tab when editing
-opt.shiftwidth = 4      -- how much to shift by
+M.set_tabs = set_tabs
+
 opt.expandtab = true    -- tabs vs spaces, mwahahaha
 opt.smartindent = true -- use c-like indents when no indentexpr is used
+set_tabs(4)
 
 opt.showmatch = true -- show matching brackets
 opt.scrolloff = 12 -- keep 12 lines below and above cursor always
@@ -92,3 +97,4 @@ vim.g.clipboard = {
   },
   cache_enabled = true,
 }
+return M

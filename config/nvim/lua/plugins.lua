@@ -58,9 +58,9 @@ return require("packer").startup(function(use)
   use("qpkorr/vim-bufkill")
   use("wesQ3/vim-windowswap")
   use("numirias/semshi")
+  use("rubberduck203/aosp-vim") -- add syntax highlighting for AOSP files
   -- End VimPlug
 
-  use("rubberduck203/aosp-vim") -- add syntax highlighting for AOSP files
 
   use("neovim/nvim-lspconfig")
   use({
