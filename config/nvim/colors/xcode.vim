@@ -39,22 +39,32 @@ hi Visual       ctermbg=153
 hi SpecialKey   ctermfg=126 ctermbg=153
 hi Error        ctermfg=231 ctermbg=124
 
+hi XcodeGreen ctermfg=28
+hi XcodeTeal  ctermfg=30
+hi XcodeBoldPink cterm=bold ctermfg=163
+hi XcodePink  ctermfg=163
+hi XcodeRed   ctermfg=160
+hi XcodeBrown ctermfg=094
+hi XcodeBoldBlue cterm=bold ctermfg=5
+hi XcodeBlue  ctermfg=020
+hi XcodePurple ctermfg=091
+
 " Syntax highlighting
-hi Comment      ctermfg=28 " green
-hi Todo         ctermfg=9 " red-ish salmon?
-hi Constant     cterm=bold ctermfg=5 " ??
-hi String       ctermfg=160 " red
-hi Identifier   ctermfg=30 " syntax file needs to be better to identify
-hi Function     ctermfg=016 " black
-hi Type         ctermfg=091 " purple
-hi Statement    cterm=bold ctermfg=163 " seems to highlight built-ins like 'hi' in vim
-hi Keyword      ctermfg=1
-hi PreProc      ctermfg=030 " tealy color
-hi Number       ctermfg=020 " blue
-hi Special      ctermfg=091 " <C-l> etc, purple
-hi Search       cterm=underline ctermbg=153 ctermfg=236 " ? doesn't work
-hi Delimiter    cterm=bold ctermfg=126
-hi Parens       ctermfg=016
+hi! link Comment XcodeGreen
+hi! Todo         ctermfg=9 " red-ish salmon?
+hi! default link Constant XcodePurple
+hi! default link String XcodeRed
+hi! default link Identifier XcodeTeal
+hi! Function     ctermfg=016 " black
+hi! default link Type XcodePurple
+hi! Statement    cterm=bold ctermfg=163 " seems to highlight built-ins like 'hi' in vim
+hi! Keyword      ctermfg=091
+hi! default link PreProc XcodeBrown
+hi! Number       ctermfg=020 " blue
+hi! Special      ctermfg=091 " <C-l> etc, purple
+hi! Search       cterm=underline ctermbg=153 ctermfg=236 " ? doesn't work
+hi! Delimiter    cterm=bold ctermfg=126
+hi! Parens       ctermfg=016
 
 " Diff colours
 hi link DiffAdded Comment

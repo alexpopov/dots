@@ -37,13 +37,13 @@ wk.register({
 wk.register({
     c = {
         name = " Comment",
-        c = { "gcc", "Toggle" },
+        ["<space>"] = { "gcc", "Toggle" },
         a = { "gcgc", "Toggle Section" },
     },
 }, { mode = "n", prefix = leader , noremap = false })
 wk.register({
     c = {
-        c = { ":Commentary" .. endl, "Toggle" },
+        ["<space>"] = { ":Commentary" .. endl, "Toggle" },
     },
 
 }, { mode = "v", prefix = leader , noremap = false })
