@@ -6,5 +6,5 @@ gui:
       - bold
     inactiveBorderColor:
       - black
-    selectedLineBgColor:
-      - default
+#    selectedLineBgColor:
+#      - default

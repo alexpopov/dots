@@ -1,4 +1,10 @@
-# Dots
+# My Dot Files
+
+When cloning, don't forget to get submodules so that tpm works:
+
+```
+git clone --recursive
+```
 
 ## Symlinks
 
