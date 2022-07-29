@@ -18,10 +18,17 @@ ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
 ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
 
 # binary stuff
+<<<<<<< HEAD
 ln -sf "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
 
 # macOS specific but doesn't hurt
 mkdir -p "$HOME/.hammerspoon/"
+=======
+ln -sf "$DOTS_BIN_DIR" "$BIN_DIR"
+
+# macOS specific but doesn't hurt
+mkdir "$HOME/.hammerspoon/"
+>>>>>>> 51f3da8 (Lots of changes, added lots of mac-specific stuff)
 ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/"
 
 ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc"

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 source $HOME/.local/bin/scripts/color.sh
+=======
+source $HOME/.local/bin/color.sh
+>>>>>>> 51f3da8 (Lots of changes, added lots of mac-specific stuff)
 
 if [ -z ${NVIM_PYTHON+x} ]
 then
