@@ -3,11 +3,12 @@ alp = {} -- global variable for my stuff
 
 alp.utils = require("utils")
 
+require("plugins")
 require("options")
 require("mappings")
-require("plugins")
 require("lsp")
-require("private/facebook")
 
-
-
+if os.getenv("ENABLE_PRIVATE_FACEBOOK")
+then
+  require("private/facebook")
+end

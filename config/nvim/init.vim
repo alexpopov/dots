@@ -1,4 +1,7 @@
-source $ADMIN_SCRIPTS/master.vimrc
+" private fb stuff
+if filereadable(expand("$ADMIN_SCRIPTS/master.vimrc"))
+  source $ADMIN_SCRIPTS/master.vimrc
+endif
 
 colorscheme xcode
 
@@ -145,4 +148,6 @@ map <leader>aff :%py3f /usr/local/share/clang/clang-format.py<CR>
 
 
 " Facebook stuff
-source ~/.config/nvim/private/facebook.vim
+if !empty(glob("~/.config/nvim/private/facebook.vim"))
+  source ~/.config/nvim/private/facebook.vim
+endif

@@ -1,0 +1,9 @@
+# This is a comment
+# 0x4F is <F18>
+
+0x4F ; m_hyper
+
+:: m_hyper  # the hyper mode
+
+
+m_hyper < ESC ; default
