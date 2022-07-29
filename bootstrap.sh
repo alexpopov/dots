@@ -1,7 +1,12 @@
 DOTS_DIR="$HOME/dots/"  # Set this absolute path
 DOTS_CONFIG_DIR="$DOTS_DIR/config"
 CONFIG_DIR="$HOME/.config"
-mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR"
+DOTS_BIN_DIR="$DOTS_DIR/bin"
+BIN_DIR="$HOME/.local/bin"
+
+# Make all necessary directories
+mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR"
+
 ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR"
@@ -12,3 +17,12 @@ ln -sf "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
 ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
 ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
 
+# binary stuff
+ln -sf "$DOTS_BIN_DIR" "$BIN_DIR"
+
+# macOS specific but doesn't hurt
+mkdir "$HOME/.hammerspoon/"
+ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/"
+
+ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc"
+ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc"

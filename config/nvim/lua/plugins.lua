@@ -451,7 +451,10 @@ return require("packer").startup(function(use)
   -- use 'mfussenegger/nvim-dap'
   use 'williamboman/nvim-lsp-installer'
 
-  use({ "/usr/share/fb-editor-support/nvim", as = "meta.nvim" })
+  if os.getenv("ENABLE_PRIVATE_FACEBOOK")
+  then
+    use({ "/usr/share/fb-editor-support/nvim", as = "meta.nvim" })
+  end
 
   if packer_bootstrap then
     require("packer").sync()
