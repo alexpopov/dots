@@ -1,5 +1,6 @@
 # This is a comment
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 # 0x5A is F20 in Karabiner Elements, but for some reason yabai doesn't agree
 # with using the name 'f20'. No clue why
@@ -31,11 +32,39 @@ m_hyper < o : open
 
 =======
 # 0x4F is <F18>
+=======
+>>>>>>> 7e163be (Some mac stuff.)
 
-0x4F ; m_hyper
+# 0x5A is F20 in Karabiner Elements, but for some reason yabai doesn't agree
+# with using the name 'f20'. No clue why
 
-:: m_hyper  # the hyper mode
+:: default : alert.sh simple default
+
+# Mode: Hyper
+:: m_hyper @ : alert.sh simple hyper
+
+# Mode: Yabai/windows
+:: m_windows @ : alert.sh simple windows
+
+# Mode: open!
+:: m_open @ : alert.sh simple open
+
+default < 0x5A ; m_hyper
+
+# Exit Hyper
+m_hyper, m_windows, m_open < escape ; default
+m_hyper, m_windows, m_open < 0x5A ; default
+
+# R -> reload
+m_hyper < r : skhd --reload; alert.sh simple reloading...
+# V -> clipboard
+m_hyper < v : skhd -k escape; skhd -k "hyper - v"
+# O -> open
+m_hyper < o : open
 
 
+<<<<<<< HEAD
 m_hyper < ESC ; default
 >>>>>>> 51f3da8 (Lots of changes, added lots of mac-specific stuff)
+=======
+>>>>>>> 7e163be (Some mac stuff.)
