@@ -1,4 +1,4 @@
-source $HOME/.local/bin/color.sh
+source $HOME/.local/bin/scripts/color.sh
 
 if [ -z ${NVIM_PYTHON+x} ]
 then
