@@ -59,6 +59,7 @@ wk.register({
             m = { ':edit ~/.config/nvim/lua/mappings.lua' .. endl, "mappings.lua" },
             p = { ':edit ~/.config/nvim/lua/plugins.lua' .. endl, "plugins.lua" },
             o = { ':edit ~/.config/nvim/lua/options.lua' .. endl, "options.lua" },
+            l = { ':edit ~/.config/nvim/lua/lsp.lua' .. endl, "lsp.lua" },
         },
         b = {
             name = " bash files",
@@ -72,10 +73,11 @@ wk.register({
         v = {
             name = " vim files",
             v = { ':source ~/.config/nvim/init.vim' .. endl, "init.vim" },
-            i = { ':source ~/.config/nvim/lua/lua_init.lua' .. endl, "init_lua.lua" },
-            m = { ':source ~/.config/nvim/lua/mappings.lua' .. endl, "mappings.lua" },
-            p = { ':source ~/.config/nvim/lua/plugins.lua' .. endl, "plugins.lua" },
-            o = { ':source ~/.config/nvim/lua/options.lua' .. endl, "options.lua" },
+            i = { ':lua alp.utils.reload_module(lua_init)' .. endl, "init_lua.lua" },
+            m = { ':lua alp.utils.reload_module(mappings)' .. endl, "mappings.lua" },
+            p = { ':lua alp.utils.reload_module(plugins)' .. endl, "plugins.lua" },
+            o = { ':lua alp.utils.reload_module(options)' .. endl, "options.lua" },
+            l = { ':lua alp.utils.reload_module(lsp)' .. endl, "lsp.lua" },
         },
     },
     b = {

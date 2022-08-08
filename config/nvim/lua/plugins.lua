@@ -32,25 +32,7 @@ return require("packer").startup(function(use)
   use("junegunn/fzf.vim") -- do fzf#install
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
   use("easymotion/vim-easymotion")  -- move quickly; bindings at bottom
-  use({
-    "haya14busa/incsearch.vim",
-    config = function()
-      vim.cmd([[
-        map /  <Plug>(incsearch-forward)
-        map ?  <Plug>(incsearch-backward)
-        map g/ <Plug>(incsearch-stay)
-        " Additional stuff:
-        set hlsearch
-        let g:incsearch#auto_nohlsearch = 1
-        map n  <Plug>(incsearch-nohl-n)
-        map N  <Plug>(incsearch-nohl-N)
-        map *  <Plug>(incsearch-nohl-*)
-        map #  <Plug>(incsearch-nohl-#)
-        map g* <Plug>(incsearch-nohl-g*)
-        map g# <Plug>(incsearch-nohl-g#)
-      ]])
-    end
-  })  -- better incremental search
+
   use({
     "voldikss/vim-floaterm",
     config = function()
@@ -67,11 +49,13 @@ return require("packer").startup(function(use)
   use("qpkorr/vim-bufkill")
   use("wesQ3/vim-windowswap")
   use("numirias/semshi")
-  -- use("rubberduck203/aosp-vim") -- add syntax highlighting for AOSP files
+  use("gburca/vim-logcat")
   -- End VimPlug
 
+  use("bfredl/nvim-luadev")
 
   use("neovim/nvim-lspconfig")
+
   use({
     "nvim-treesitter/nvim-treesitter",
     config = function()
@@ -89,19 +73,22 @@ return require("packer").startup(function(use)
     end,
   })
   use("nvim-treesitter/nvim-treesitter-textobjects")
+  use 'nvim-treesitter/playground'
+
+
   use({
     "jose-elias-alvarez/null-ls.nvim",
     requires = { "nvim-lua/plenary.nvim" },
   })
 
   -- Can see LSP symbols or something, somewhere
-  use({
-    "liuchengxu/vista.vim",
-    config = function()
-      vim.g.vista_default_executive = "nvim_lsp"
-      vim.g.vista_sidebar_position = "vertical topleft"
-    end,
-  })
+  -- use({
+  --   "liuchengxu/vista.vim",
+  --   config = function()
+  --     vim.g.vista_default_executive = "nvim_lsp"
+  --     vim.g.vista_sidebar_position = "vertical topleft"
+  --   end,
+  -- })
 
   use("L3MON4D3/LuaSnip")
 
@@ -110,7 +97,7 @@ return require("packer").startup(function(use)
     requires = { "hrsh7th/cmp-nvim-lsp", "hrsh7th/cmp-buffer" },
     after = "LuaSnip",
     config = function()
-      vim.opt.completeopt = { "menu", "menuone", "noselect" }
+      -- vim.opt.completeopt = { "menu", "menuone", "noselect" }
 
       local luasnip = require("luasnip")
       local cmp = require("cmp")
@@ -127,6 +114,10 @@ return require("packer").startup(function(use)
           ["<C-f>"] = cmp.mapping.scroll_docs(4),
           ["<C-Space>"] = cmp.mapping.complete(),
           ["<C-e>"] = cmp.mapping.close(),
+          ["<C-y>"] = cmp.mapping.confirm {
+            behavior = cmp.ConfirmBehavior.Insert,
+            select = true,
+          },
           ["<CR>"] = cmp.mapping.confirm({
             behavior = cmp.ConfirmBehavior.Replace,
           }),
@@ -151,12 +142,39 @@ return require("packer").startup(function(use)
         },
         sources = {
           { name = "nvim_lsp" },
+          { name = "nvim_lua" },
           { name = "luasnip" },
-          { name = "buffer" },
+          { name = "path" },
+          { name = "buffer", keyword_length = 5 },
+        },
+        view = {
+          entries = "custom",
         },
       })
+
+
+      -- cmp.setup.cmdline('/', {
+      --   mapping = cmp.mapping.preset.cmdline(),
+      --   sources = {
+      --     { name = 'buffer' }
+      --   }
+      -- })
+
+      -- -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+      -- cmp.setup.cmdline(':', {
+      --   mapping = cmp.mapping.preset.cmdline(),
+      --   sources = cmp.config.sources({
+      --     { name = 'path' }
+      --   }, {
+      --       { name = 'cmdline' }
+      --     })
+      -- })
     end,
   })
+
+  use "hrsh7th/cmp-path"
+  use "hrsh7th/cmp-nvim-lua"
+  use "hrsh7th/cmp-cmdline"
 
   use({
     "saadparwaiz1/cmp_luasnip",
