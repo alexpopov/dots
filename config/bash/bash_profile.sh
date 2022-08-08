@@ -16,14 +16,7 @@ PS1="\[\033[1;38m\]\]\[\$\] \[\033[0;38m\]"
 export PS1="\n$PS1"  # Add a new line so it's easier to find where long command start/end
 
 PATH=$HOME/.local/bin:$PATH
-<<<<<<< HEAD
-<<<<<<< HEAD
 PATH=$PATH:$HOME/.local/bin/scripts
-=======
->>>>>>> 51f3da8 (Lots of changes, added lots of mac-specific stuff)
-=======
-PATH=$PATH:$HOME/.local/bin/scripts
->>>>>>> 7e163be (Some mac stuff.)
 export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
 # Set this to what editor you want to use if
