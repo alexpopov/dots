@@ -27,6 +27,7 @@ autocmd FileType python map <buffer> <localleader>fd :BLines<CR>^def<space>
 autocmd FileType antlr4 call RegisterAntlrCommands()
 autocmd FileType cpp call SetIndentTwo()
 autocmd FileType json call SetIndentFour()
+autocmd FileType java call SetIndentTwo()
 
 function! SetIndentTwo()
     set tabstop=2
