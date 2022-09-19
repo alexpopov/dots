@@ -44,3 +44,12 @@ then
     echo "  and install from package manager"
     echo
 fi
+
+if ! command -v gum &> /dev/null
+then
+    echo -e "${yellow}WARNING:$reset gum not installed"
+    echo -e "  it's a neat little utility for making interactive scripts"
+    echo -e "  some scripts may not work without it"
+    echo -e "  ADVICE: go to$purple" 'https://github.com/charmbracelet/gum#installation' $reset
+    echo -e "  and install from package manager"
+fi

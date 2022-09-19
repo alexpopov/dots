@@ -19,6 +19,7 @@ EOF
 " adds highlighting for Buck
 autocmd BufRead,BufNewFile TARGETS setfiletype conf
 autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
+autocmd BufRead,BufNewFile skhdrc call SetSkhdrcSettings()
 " remove whitespace at end of lines
 autocmd BufWritePre * :%s/\s\+$//e
 " Python-specific find def/class
@@ -36,6 +37,14 @@ endfunction
 function! SetIndentFour()
     set tabstop=4
     set shiftwidth=4
+endfunction
+
+function! SetSkhdrcSettings()
+    syntax match alert_text 'alert\.sh \w\+ \w\+'
+    syntax match yabai_text 'yabai_utils\.sh \w\+ \(\w\+\)?'
+    hi link alert_text XcodePink
+    hi link yabai_text XcodeTeal
+
 endfunction
 
 let g:python3_host_prog=expand($NVIM_PYTHON)

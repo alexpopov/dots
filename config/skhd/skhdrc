@@ -12,11 +12,17 @@
 # Mode: open!
 :: m_open @ : alert.sh simple open
 
+# Mode: Yabai config
+:: m_yabai_config @ : alert.sh simple 'Configuring Yabai'
+
+# Mode: Yabai config
+:: m_window_focus @ : alert.sh simple 'Focusing'
+
 default < 0x5A ; m_hyper
 
 # Exit Hyper
-m_hyper, m_windows, m_open < escape ; default
-m_hyper, m_windows, m_open < 0x5A ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus < escape ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus < 0x5A ; default
 
 # R -> reload
 m_hyper < r : skhd --reload; alert.sh simple reloading...
@@ -24,5 +30,44 @@ m_hyper < r : skhd --reload; alert.sh simple reloading...
 m_hyper < v : skhd -k escape; skhd -k "hyper - v"
 # O -> open
 m_hyper < o : open
+# S -> windows/yabai
+m_hyper < s ; m_windows
 
-m_hyper < ESC ; default
+m_hyper < escape ; default
+
+
+
+
+
+
+#
+# Window Management Mode & Yabai
+#
+m_windows < h : yabai_utils.sh focus west back_to_default
+m_windows < j : yabai_utils.sh focus south back_to_default
+m_windows < k : yabai_utils.sh focus north back_to_default
+m_windows < l : yabai_utils.sh focus east back_to_default
+
+# Change this to automatically flow over
+m_windows < n : yabai_utils.sh focus stack.next back_to_default
+m_windows < p : yabai_utils.sh focus stack.prev back_to_default
+
+# Focus mode
+m_windows < f ; m_window_focus
+
+m_window_focus < h : yabai_utils.sh focus west
+m_window_focus < j : yabai_utils.sh focus south
+m_window_focus < k : yabai_utils.sh focus north
+m_window_focus < l : yabai_utils.sh focus east
+m_window_focus < n : yabai_utils.sh focus stack.next
+m_window_focus < p : yabai_utils.sh focus stack.prev
+
+
+#
+# Yabai configuration stuff
+#
+m_windows < 0x2A ; m_yabai_config
+
+m_yabai_config < f : yabai_utils.sh config float back_to_default
+m_yabai_config < t : yabai_utils.sh config bsp back_to_default
+m_yabai_config < r : yabai_utils.sh reload_config back_to_default
