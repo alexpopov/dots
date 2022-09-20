@@ -26,6 +26,9 @@ yabai -m config left_padding   $padding
 yabai -m config right_padding  $padding
 yabai -m config window_gap     $padding
 
+# focus
+yabai -m config mouse_follows_focus on
+
 
 
 # Ignore Lists
