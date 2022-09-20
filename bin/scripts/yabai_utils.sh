@@ -34,6 +34,13 @@ function config {
     maybe_back_to_normal "$@"
 }
 
+function reload_config {
+    source ~/.yabairc
+    alert.sh simple "Reloading config..."
+    maybe_back_to_normal "$@"
+}
+
+
 function create_stack {
     direction="$1"
     shift
@@ -45,6 +52,13 @@ function create_stack {
 function unstack {
     window=$(yabai -m query --windows --window | jq -r '.id') && yabai -m window east --stack $window || (yabai -m window $window --toggle float && yabai -m window $window --toggle float)
     maybe_back_to_normal "$@"
+}
+
+function toggle_manage {
+  window=$(yabai -m query --windows --window | jq -r '.id')
+  yabai -m window $window --toggle float
+  alert.sh simple "Toggling Managed Status"
+  maybe_back_to_normal "$@"
 }
 
 function toggle_fullscreen {
@@ -71,6 +85,10 @@ case $command in
         config "$@"
         ;;
 
+    'reload_config')
+        reload_config "$@"
+        ;;
+
     'fullscreen')
         toggle_fullscreen "$@"
         ;;
@@ -82,6 +100,10 @@ case $command in
     'unstack')
         unstack "$@"
          ;;
+
+    'toggle_manage')
+        toggle_manage "$@"
+        ;;
 
     *)
         hs -c 'hs.alert.show("unhandled argument: $1")'

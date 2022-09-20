@@ -21,6 +21,7 @@
 :: m_window_create @ : alert.sh simple 'Creating'
 
 default < 0x5A ; m_hyper
+default < hyper - s ; m_windows
 
 # Exit Hyper
 m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create < escape ; default
@@ -38,10 +39,6 @@ m_hyper < s ; m_windows
 m_hyper < escape ; default
 
 
-
-
-
-
 #
 # Window Management Mode & Yabai
 #
@@ -55,6 +52,8 @@ m_windows < p : yabai_utils.sh focus stack.prev back_to_default
 
 # Fullscreen
 m_windows < f : yabai_utils.sh fullscreen back_to_default
+
+m_windows < u : yabai_utils.sh toggle_manage back_to_default
 
 # Focus mode or 'G' for 'Go'
 m_windows < g ; m_window_focus
