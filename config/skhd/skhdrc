@@ -32,7 +32,7 @@ m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_w
 m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize < 0x5A ; default
 
 # R -> reload
-m_hyper < r : skhd --reload; alert.sh simple reloading...
+m_hyper < r : skhd --reload; alert.sh simple 'reloading...'
 # V -> clipboard
 m_hyper < v : skhd -k escape; skhd -k "hyper - v"
 # O -> open
