@@ -13,8 +13,6 @@
 # NOTE: read the wiki if you update yabai, particularly regarding visudo and updating the hash
 
 
-yabai -m config layout bsp
-
 # Spawn new windows bottom or right
 yabai -m config window_placement second_child
 
@@ -27,12 +25,9 @@ yabai -m auto_balance on
 padding=8
 yabai -m config top_padding    $padding
 yabai -m config bottom_padding $padding
-yabai -m config left_padding   $padding
+yabai -m config left_padding   $((2 * $padding))
 yabai -m config right_padding  $padding
 yabai -m config window_gap     $padding
-
-
-
 
 # Ignore Lists
 yabai -m rule --add label="Finder" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
@@ -60,3 +55,8 @@ yabai -m rule --add app="Messenger" manage=off
 yabai -m rule --add app="Slack" manage=off
 
 
+# We turn this on after all the rules, so that it doesn't temporarily
+# manage a bunch of windows it has no business managing
+yabai -m config layout bsp
+
+# vi:ft=bash

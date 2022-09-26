@@ -61,10 +61,32 @@ function toggle_manage {
   maybe_back_to_normal "$@"
 }
 
-function toggle_fullscreen {
-    yabai -m window --toggle zoom-fullscreen
-    maybe_back_to_normal "$@"
+function grid {
+  type=$1
+  shift
+  case "$type" in
+    'centre')
+      yabai -m window --grid 9:9:2:1:5:6
+      ;;
+
+    'small-centre')
+      yabai -m window --grid 8:8:2:2:4:4
+      ;;
+
+    *)
+      echo "unknown resize command $type"
+      ;;
+  esac
+  alert.sh simple "Centre"
+  maybe_back_to_normal "$@"
 }
+
+function toggle_fullscreen {
+  yabai -m window --toggle zoom-fullscreen
+  alert.sh simple "Toggle: Fullscreen"
+  maybe_back_to_normal "$@"
+}
+
 
 USAGE="Usage: yabai_utils.sh focus west"
 
@@ -83,6 +105,10 @@ case $command in
 
     'config')
         config "$@"
+        ;;
+
+    'grid')
+        grid "$@"
         ;;
 
     'reload_config')
