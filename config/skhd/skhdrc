@@ -22,8 +22,10 @@
 
 :: m_window_resize @ : alert.sh simple 'Resize'
 
-default < 0x5A ; m_hyper
+default < 0x5A ; m_windows
 default < hyper - s ; m_windows
+
+m_windows < 1 ; m_hyper
 
 # Exit Hyper
 m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize < escape ; default
