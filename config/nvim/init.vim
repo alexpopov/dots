@@ -29,6 +29,7 @@ autocmd FileType antlr4 call RegisterAntlrCommands()
 autocmd FileType cpp call SetIndentTwo()
 autocmd FileType json call SetIndentFour()
 autocmd FileType java call SetIndentTwo()
+autocmd FileType bash call SetIndentTwo()
 
 function! SetIndentTwo()
     set tabstop=2
