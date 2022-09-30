@@ -40,7 +40,7 @@ function! SetIndentFour()
 endfunction
 
 function! SetSkhdrcSettings()
-    syntax match alert_text 'alert\.sh \w\+ \w\+'
+    syntax match alert_text 'alert\.sh \w\+ \(\w\+\)?'
     syntax match yabai_text 'yabai_utils\.sh \w\+ \(\w\+\)?'
     hi link alert_text XcodePink
     hi link yabai_text XcodeTeal

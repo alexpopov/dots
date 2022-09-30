@@ -390,6 +390,7 @@ return require("packer").startup(function(use)
   --  end,
   --})
   --
+
   use({
     "nvim-lualine/lualine.nvim",
     requires = "kyazdani42/nvim-web-devicons",
@@ -432,7 +433,12 @@ return require("packer").startup(function(use)
   --  end,
   --})
 
-  use("ggandor/lightspeed.nvim")
+  use({
+    "ggandor/leap.nvim",
+    config = function()
+      require('leap').set_default_keymaps()
+    end
+  })
 
   --use({
   --  "mhinz/vim-signify",
