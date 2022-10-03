@@ -13,12 +13,12 @@ ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR"  # tmux refuses to use XDG, this is for us to have tmux.conf
 ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
-ln -sfh "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
+ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
 ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
 ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
 
 # binary stuff
-ln -sfh "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
+ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
 
 # macOS specific but doesn't hurt
 mkdir -p "$HOME/.hammerspoon/"

@@ -1,5 +1,13 @@
 source $HOME/.local/bin/scripts/color.sh
 
+if ! command -v nvim &> /dev/null
+then
+    echo -e "${yellow}WARNING:$reset nvim not installed"
+    echo -e "  you're in for a lot of pain"
+    echo -e "  ADVICE: go to$purple" 'https://github.com/neovim/neovim/releases' $reset
+    echo -e "  or install from package manager"
+fi
+
 if [ -z ${NVIM_PYTHON+x} ]
 then
     echo -e "${red}ERROR:$reset" '$NVIM_PYTHON not set. This will break neovim'
