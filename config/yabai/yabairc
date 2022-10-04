@@ -54,6 +54,7 @@ yabai -m rule --add app="Spark" manage=off
 yabai -m rule --add app="Messenger" manage=off
 yabai -m rule --add app="Slack" manage=off
 yabai -m rule --add app="Choosy" manage=off
+yabai -m rule --add app="Bartender.*" manage=off
 
 
 # We turn this on after all the rules, so that it doesn't temporarily
