@@ -19,13 +19,13 @@ yabai -m config window_placement second_child
 # focus
 yabai -m config mouse_follows_focus on
 
-yabai -m auto_balance on
+yabai -m config auto_balance on
 
 # Padding
 padding=8
-yabai -m config top_padding    $padding
+yabai -m config top_padding    36
 yabai -m config bottom_padding $padding
-yabai -m config left_padding   $((2 * $padding))
+yabai -m config left_padding   $padding
 yabai -m config right_padding  $padding
 yabai -m config window_gap     $padding
 
@@ -53,8 +53,28 @@ yabai -m rule --add app="Cisco" manage=off
 yabai -m rule --add app="Spark" manage=off
 yabai -m rule --add app="Messenger" manage=off
 yabai -m rule --add app="Slack" manage=off
-yabai -m rule --add app="Choosy" manage=off
+yabai -m rule --add app="Outlook" manage=off
+yabai -m rule --add app="Choosy.*" manage=off
 yabai -m rule --add app="Bartender.*" manage=off
+yabai -m rule --add app="Google Drive" manage=off
+yabai -m rule --add app="Calendar" manage=off
+yabai -m rule --add app="Finder" manage=off
+yabai -m rule --add app="Photos" manage=off
+yabai -m rule --add app="Music" manage=off
+yabai -m rule --add app="Managed Software Centre" manage=off
+yabai -m rule --add app="Archive Utility" manage=off
+yabai -m rule --add app=".*sicht" manage=off
+yabai -m rule --add app="iTerm2" title=".*_um$" manage=off
+
+# some hammerspoon shenanigans
+yabai -m signal --add event=display_added action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=display_removed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=display_changed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=space_changed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=application_visible action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=application_hidden action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=window_created action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=window_destroyed action="hs -c 'stackline.refresh()"
 
 
 # We turn this on after all the rules, so that it doesn't temporarily

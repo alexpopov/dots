@@ -12,7 +12,7 @@
 --    More info: https://www.hammerspoon.org/docs/hs.ipc.html#cliInstall
 require("hs.ipc")
 
-stackline = require("stackline")
-stackline:init()
+-- stackline = require("stackline")
+-- stackline:init()
 
-stackline.config:toggle('appearance.showIcons')
+-- stackline.config:toggle('appearance.showIcons')
