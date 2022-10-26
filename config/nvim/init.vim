@@ -26,7 +26,10 @@ autocmd BufWritePre * :%s/\s\+$//e
 autocmd FileType python map <buffer> map <localleader>fc :BLines<CR>^class<space>
 autocmd FileType python map <buffer> <localleader>fd :BLines<CR>^def<space>
 autocmd FileType antlr4 call RegisterAntlrCommands()
+" C++ specific
 autocmd FileType cpp call SetIndentTwo()
+autocmd FileType cpp setlocal commentstring=//\ %s
+
 autocmd FileType json call SetIndentFour()
 autocmd FileType java call SetIndentTwo()
 autocmd FileType bash call SetIndentTwo()

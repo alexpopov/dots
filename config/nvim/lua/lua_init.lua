@@ -10,5 +10,5 @@ require("lsp")
 
 if os.getenv("ENABLE_PRIVATE_FACEBOOK")
 then
-  require("private/facebook")
+  require("private/meta")
 end

@@ -6,5 +6,7 @@ gui:
       - bold
     inactiveBorderColor:
       - black
+
+  mouseEvents: false
 #    selectedLineBgColor:
 #      - default
