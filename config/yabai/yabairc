@@ -22,7 +22,7 @@ yabai -m config auto_balance on
 
 # Padding
 padding=8
-yabai -m config top_padding    $padding
+yabai -m config top_padding    36
 yabai -m config bottom_padding $padding
 yabai -m config left_padding   $padding
 yabai -m config right_padding  $padding
@@ -68,6 +68,19 @@ yabai -m rule --add app="Managed Software Centre" manage=off
 yabai -m rule --add app="Archive Utility" manage=off
 yabai -m rule --add app=".*sicht" manage=off
 yabai -m rule --add app="iTerm2" title=".*_um$" manage=off
+<<<<<<< HEAD
+=======
+
+# some hammerspoon shenanigans
+yabai -m signal --add event=display_added action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=display_removed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=display_changed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=space_changed action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=application_visible action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=application_hidden action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=window_created action="hs -c 'stackline.refresh()"
+yabai -m signal --add event=window_destroyed action="hs -c 'stackline.refresh()"
+>>>>>>> 347613c (stf)
 
 
 # We turn this on after all the rules, so that it doesn't temporarily
