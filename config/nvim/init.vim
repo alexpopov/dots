@@ -33,6 +33,7 @@ autocmd FileType cpp setlocal commentstring=//\ %s
 autocmd FileType json call SetIndentFour()
 autocmd FileType java call SetIndentTwo()
 autocmd FileType bash call SetIndentTwo()
+autocmd FileType sh call SetIndentTwo()
 
 function! SetIndentTwo()
     set tabstop=2

@@ -45,6 +45,10 @@ function jk_tmux_resize_equal () {
     tmux select-layout even-horizontal
 }
 
+function vime {
+  nvr --remote $@
+}
+
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
 # too often when I think I'm in vim

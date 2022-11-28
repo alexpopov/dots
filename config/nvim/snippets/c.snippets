@@ -1,0 +1,147 @@
+## Main
+# main
+snippet main
+	int main(int argc, char *argv[])
+	{
+		${0}
+	}
+
+##
+## Preprocessor
+# #include <...>
+snippet include_lib
+	#include <${1:stdio}.h>
+	$0
+
+# #include "..."
+snippet include_file
+	#include "${1:`vim_snippets#Filename("$1.h")`}"
+	$0
+
+
+##
+## Control Statements
+# if
+snippet if
+	if (${1:true}) {
+		${0:${VISUAL}}
+	}
+snippet if_else
+	if (${1:true}) {
+		${2:${VISUAL}}
+	} else {
+		${0}
+	}
+# else
+snippet else
+	else {
+		${0:${VISUAL}}
+	}
+# else if
+snippet else_if
+	else if (${1:true}) {
+		${0:${VISUAL}}
+	}
+# ternary
+snippet ternary Ternary: `condition ? true : false`
+	$1 ? $2 : $0
+
+# switch
+snippet switch
+	switch (${1:/* variable */}) {
+		case ${2:/* variable case */}:
+			${3}
+			${4:break;}${5}
+		default:
+			${6}
+	}
+
+# case
+snippet case
+	case ${1:/* variable case */}: {
+		${2}
+		${3:break;}
+	}
+
+snippet return
+	return ${0};
+
+snippet def_function
+	${1:void} ${2:function_name}(${3});
+
+# struct
+snippet def_struct
+	/*! \struct $1
+	 *  \brief ${3:Brief struct description}
+	 *
+	 *  ${4:Detailed description}
+	 */
+	struct ${1:`vim_snippets#Filename('$1_t', 'name')`} {
+		${2:Data} /*!< ${4:Description} */
+	}${5: /* optional variable list */};
+
+snippet enum
+	/*! \enum $1
+	 *
+	 *  ${2:Detailed description}
+	 */
+	enum ${1:name} { ${0} };
+
+snippet getopt
+	int choice;
+	while (1)
+	{
+		static struct option long_options[] =
+		{
+			/* Use flags like so:
+			{"verbose",	no_argument,	&verbose_flag, 'V'}*/
+			/* Argument styles: no_argument, required_argument, optional_argument */
+			{"version", no_argument,	0,	'v'},
+			{"help",	no_argument,	0,	'h'},
+			${1}
+			{0,0,0,0}
+		};
+
+		int option_index = 0;
+
+		/* Argument parameters:
+			no_argument: " "
+			required_argument: ":"
+			optional_argument: "::" */
+
+		choice = getopt_long( argc, argv, "vh",
+					long_options, &option_index);
+
+		if (choice == -1)
+			break;
+
+		switch( choice )
+		{
+			case 'v':
+				${2}
+				break;
+
+			case 'h':
+				${3}
+				break;
+
+			case '?':
+				/* getopt_long will have already printed an error */
+				break;
+
+			default:
+				/* Not sure how to get here... */
+				return EXIT_FAILURE;
+		}
+	}
+
+	/* Deal with non-option arguments here */
+	if ( optind < argc )
+	{
+		while ( optind < argc )
+		{
+			${0}
+		}
+	}
+
+

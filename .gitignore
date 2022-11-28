@@ -1,6 +1,7 @@
 ### Internal
 config/nvim/plugged
 config/nvim/plugin
+config/nvim/sessions
 config/bash/private
 config/nvim/lua/private/
 config/nvim/private/
