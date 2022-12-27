@@ -24,14 +24,16 @@
 
 :: m_window_tabs @ : alert.sh simple 'Tabs'
 
+:: m_window_swap @ : alert.sh simple 'Swap'
+
 default < 0x5A ; m_windows
 default < hyper - s ; m_windows
 
 m_windows < 1 ; m_hyper
 
 # Exit Hyper
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs < escape ; default
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs < 0x5A ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap < escape ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap < 0x5A ; default
 
 # R -> reload
 m_hyper < r : skhd --reload; alert.sh simple 'reloading...'
@@ -58,6 +60,8 @@ m_windows < c ; m_window_create
 m_windows < r ; m_window_resize
 # Tab mode
 m_windows < t ; m_window_tabs
+# Swap mode
+m_windows < s ; m_window_swap
 
 # Quick Focus
 m_windows < h : yabai_utils.sh focus west back_to_default
@@ -94,6 +98,12 @@ m_window_create < u : yabai_utils.sh unstack back_to_default
 # Grid Mode
 m_window_resize < c : yabai_utils.sh grid centre back_to_default
 m_window_resize < m : yabai_utils.sh grid small-centre back_to_default
+
+# Swap Mode
+m_window_swap < h : yabai_utils.sh swap west
+m_window_swap < j : yabai_utils.sh swap south
+m_window_swap < k : yabai_utils.sh swap north
+m_window_swap < l : yabai_utils.sh swap east
 
 # Tabs
 # m_window_tabs < h :

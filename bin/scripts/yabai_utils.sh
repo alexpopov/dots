@@ -26,6 +26,23 @@ function focus_window {
     maybe_back_to_normal "$@"
 }
 
+function swap_window {
+    direction="$1"
+    shift
+    case "$direction" in
+        'stack.next')
+            yabai -m window --swap stack.next || yabai -m window --swap stack.first
+            ;;
+        'stack.prev')
+            yabai -m window --swap stack.prev || yabai -m window --swap stack.last
+            ;;
+        *)
+            yabai -m window --swap $direction
+            ;;
+    esac
+    maybe_back_to_normal "$@"
+}
+
 function config {
     type="$1"
     shift
@@ -109,6 +126,10 @@ case $command in
 
     'grid')
         grid "$@"
+        ;;
+
+    'swap')
+        swap_window "$@"
         ;;
 
     'reload_config')
