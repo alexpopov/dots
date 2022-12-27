@@ -6,7 +6,17 @@ gui:
       - bold
     inactiveBorderColor:
       - black
+    selectedLineBgColor:
+      - bold
+      - white
+    selectedRangeBgColor:
+      - white
+      - bold
 
   mouseEvents: false
-#    selectedLineBgColor:
-#      - default
+
+promptToReturnFromSubprocess: false
+
+os:
+  editCommand: 'nvr -cc tabnew --remote'
+  editCommandTemplate: '{{editor}} +{{line}} -- {{filename}}'

@@ -60,7 +60,9 @@ return require("packer").startup(function(use)
     "nvim-treesitter/nvim-treesitter",
     config = function()
       require("nvim-treesitter.configs").setup({
-        ensure_installed = {"bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml"},
+        ensure_installed = {
+          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin",
+        },
         highlight = {
           enable = true,
           disable = { "latex" },
@@ -90,7 +92,21 @@ return require("packer").startup(function(use)
   --   end,
   -- })
 
-  use("L3MON4D3/LuaSnip")
+  use("honza/vim-snippets")
+  use({
+    "L3MON4D3/LuaSnip",
+    tag = "v<CurrentMajor>.*",
+    config = function()
+      local ls = require("luasnip")
+      ls.config.set_config({
+        region_check_events = "InsertEnter",
+        delete_check_events = "TextChanged,InsertLeave",
+      })
+      require("luasnip.loaders.from_snipmate").lazy_load({paths = "./snippets"})
+      require("luasnip.loaders.from_snipmate").load({paths = "./private/snippets"})
+      require("luasnip.loaders.from_lua").load({paths = "./snippets"})
+    end,
+  })
 
   use({
     "hrsh7th/nvim-cmp",
@@ -123,7 +139,8 @@ return require("packer").startup(function(use)
           }),
           ["<Tab>"] = function(fallback)
             if cmp.visible() then
-              cmp.select_next_item()
+              cmp.confirm()
+              -- cmp.select_next_item()
             elseif luasnip.expand_or_jumpable() then
               luasnip.expand_or_jump()
             else
@@ -141,9 +158,9 @@ return require("packer").startup(function(use)
           end,
         },
         sources = {
+          { name = "luasnip" },
           { name = "nvim_lsp" },
           { name = "nvim_lua" },
-          { name = "luasnip" },
           { name = "path" },
           { name = "buffer", keyword_length = 5 },
         },
@@ -418,20 +435,34 @@ return require("packer").startup(function(use)
     end,
   })
 
-  --use({
-  --  "kyazdani42/nvim-tree.lua",
-  --  requires = "kyazdani42/nvim-web-devicons",
-  --  config = function()
-  --    require("nvim-tree").setup({})
+  use({
+    "kyazdani42/nvim-tree.lua",
+    requires = "kyazdani42/nvim-web-devicons",
+    config = function()
+      require("nvim-tree").setup({
+        view = {
+          adaptive_size = true,
+        },
+        actions = {
+          open_file = {
+            window_picker = {
+              enable = false,
+            },
+          },
+        },
+      })
+      local wk = require("which-key")
+      wk.register({
+        f = { name = " file tree",
+          f = {':NvimTreeFocus' .. endl, "focus tree" },
+          t = {':NvimTreeToggle' .. endl, "show tree" },
+          c = {':NvimTreeFindFile' .. endl, "show current"},
+          h = {':NvimTreeCollapse' .. endl, "collapse (hide) folder"}
+        },
+      }, { prefix = '<localleader>'})
 
-  --    vim.api.nvim_set_keymap(
-  --      "n",
-  --      "<C-n>",
-  --      ":NvimTreeToggle<CR>",
-  --      { noremap = true, silent = true }
-  --    )
-  --  end,
-  --})
+    end,
+  })
 
   use({
     "ggandor/leap.nvim",
@@ -440,40 +471,52 @@ return require("packer").startup(function(use)
     end
   })
 
-  --use({
-  --  "mhinz/vim-signify",
-  --  --after = "tokyonight.nvim",
-  --  config = function()
-  --    --local colors = require("tokyonight.colors").setup({})
-  --    --local util = require("tokyonight.util")
+  use({
+    "ggandor/flit.nvim",
+    config = function()
+      require("flit").setup()
+    end
+  })
 
-  --    --util.highlight("SignifySignAdd", { link = "GitSignsAdd" })
-  --    --util.highlight("SignifySignChange", { link = "GitSignsChange" })
-  --    --util.highlight("SignifySignChangeDelete", { link = "GitSignsChange" })
-  --    --util.highlight("SignifySignDelete", { link = "GitSignsDelete" })
-  --    --util.highlight("SignifySignDeleteFirstLine", { link = "GitSignsDelete" })
-
-  --    vim.g.signify_sign_add = "▊"
-  --    vim.g.signify_sign_change = "▊"
-  --    vim.g.signify_sign_change_delete = "~"
-  --  end,
-  --})
-
-  --use({
-  --  "lukas-reineke/indent-blankline.nvim",
-  --  config = function()
-  --    require("indent_blankline").setup({
-  --      char = "┊",
-  --      filetype_exclude = { "help", "packer" },
-  --      buftype_exclude = { "terminal", "nofile" },
-  --      char_highlight = "LineNr",
-  --      show_trailing_blankline_indent = false,
-  --    })
-  --  end,
-  --})
-
-  -- use 'mfussenegger/nvim-dap'
   use 'williamboman/nvim-lsp-installer'
+
+  -- Possibly of limited usefulness...
+  use({
+    "andrewferrier/debugprint.nvim",
+    config = function()
+      require("debugprint").setup()
+    end
+  })
+
+  use({
+    "folke/paint.nvim",
+    config = function()
+      require("paint").setup({
+        ---@type PaintHighlight[]
+        highlights = {
+          {
+
+            -- filter can be a table of buffer options that should match,
+            -- or a function called with buf as param that should return true.
+            -- any use of @nocommit will become colored red
+            filter = function() return true end,
+            pattern = "@nocommit.*",
+            hl = "Todo",
+          },
+        },
+      })
+    end,
+  })
+  use({
+    "folke/persistence.nvim",
+    event = "BufReadPre", -- this will only start session saving when an actual file was opened
+    module = "persistence",
+    config = function()
+      require("persistence").setup()
+    end,
+  })
+
+
 
   if os.getenv("ENABLE_PRIVATE_FACEBOOK")
   then
