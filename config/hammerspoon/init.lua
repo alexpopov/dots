@@ -6,7 +6,7 @@
 --    `/usr/local/bin` and `/usr/local/share/man/man1` permissioned to your user:
 --
 --    sudo mkdir /usr/local/bin /usr/local/share/man/man1
---    sudo chown $USER !*
+--    sudo chown $USER /usr/local/bin /usr/local/share/man/man1
 --
 --    If that still fails try uninstalling first: `hs.ipc.cliUninstall()`
 --    More info: https://www.hammerspoon.org/docs/hs.ipc.html#cliInstall

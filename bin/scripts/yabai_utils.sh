@@ -90,11 +90,21 @@ function grid {
       yabai -m window --grid 8:8:2:2:4:4
       ;;
 
+    'full')
+      yabai -m window --grid 1:1:1:1:1:1
+      ;;
+
+    'equal')
+      yabai -m query --windows --space | jq -r '.[] | select(."is-floating" == false) | .id'  | xargs -I{} yabai -m window {} --ratio abs:0.5
+      ;;
+
     *)
       echo "unknown resize command $type"
+      maybe_back_to_normal "$@"
+      return
       ;;
   esac
-  alert.sh simple "Centre"
+  alert.sh simple "$type"
   maybe_back_to_normal "$@"
 }
 

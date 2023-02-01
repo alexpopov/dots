@@ -13,7 +13,7 @@ case $1 in
   'simple')
     shift
     title=$1
-    hs -c "hs.alert.show(\"$title\")" > /dev/null
+    hs -c "hs.alert.show(\"$title\", {textSize = 24, radius = 20, fillColor = { white = 0, alpha = 0.5}})" > /dev/null
     ;;
 
   *)

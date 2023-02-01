@@ -98,6 +98,8 @@ m_window_create < u : yabai_utils.sh unstack back_to_default
 # Grid Mode
 m_window_resize < c : yabai_utils.sh grid centre back_to_default
 m_window_resize < m : yabai_utils.sh grid small-centre back_to_default
+m_window_resize < f : yabai_utils.sh grid full back_to_default
+m_window_resize < 0x18 : yabai_utils.sh grid equal back_to_default
 
 # Swap Mode
 m_window_swap < h : yabai_utils.sh swap west
@@ -106,11 +108,17 @@ m_window_swap < k : yabai_utils.sh swap north
 m_window_swap < l : yabai_utils.sh swap east
 
 # Tabs
-# m_window_tabs < h :
-
+m_window_tabs < h : skhd -k "ctrl + shift - tab;"
+m_window_tabs < l : skhd -k "ctrl - tab"
+m_window_tabs < ctrl - tab ->; m_window_tabs
+m_window_tabs < ctrl + shift - tab ->; m_window_tabs
+m_window_tabs < cmd - w ->; m_window_tabs
+m_window_tabs < cmd - t ->; default
 #
 # Yabai configuration stuff
 #
+# 0x2A is \
+# like local-leader in vim
 m_windows < 0x2A ; m_yabai_config
 
 m_yabai_config < f : yabai_utils.sh config float back_to_default
