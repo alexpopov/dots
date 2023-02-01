@@ -91,38 +91,38 @@ omap <Leader>/ <Plug>(easymotion-tn)
 "
 "Python Highlighting with Semshi
 "
-let g:semshi#error_sign = v:false
-let g:semshi#simplify_markup = v:false
+" let g:semshi#error_sign = v:false
+" let g:semshi#simplify_markup = v:false
 
-function! SemshiOverrides()
-    " tangerine-color
-    hi semshiLocal           ctermfg=209 guifg=#ff875f cterm=none
-    " teal
-    hi semshiGlobal          ctermfg=030 guifg=#ffaf00 cterm=none
-    hi semshiImported        ctermfg=030 guifg=#ffaf00 cterm=none
-    " black
-    hi semshiParameter       ctermfg=016 guifg=#5fafff cterm=none
-    hi semshiParameterUnused ctermfg=016 guifg=#87d7ff cterm=underline gui=underline
-    " brown?
-    hi semshiFree            ctermfg=094 guifg=#ffafd7 cterm=none
-    " purple
-    hi semshiBuiltin         ctermfg=091 guifg=#ff5fff cterm=none
-    " self.attribute
-    hi semshiAttribute       ctermfg=030  guifg=#00ffaf cterm=none
-    " pink
-    hi semshiSelf            ctermfg=163 guifg=#b2b2b2 cterm=bold
-    " red; errors
-    hi semshiUnresolved      ctermfg=196 guifg=#ffff00 cterm=underline gui=underline
-    " highlight selected things
-    hi semshiSelected        ctermfg=16 guifg=#ffffff ctermbg=255 guibg=#d7005f
+" function! SemshiOverrides()
+"     " tangerine-color
+"     hi semshiLocal           ctermfg=209 guifg=#ff875f cterm=none
+"     " teal
+"     hi semshiGlobal          ctermfg=030 guifg=#ffaf00 cterm=none
+"     hi semshiImported        ctermfg=030 guifg=#ffaf00 cterm=none
+"     " black
+"     hi semshiParameter       ctermfg=016 guifg=#5fafff cterm=none
+"     hi semshiParameterUnused ctermfg=016 guifg=#87d7ff cterm=underline gui=underline
+"     " brown?
+"     hi semshiFree            ctermfg=094 guifg=#ffafd7 cterm=none
+"     " purple
+"     hi semshiBuiltin         ctermfg=091 guifg=#ff5fff cterm=none
+"     " self.attribute
+"     hi semshiAttribute       ctermfg=030  guifg=#00ffaf cterm=none
+"     " pink
+"     hi semshiSelf            ctermfg=163 guifg=#b2b2b2 cterm=bold
+"     " red; errors
+"     hi semshiUnresolved      ctermfg=196 guifg=#ffff00 cterm=underline gui=underline
+"     " highlight selected things
+"     hi semshiSelected        ctermfg=16 guifg=#ffffff ctermbg=255 guibg=#d7005f
 
-    hi semshiErrorSign       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
-    hi semshiErrorChar       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
-    syntax keyword semshiSelf True False None
+"     hi semshiErrorSign       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
+"     hi semshiErrorChar       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
+"     syntax keyword semshiSelf True False None
 
-endfunction
-autocmd FileType python call SemshiOverrides()
-call SemshiOverrides()
+" endfunction
+" autocmd FileType python call SemshiOverrides()
+" call SemshiOverrides()
 
 function! RegisterAntlrCommands()
     " Add command mappings for Antlr
@@ -134,11 +134,11 @@ endfunction
 
 
 "" Semshi bindings
-map <leader>sr  :Semshi rename <CR>
-map <leader>sgc :Semshi goto class next <CR>
-map <leader>sgC :Semshi goto class prev <CR>
-map <leader>sgf :Semshi goto function next <CR>
-map <leader>sgF :Semshi goto function prev <CR>
+" map <leader>sr  :Semshi rename <CR>
+" map <leader>sgc :Semshi goto class next <CR>
+" map <leader>sgC :Semshi goto class prev <CR>
+" map <leader>sgf :Semshi goto function next <CR>
+" map <leader>sgF :Semshi goto function prev <CR>
 
 " TODO: move to lua?
 " Delete Buffers
