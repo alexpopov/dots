@@ -24,6 +24,9 @@ opt.incsearch = true
 opt.splitbelow = true
 opt.splitright = true
 
+opt.number = true
+opt.relativenumber = true
+
 -- random stuff
 
 opt.shortmess:append("c")

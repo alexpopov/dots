@@ -161,7 +161,7 @@ return require("packer").startup(function(use)
           end,
         },
         sources = {
-          { name = "luasnip" },
+          { name = "luasnip", priority = 8},
           { name = "nvim_lsp" },
           { name = "nvim_lua" },
           { name = "path" },
@@ -457,10 +457,10 @@ return require("packer").startup(function(use)
       local wk = require("which-key")
       wk.register({
         f = { name = " file tree",
-          f = {':NvimTreeFocus' .. endl, "focus tree" },
-          t = {':NvimTreeToggle' .. endl, "show tree" },
-          c = {':NvimTreeFindFile' .. endl, "show current"},
-          h = {':NvimTreeCollapse' .. endl, "collapse (hide) folder"}
+          f = {':NvimTreeFocus' .. '<CR>', "focus tree" },
+          t = {':NvimTreeToggle' .. '<CR>', "show tree" },
+          c = {':NvimTreeFindFile' .. '<CR>', "show current"},
+          h = {':NvimTreeCollapse' .. '<CR>', "collapse (hide) folder"}
         },
       }, { prefix = '<localleader>'})
 
@@ -506,10 +506,23 @@ return require("packer").startup(function(use)
             pattern = "@nocommit.*",
             hl = "Todo",
           },
+          -- {
+          --   -- bash variables
+          --   filter = { filetype = bash },
+          --   pattern = "$[%l_-]+",
+          --   hl = "XcodeTeal",
+          -- },
+          -- {
+          --   -- bash variables
+          --   filter = { filetype = bash },
+          --   pattern = "${.+}",
+          --   hl = "XcodeTeal",
+          -- },
         },
       })
     end,
   })
+
   use({
     "folke/persistence.nvim",
     event = "BufReadPre", -- this will only start session saving when an actual file was opened
@@ -518,7 +531,6 @@ return require("packer").startup(function(use)
       require("persistence").setup()
     end,
   })
-
 
 
   if os.getenv("ENABLE_PRIVATE_FACEBOOK")

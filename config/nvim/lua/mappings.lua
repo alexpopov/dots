@@ -96,6 +96,10 @@ wk.register({
     k = { ":lua require('tree-climber').goto_parent" .. endl, "parent" },
     j = { ":lua require('tree-climber').goto_child" .. endl, "child" },
   },
+  q = {
+    name = " config",
+    n = { ":lua vim.opt.number = true; vim.opt.relativenumber = true" .. endl, "line numbers" }
+  },
 }, { prefix = localLeader })
 
 
