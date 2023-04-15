@@ -42,9 +42,6 @@ opt.signcolumn = "no"
 
 vim.cmd("colorscheme xcode")
 
-----consider turning this on some day
---opt.number = true -- show line numbers
---opt.relativenumber = true -- show relative numbers by default
 --
 ---- show absolute numbers in insert mode, relative in normal mode
 --vim.cmd([[
@@ -57,48 +54,50 @@ vim.cmd("colorscheme xcode")
 
 -- configure pasting back to Laptop... should probably gate this behind some
 -- check eventually
-vim.g.clipboard = {
-  name = "Laptop Clipboard",
-  copy = {
-    ["*"] = {
-      "ssh",
-      "-i",
-      "~/.ssh/copy_paste_key_ed25519",
-      "-p",
-      "9001",
-      "localhost",
-      "'pbcopy'"
-    },
-    ["+"] = {
-      "ssh",
-      "-i",
-      "~/.ssh/copy_paste_key_ed25519",
-      "-p",
-      "9001",
-      "localhost",
-      "'pbcopy'"
-    },
-  },
-  paste = {
-    ["*"] = {
-      "ssh",
-      "-i",
-      "~/.ssh/copy_paste_key_ed25519",
-      "-p",
-      "9001",
-      "localhost",
-      "'pbpaste'"
-    },
-    ["+"] = {
-      "ssh",
-      "-i",
-      "~/.ssh/copy_paste_key_ed25519",
-      "-p",
-      "9001",
-      "localhost",
-      "'pbpaste'"
-    },
-  },
-  cache_enabled = true,
-}
+
+-- vim.g.clipboard = {
+--   name = "Laptop Clipboard",
+--   copy = {
+--     ["*"] = {
+--       "ssh",
+--       "-i",
+--       "~/.ssh/copy_paste_key_ed25519",
+--       "-p",
+--       "9001",
+--       "localhost",
+--       "'pbcopy'"
+--     },
+--     ["+"] = {
+--       "ssh",
+--       "-i",
+--       "~/.ssh/copy_paste_key_ed25519",
+--       "-p",
+--       "9001",
+--       "localhost",
+--       "'pbcopy'"
+--     },
+--   },
+--   paste = {
+--     ["*"] = {
+--       "ssh",
+--       "-i",
+--       "~/.ssh/copy_paste_key_ed25519",
+--       "-p",
+--       "9001",
+--       "localhost",
+--       "'pbpaste'"
+--     },
+--     ["+"] = {
+--       "ssh",
+--       "-i",
+--       "~/.ssh/copy_paste_key_ed25519",
+--       "-p",
+--       "9001",
+--       "localhost",
+--       "'pbpaste'"
+--     },
+--   },
+--   cache_enabled = true,
+-- }
+
 return M
