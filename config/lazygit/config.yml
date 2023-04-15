@@ -20,3 +20,8 @@ promptToReturnFromSubprocess: false
 os:
   editCommand: 'nvr -cc tabnew --remote'
   editCommandTemplate: '{{editor}} +{{line}} -- {{filename}}'
+
+git:
+  paging:
+    colorArg: always
+    pager: delta --light --paging=never
