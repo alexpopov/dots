@@ -49,7 +49,7 @@ return require("packer").startup(function(use)
   use("qpkorr/vim-bufkill")
   use("wesQ3/vim-windowswap")
 
-  -- use("numirias/semshi")
+  use("numirias/semshi")
   -- Maybe it's time to say goodbye to Semshi
 
   use("gburca/vim-logcat")
@@ -64,7 +64,7 @@ return require("packer").startup(function(use)
     config = function()
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
-          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin",
+          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline"
         },
         highlight = {
           enable = true,
@@ -293,27 +293,28 @@ return require("packer").startup(function(use)
               ["<c-t>"] = custom_actions.multi_selection_open_tab,
             },
           },
+          layout_strategy="vertical",
         },
       })
 
-      vim.api.nvim_set_keymap(
-        "n",
-        "<leader><space>",
-        [[<cmd>lua require('telescope.builtin').buffers()<CR>]],
-        { noremap = true, silent = true }
-      )
-      vim.api.nvim_set_keymap(
-        "n",
-        "<leader>sf",
-        [[<cmd>lua require('telescope.builtin').find_files({previewer = false})<CR>]],
-        { noremap = true, silent = true }
-      )
-      vim.api.nvim_set_keymap(
-        "n",
-        "<leader>sb",
-        [[<cmd>lua require('telescope.builtin').current_buffer_fuzzy_find()<CR>]],
-        { noremap = true, silent = true }
-      )
+      -- vim.api.nvim_set_keymap(
+      --   "n",
+      --   "<leader><space>",
+      --   [[<cmd>lua require('telescope.builtin').buffers()<CR>]],
+      --   { noremap = true, silent = true }
+      -- )
+      -- vim.api.nvim_set_keymap(
+      --   "n",
+      --   "<leader>sf",
+      --   [[<cmd>lua require('telescope.builtin').find_files({previewer = false})<CR>]],
+      --   { noremap = true, silent = true }
+      -- )
+      -- vim.api.nvim_set_keymap(
+      --   "n",
+      --   "<leader>sb",
+      --   [[<cmd>lua require('telescope.builtin').current_buffer_fuzzy_find()<CR>]],
+      --   { noremap = true, silent = true }
+      -- )
     end,
   })
 
@@ -530,6 +531,42 @@ return require("packer").startup(function(use)
     config = function()
       require("persistence").setup()
     end,
+  })
+
+  -- Packer
+  use({
+    "folke/noice.nvim",
+    config = function()
+      require("noice").setup({
+        lsp = {
+          -- override markdown rendering so that **cmp** and other plugins use **Treesitter**
+          override = {
+            ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+            ["vim.lsp.util.stylize_markdown"] = true,
+            ["cmp.entry.get_documentation"] = true,
+          },
+        },
+        -- you can enable a preset for easier configuration
+        presets = {
+          bottom_search = true, -- use a classic bottom cmdline for search
+          command_palette = true, -- position the cmdline and popupmenu together
+          long_message_to_split = true, -- long messages will be sent to a split
+          inc_rename = false, -- enables an input dialog for inc-rename.nvim
+          lsp_doc_border = false, -- add a border to hover docs and signature help
+        },
+        smart_move = {
+          enabled = false,
+        }
+      })
+    end,
+    requires = {
+      -- if you lazy-load any plugin below, make sure to add proper `module="..."` entries
+      "MunifTanjim/nui.nvim",
+      -- OPTIONAL:
+      --   `nvim-notify` is only needed, if you want to use the notification view.
+      --   If not available, we use `mini` as the fallback
+      "rcarriga/nvim-notify",
+    }
   })
 
 

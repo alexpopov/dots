@@ -26,11 +26,13 @@ set_keymap('n', '<C-L>', '<C-W><C-L>', {noremap = true, desc = "move to split ea
 wk.register({
   f = {
     name = " Find",
-    a = { ":Ag" .. endl, "Find All Files" },
-    b = { ':Buffers' .. endl, "Find Buffer" },
-    h = { ':BLines' .. endl, "Find Here (in this file)"},
-    l = { ':Lines' .. endl, "Find Line (in open files)"},
-    f = { ':Files' .. endl, "Find File"},
+    a = { function() require'telescope.builtin'.grep_string{ shorten_path = true, word_match = '-w', only_sort_text = true, search = ''} end, "Find All Files" },
+    b = { ':Telescope buffers' .. endl, "Find Buffer" },
+    h = { ':Telescope current_buffer_fuzzy_find' .. endl, "Find Here (in this file)"},
+    H = { ':Telescope help_tags' .. endl, "Help tags"},
+    l = { ":lua require'telescope.builtin'.grep_string{ shorten_path = true, grep_open_files = true, word_match = '-w', only_sort_text = true, search = ''}" .. endl, "Find Line (in open files)"},
+    f = { ':Telescope find_files' .. endl, "Find File"},
+    m = { function() require'telescope.builtin'.builtin(require("telescope.themes").get_dropdown({preview = false})) end, "Search Telescopes"},
   },
 }, { prefix = leader })
 -- leader commands that are recursive for normal and visual
