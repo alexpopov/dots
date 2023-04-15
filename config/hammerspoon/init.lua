@@ -12,7 +12,38 @@
 --    More info: https://www.hammerspoon.org/docs/hs.ipc.html#cliInstall
 require("hs.ipc")
 
+require("hs.application")
+
+
 -- stackline = require("stackline")
 -- stackline:init()
 
 -- stackline.config:toggle('appearance.showIcons')
+function getCurrentApp()
+  return hs.application.frontmostApplication()
+end
+
+alp = {}
+alp.getCurrentApp = function()
+  return hs.application.frontmostApplication()
+end
+
+alp.actions = {
+  chrome = {
+    moveTabToNewWindow = function(app)
+      app:selectMenuItem({"Tab", "Move Tab to New Window"}
+    end
+  },
+}
+
+alp.shortcuts = {
+  ["Google Chrome"] = {
+    "m" = alp.actions.chrome.moveTabToNewWindow
+  }
+}
+
+
+
+
+
+

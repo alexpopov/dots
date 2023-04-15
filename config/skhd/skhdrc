@@ -7,7 +7,7 @@
 :: m_hyper @ : alert.sh simple hyper
 
 # Mode: Yabai/windows
-:: m_windows @ : alert.sh simple windows
+:: m_windows @ : alert.sh simple Windows
 
 # Mode: open!
 :: m_open @ : alert.sh simple open
@@ -26,14 +26,26 @@
 
 :: m_window_swap @ : alert.sh simple 'Swap'
 
+# Mode: Actions
+:: m_actions @ : alert.sh simple 'Actions'
+
+m_actions < p : alert.sh debug
+m_actions < m [
+"Google Chrome" : alert.sh simple "Move Tab"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "Move Tab to New Window"})' back_to_default
+]
+m_actions < 0x2B [
+"Google Chrome" : alert.sh simple "Name Window"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Window", "Name Window…"}, true)' back_to_default
+]
+
 default < 0x5A ; m_windows
 default < hyper - s ; m_windows
 
 m_windows < 1 ; m_hyper
+m_windows < a ; m_actions
 
 # Exit Hyper
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap < escape ; default
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap < 0x5A ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions < escape ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions < 0x5A ; default
 
 # R -> reload
 m_hyper < r : skhd --reload; alert.sh simple 'reloading...'
@@ -46,6 +58,7 @@ m_hyper < s ; m_windows
 
 m_hyper < escape ; default
 
+m_hyper < a ; m_actions
 
 
 #
@@ -93,6 +106,11 @@ m_window_create < j : yabai_utils.sh stack south back_to_default
 m_window_create < k : yabai_utils.sh stack north back_to_default
 m_window_create < l : yabai_utils.sh stack east back_to_default
 
+m_window_create < ctrl - h : yabai_utils.sh stack west
+m_window_create < ctrl - j : yabai_utils.sh stack south
+m_window_create < ctrl - k : yabai_utils.sh stack north
+m_window_create < ctrl - l : yabai_utils.sh stack east
+
 m_window_create < u : yabai_utils.sh unstack back_to_default
 
 # Grid Mode
@@ -110,9 +128,9 @@ m_window_swap < l : yabai_utils.sh swap east
 # Tabs
 m_window_tabs < h : skhd -k "ctrl + shift - tab;"
 m_window_tabs < l : skhd -k "ctrl - tab"
-m_window_tabs < ctrl - tab ->; m_window_tabs
-m_window_tabs < ctrl + shift - tab ->; m_window_tabs
-m_window_tabs < cmd - w ->; m_window_tabs
+m_window_tabs < ctrl - tab -> : #
+m_window_tabs < ctrl + shift - tab -> : #
+m_window_tabs < cmd - w -> : #
 m_window_tabs < cmd - t ->; default
 #
 # Yabai configuration stuff

@@ -6,6 +6,13 @@ function maybe_back_to_normal {
     fi
 }
 
+function run_hs {
+  script="$1"
+  shift
+  hs -c "$script"
+  maybe_back_to_normal "$@"
+}
+
 function focus_window {
     direction="$1"
     shift
@@ -162,8 +169,12 @@ case $command in
         toggle_manage "$@"
         ;;
 
+      'run_hs')
+        run_hs "$@"
+        ;;
+
     *)
-        hs -c 'hs.alert.show("unhandled argument: $1")'
+        hs -c 'hs.alert.show("yabai_utils: unhandled argument: $1")'
         ;;
 
 esac
