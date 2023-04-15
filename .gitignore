@@ -7,6 +7,8 @@ config/nvim/lua/private/
 config/nvim/private/
 config/lazygit/state.yml
 
+config/karabiner/automatic_backups/
+
 ### macOS:
 # General
 .DS_Store
