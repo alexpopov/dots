@@ -2,16 +2,29 @@ local fn = vim.fn
 local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 
 -- Bootstrap Packer
-if fn.empty(fn.glob(install_path)) > 0 then
-  packer_bootstrap = fn.system({
-    "git",
-    "clone",
-    "--depth",
-    "1",
-    "https://github.com/wbthomason/packer.nvim",
-    install_path,
-  })
+local ensure_packer = function()
+  local fn = vim.fn
+  local install_path = fn.stdpath("data")
+    .. "/site/pack/packer/start/packer.nvim"
+  if fn.empty(fn.glob(install_path)) > 0 then
+    fn.system({
+      "git",
+      "clone",
+      "--depth",
+      "1",
+      "https://github.com/wbthomason/packer.nvim",
+      install_path,
+    })
+    vim.cmd([[packadd packer.nvim]])
+    -- For some reason, Lua's RTP might not update with the above command so we
+    --     -- have to force update it.
+    vim.cmd([[let &runtimepath = &runtimepath]])
+    return true
+  end
+  return false
 end
+
+PACKER_BOOTSTRAP = ensure_packer()
 
 -- Run PackerCompile whenever we edit this file with `nvim`.
 vim.cmd([[
