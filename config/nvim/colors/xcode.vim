@@ -26,7 +26,7 @@ endif
 
 " General colours
 hi Cursor       ctermfg=020 ctermbg=016 " blue
-hi Normal       ctermfg=235 ctermbg=231 " black
+hi Normal       ctermfg=234 ctermbg=231 " black
 hi NonText      ctermfg=231 ctermbg=231 " white
 hi LineNr       ctermfg=239 ctermbg=NONE " grey
 hi StatusLine   ctermfg=249 ctermbg=238
@@ -34,7 +34,7 @@ hi StatusLineNC ctermfg=241 ctermbg=249
 hi VertSplit    ctermfg=255 ctermbg=255 " Vertical Split Line
 hi Folded       ctermbg=252 ctermfg=233
 hi FoldColumn   cterm=NONE ctermbg=NONE
-hi Title        ctermfg=016
+hi link Title Normal
 hi Visual       ctermbg=153
 hi SpecialKey   ctermfg=126 ctermbg=153
 hi Error        ctermfg=231 ctermbg=124
@@ -63,7 +63,7 @@ hi! Todo         ctermfg=9 " red-ish salmon?
 hi! default link Constant XcodePurple
 hi! default link String XcodeRed
 hi! default link Identifier XcodeTeal
-hi! Function     ctermfg=016 " black
+hi! default link Function Normal
 hi! default link Type XcodePurple
 hi! default link Statement XcodePink
 hi! Keyword      ctermfg=091
@@ -72,7 +72,7 @@ hi! Number       ctermfg=020 " blue
 hi! Special      ctermfg=091 " <C-l> etc, purple
 hi! Search       cterm=underline ctermbg=153 ctermfg=236 " ? doesn't work
 hi! Delimiter    cterm=bold ctermfg=126
-hi! Parens       ctermfg=016
+hi! default link Parens Normal
 
 " Diff colours
 hi link DiffAdded Comment
