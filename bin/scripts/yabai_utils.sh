@@ -13,6 +13,10 @@ function run_hs {
   maybe_back_to_normal "$@"
 }
 
+function show_expose {
+  skhd -k 'ctrl -0x7D'
+}
+
 function focus_window {
     direction="$1"
     shift
@@ -169,9 +173,13 @@ case $command in
         toggle_manage "$@"
         ;;
 
-      'run_hs')
+    'run_hs')
         run_hs "$@"
         ;;
+
+    'show_expose')
+      show_expose "$@"
+      ;;
 
     *)
         hs -c 'hs.alert.show("yabai_utils: unhandled argument: $1")'
