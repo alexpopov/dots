@@ -48,6 +48,13 @@ hi XcodeBrown ctermfg=094
 hi XcodeBoldBlue cterm=bold ctermfg=5
 hi XcodeBlue  ctermfg=020
 hi XcodePurple ctermfg=091
+hi! link @keyword XcodePink
+hi! link @variable.builtin XcodePink
+hi! link @variable XcodeTeal
+hi! link @punctuation Normal
+hi! link @operator Normal
+hi! link @attribute.builtin XcodeBrown
+hi! link @attribute XcodeBrown
 
 " Syntax highlighting
 hi! link Comment XcodeGreen
