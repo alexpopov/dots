@@ -43,17 +43,19 @@ default < hyper - s ; m_windows
 m_windows < 1 ; m_hyper
 m_windows < a ; m_actions
 
+
+
 # Exit Hyper
 m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions < escape ; default
 m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions < 0x5A ; default
 
-# R -> reload
+# R: reload
 m_hyper < r : skhd --reload; alert.sh simple 'reloading...'
-# V -> clipboard
+# V: clipboard
 m_hyper < v : skhd -k escape; skhd -k "hyper - v"
-# O -> open
+# O: open
 m_hyper < o : open
-# S -> windows/yabai
+# S: windows/yabai
 m_hyper < s ; m_windows
 
 m_hyper < escape ; default
