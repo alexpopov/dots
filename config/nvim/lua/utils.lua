@@ -5,4 +5,8 @@ function M.reload_module(name)
   require(name)
 end
 
+function M.load_latest_session()
+  require("persistence").load()
+end
+
 return M
