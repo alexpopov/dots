@@ -50,7 +50,6 @@ function! SetSkhdrcSettings()
     syntax match yabai_text 'yabai_utils\.sh \w\+ \(\w\+\)?'
     hi link alert_text XcodePink
     hi link yabai_text XcodeTeal
-
 endfunction
 
 let g:python3_host_prog = $NVIM_PYTHON
@@ -159,7 +158,7 @@ endfunction
 
 map <localleader>hd :call ViewDiff()<CR>
 
-map <leader>aff :%py3f /usr/local/share/clang/clang-format.py<CR>
+map <leader>afc :%py3f /usr/local/share/clang/clang-format.py<CR>
 
 
 " Facebook stuff
