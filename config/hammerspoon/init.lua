@@ -14,11 +14,6 @@ require("hs.ipc")
 
 require("hs.application")
 
-
--- stackline = require("stackline")
--- stackline:init()
-
--- stackline.config:toggle('appearance.showIcons')
 function getCurrentApp()
   return hs.application.frontmostApplication()
 end
@@ -41,9 +36,4 @@ alp.shortcuts = {
     "m" = alp.actions.chrome.moveTabToNewWindow
   }
 }
-
-
-
-
-
 

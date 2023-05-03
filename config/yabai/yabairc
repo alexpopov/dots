@@ -22,7 +22,7 @@ yabai -m config auto_balance on
 
 # Padding
 padding=8
-yabai -m config top_padding    $padding
+yabai -m config top_padding    36
 yabai -m config bottom_padding $padding
 yabai -m config left_padding   $padding
 yabai -m config right_padding  $padding

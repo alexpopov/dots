@@ -6,6 +6,11 @@ When cloning, don't forget to get submodules so that tpm works:
 git clone --recursive
 ```
 
+If you forgot to do that:
+```
+git submodule update --init
+```
+
 ## Symlinks
 
 Read the `bootstrap.sh` file or run it.
