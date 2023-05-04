@@ -68,6 +68,8 @@ yabai -m rule --add app="Managed Software Centre" manage=off
 yabai -m rule --add app="Archive Utility" manage=off
 yabai -m rule --add app=".*sicht" manage=off
 yabai -m rule --add app="iTerm2" title=".*_um$" manage=off
+yabai -m rule --add app="Books" manage=off
+yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
 
 
 # We turn this on after all the rules, so that it doesn't temporarily
