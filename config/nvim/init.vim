@@ -50,7 +50,6 @@ function! SetSkhdrcSettings()
     syntax match yabai_text 'yabai_utils\.sh \w\+ \(\w\+\)?'
     hi link alert_text XcodePink
     hi link yabai_text XcodeTeal
-
 endfunction
 
 let g:python3_host_prog = $NVIM_PYTHON
@@ -99,8 +98,9 @@ function! SemshiOverrides()
     " tangerine-color
     hi semshiLocal           ctermfg=209 guifg=#ff875f cterm=none
     " teal
-    hi semshiGlobal          ctermfg=030 guifg=#ffaf00 cterm=none
-    hi semshiImported        ctermfg=030 guifg=#ffaf00 cterm=none
+    hi link semshiGlobal XcodeTeal
+    hi link semshiImported XcodeTeal
+    hi link semshiAttribute XcodeTeal
     " black
     hi semshiParameter       ctermfg=016 guifg=#5fafff cterm=none
     hi semshiParameterUnused ctermfg=016 guifg=#87d7ff cterm=underline gui=underline
@@ -108,8 +108,6 @@ function! SemshiOverrides()
     hi semshiFree            ctermfg=094 guifg=#ffafd7 cterm=none
     " purple
     hi semshiBuiltin         ctermfg=091 guifg=#ff5fff cterm=none
-    " self.attribute
-    hi semshiAttribute       ctermfg=030  guifg=#00ffaf cterm=none
     " pink
     hi semshiSelf            ctermfg=163 guifg=#b2b2b2 cterm=bold
     " red; errors
@@ -119,7 +117,7 @@ function! SemshiOverrides()
 
     hi semshiErrorSign       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
     hi semshiErrorChar       ctermfg=015 guifg=#ffffff ctermbg=196 guibg=#d70000
-    syntax keyword semshiSelf True False None
+    " syntax keyword semshiSelf True False None
 
 endfunction
 autocmd FileType python call SemshiOverrides()
@@ -160,7 +158,7 @@ endfunction
 
 map <localleader>hd :call ViewDiff()<CR>
 
-map <leader>aff :%py3f /usr/local/share/clang/clang-format.py<CR>
+map <leader>afc :%py3f /usr/local/share/clang/clang-format.py<CR>
 
 
 " Facebook stuff

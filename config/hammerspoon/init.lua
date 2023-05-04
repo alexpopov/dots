@@ -26,14 +26,14 @@ end
 alp.actions = {
   chrome = {
     moveTabToNewWindow = function(app)
-      app:selectMenuItem({"Tab", "Move Tab to New Window"}
-    end
+      app:selectMenuItem({"Tab", "Move Tab to New Window"})
+    end,
   },
 }
 
 alp.shortcuts = {
   ["Google Chrome"] = {
-    "m" = alp.actions.chrome.moveTabToNewWindow
-  }
+    m = alp.actions.chrome.moveTabToNewWindow
+  },
 }
 

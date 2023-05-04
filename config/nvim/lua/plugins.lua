@@ -548,7 +548,7 @@ return require("packer").startup(function(use)
 
   if os.getenv("ENABLE_PRIVATE_FACEBOOK")
   then
-    use({ "/usr/share/fb-editor-support/nvim", as = "meta.nvim" })
+    use({ "/home/alexpopov/fbsource/fbcode/editor_support/nvim", as = "meta" })
   end
 
   if packer_bootstrap then
