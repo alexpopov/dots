@@ -45,7 +45,7 @@ hi XcodeBoldPink cterm=bold ctermfg=163
 hi XcodePink  ctermfg=163
 hi XcodeRed   ctermfg=160
 hi XcodeBrown ctermfg=094
-hi XcodeBoldBlue cterm=bold ctermfg=5
+hi XcodeBoldBlue cterm=bold ctermfg=020
 hi XcodeBlue  ctermfg=020
 hi XcodePurple ctermfg=054
 
@@ -82,6 +82,7 @@ hi link DiffChange pythonCustomFunc
 hi link diffLine pythonStatement
 hi link diffFile Identifier
 
+hi link NvimInternalError Error
 
 " " Python
 " hi pythonBuiltin            ctermfg=091 " int, str, etc -- purple
