@@ -6,3 +6,4 @@ function jk_mac_fix_brew {
 
 # Add bash keybindings for fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
