@@ -63,31 +63,6 @@ map <silent> <leader>r :nohl<CR>
 
 map <silent> <leader>fc /<<<<<<<\\|=======\\|>>>>>>><CR>
 
-
-"
-" EasyMotion Settings
-"
-let g:EasyMotion_do_mapping = 0 " Disable default mappings
-let g:EasyMotion_smartcase = 1 " Regular vim casing
-
-    " occurence of character
-map <Leader>gf <Plug>(easymotion-bd-f)
-map <Leader><Leader> <Plug>(easymotion-bd-f)
-    " occurence of two characters
-map <Leader>gs <Plug>(easymotion-s2)
-    " occurence of Line
-map <Leader>gl <Plug>(easymotion-bd-jk)
-    " occurence of Word
-map <leader>gg <Plug>(easymotion-bd-w)
-    " occurence on THIS line ('h' for 'here')
-map <Leader>gh <Plug>(easymotion-sl)
-map <Leader>gr <Plug>(easymotion-repeat)
-map <Leader>gn <Plug>(easymotion-next)
-map <Leader>gp <Plug>(easymotion-prev)
-
-map  <Leader>/ <Plug>(easymotion-sn)
-omap <Leader>/ <Plug>(easymotion-tn)
-
 "
 "Python Highlighting with Semshi
 "
