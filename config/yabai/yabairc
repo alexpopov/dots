@@ -69,6 +69,8 @@ yabai -m rule --add app="Archive Utility" manage=off
 yabai -m rule --add app=".*sicht" manage=off
 yabai -m rule --add app="iTerm2" title=".*_um$" manage=off
 yabai -m rule --add app="Books" manage=off
+yabai -m rule --add app="Steam" manage=off
+yabai -m rule --add app="Paradox Launcher" manage=off
 yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
 
 
