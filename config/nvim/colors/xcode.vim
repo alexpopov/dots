@@ -52,6 +52,7 @@ hi XcodePurple ctermfg=054
 hi! link @keyword XcodePink
 hi! link @variable.builtin XcodePink
 hi! link @variable XcodeTeal
+hi! link @namespace XcodePurple
 hi! link @punctuation Normal
 hi! link @operator Normal
 hi! link @attribute.builtin XcodeBrown
