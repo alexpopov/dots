@@ -54,6 +54,17 @@ function swap_window {
     maybe_back_to_normal "$@"
 }
 
+function warp_window {
+    direction="$1"
+    shift
+    case "$direction" in
+        *)
+            yabai -m window --warp $direction
+            ;;
+    esac
+    maybe_back_to_normal "$@"
+}
+
 function config {
     type="$1"
     shift
@@ -151,6 +162,10 @@ case $command in
 
     'swap')
         swap_window "$@"
+        ;;
+
+    'warp')
+        warp_window "$@"
         ;;
 
     'reload_config')
