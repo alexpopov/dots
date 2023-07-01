@@ -72,6 +72,7 @@ yabai -m rule --add app="Books" manage=off
 yabai -m rule --add app="Steam" manage=off
 yabai -m rule --add app="Paradox Launcher" manage=off
 yabai -m rule --add app="System Information" manage=off
+yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="Problem Reporter" manage=off
 yabai -m rule --add app="FaceTime" manage=off
 yabai -m rule --add app="Rocket" manage=off
@@ -79,6 +80,7 @@ yabai -m rule --add app="Meta Quest Remote Desktop" manage=off
 yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
 # Generic file-opening dialog (checked only with Numbers)
 yabai -m rule --add app="Numbers|Pages|Preview" title="Open" manage=off
+yabai -m rule --add app="calibre" manage=off
 
 # find apps like this:
 # yabai -m query --windows | jq '.[] | select( .app == "Numbers" )'
