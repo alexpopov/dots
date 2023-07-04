@@ -40,6 +40,8 @@ m_actions < 0x2B [
 ]
 
 default < 0x5A ; m_windows
+# globe/fn key on macbook
+default < 0xB3 ; m_windows
 default < hyper - s ; m_windows
 
 m_windows < 1 ; m_hyper
