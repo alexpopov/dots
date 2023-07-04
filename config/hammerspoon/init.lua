@@ -14,6 +14,8 @@ require("hs.ipc")
 
 require("hs.application")
 
+alex = require("alex")
+
 function getCurrentApp()
   return hs.application.frontmostApplication()
 end
