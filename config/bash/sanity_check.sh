@@ -70,6 +70,14 @@ then
     echo -e "  and install from package manager"
 fi
 
+if ! command -v tree &> /dev/null
+then
+    echo -e "${color_yellow}WARNING:$color_reset tree not installed"
+    echo -e "  neat way to show file tree"
+    echo -e "  ADVICE: go to$color_purple" 'https://github.com/jesseduffield/lazygit' $color_reset
+    echo -e "  and install from package manager"
+fi
+
 if [[ -n $NVIM_PYTHON ]]; then
   if ! [[ -f $NVIM_PYTHON ]]; then
     echo -e "${color_yellow}WARNING:$color_reset NVIM_PYTHON set but invalid"
