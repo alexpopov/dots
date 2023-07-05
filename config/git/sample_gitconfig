@@ -1,0 +1,8 @@
+[user]
+  name = Alex Popov
+  email = hello@alexpopov.ca
+
+[pull]
+	rebase = true
+
+# vi: ft=gitconfig
