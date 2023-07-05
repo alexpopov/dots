@@ -77,7 +77,7 @@ return require("packer").startup(function(use)
     config = function()
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
-          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline", "help"
+          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline"
         },
         highlight = {
           enable = true,
