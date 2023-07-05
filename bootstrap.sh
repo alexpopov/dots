@@ -10,6 +10,7 @@ mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR"
 ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR"
+ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR"
 ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR"  # tmux refuses to use XDG, this is for us to have tmux.conf
 ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
