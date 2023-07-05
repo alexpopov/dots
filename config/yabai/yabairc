@@ -80,7 +80,8 @@ yabai -m rule --add app="Meta Quest Remote Desktop" manage=off
 yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
 # Generic file-opening dialog (checked only with Numbers)
 yabai -m rule --add app="Numbers|Pages|Preview" title="Open" manage=off
-yabai -m rule --add app="calibre" manage=off
+yabai -m rule --add app="Calibre" manage=off
+yabai -m rule --add app="Maccy" manage=off
 
 # find apps like this:
 # yabai -m query --windows | jq '.[] | select( .app == "Numbers" )'
