@@ -7,6 +7,7 @@ require("plugins")
 require("options")
 require("mappings")
 require("lsp")
+require("globals")
 
 if os.getenv("ENABLE_PRIVATE_FACEBOOK")
 then
