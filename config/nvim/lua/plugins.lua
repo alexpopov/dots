@@ -71,7 +71,11 @@ return require("packer").startup(function(use)
   use("bfredl/nvim-luadev")
 
   use("neovim/nvim-lspconfig")
-  use("williamboman/mason.nvim")
+  use({
+    "williamboman/mason.nvim",
+    run = ":MasonUpdate"
+  })
+  use("williamboman/mason-lspconfig.nvim")
 
   use({
     "nvim-treesitter/nvim-treesitter",
