@@ -1,4 +1,4 @@
-M = {}
+local M = {}
 M._my_name = "alex"
 
 M.test = function()
