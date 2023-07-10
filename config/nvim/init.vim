@@ -84,7 +84,7 @@ function! SemshiOverrides()
     " purple
     hi semshiBuiltin         ctermfg=091 guifg=#ff5fff cterm=none
     " pink
-    hi semshiSelf            ctermfg=163 guifg=#b2b2b2 cterm=bold
+    hi semshiSelf            ctermfg=163 guifg=#b2b2b2 cterm=none
     " red; errors
     hi semshiUnresolved      ctermfg=196 guifg=#ffff00 cterm=underline gui=underline
     " highlight selected things
