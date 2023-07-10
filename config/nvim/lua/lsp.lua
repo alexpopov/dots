@@ -101,7 +101,7 @@ local on_attach = function(client, bufnr)
     "<cmd>lua vim.diagnostic.setloclist()<CR>",
     opts
   )
-  buf_set_keymap("n", "<Leader>af", "<cmd>lua vim.lsp.buf.format { async = true, timeout_ms = 5000 }<CR>", opts)
+  buf_set_keymap("n", "<Leader>af", "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000 }<CR>", opts)
 
   vim.diagnostic.config({
     virtual_text = {
