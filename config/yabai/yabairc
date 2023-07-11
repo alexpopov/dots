@@ -78,6 +78,7 @@ yabai -m rule --add app="FaceTime" manage=off
 yabai -m rule --add app="Rocket" manage=off
 yabai -m rule --add app="Meta Quest Remote Desktop" manage=off
 yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
+yabai -m rule --add app="Android Studio" manage=off
 # Generic file-opening dialog (checked only with Numbers)
 yabai -m rule --add app="Numbers|Pages|Preview" title="Open" manage=off
 yabai -m rule --add app="Calibre" manage=off
