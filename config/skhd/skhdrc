@@ -38,6 +38,9 @@ m_actions < m [
 m_actions < 0x2B [
 "Google Chrome" : alert.sh simple "Name Window"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Window", "Name Window…"}, true)' back_to_default
 ]
+m_actions < t [
+"Google Chrome" : alert.sh simple "New Tab to Right"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "New Tab to the Right"})' back_to_default
+]
 
 default < 0x5A ; m_windows
 # globe/fn key on macbook
