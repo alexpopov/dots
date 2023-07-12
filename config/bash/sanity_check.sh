@@ -1,9 +1,16 @@
 source $HOME/.local/bin/scripts/color.sh
 
+if ! command -v python3 &> /dev/null
+then
+    echo -e "${color_red}ERROR:$color_reset python3 not installed"
+    echo -e "  you're in for a lot of pain"
+    echo -e "  ADVICE: $color_purple install from package manager $color_reset"
+fi
+
 if ! command -v nvim &> /dev/null
 then
     echo -e "${color_yellow}WARNING:$color_reset nvim not installed"
-    echo -e "  you're in for a lot of pain"
+    echo -e "  that might be annoying"
     echo -e "  ADVICE: go to$color_purple" 'https://github.com/neovim/neovim/releases' $color_reset
     echo -e "  or install from package manager"
 fi
