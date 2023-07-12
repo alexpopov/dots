@@ -24,6 +24,7 @@ ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
 # macOS specific but doesn't hurt
 mkdir -p "$HOME/.hammerspoon/"
 ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/"
+ln -sf "$DOTS_CONFIG_DIR/hammerspoon" "$CONFIG_DIR"
 
 ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc"
 ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc"
