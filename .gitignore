@@ -9,11 +9,15 @@ config/lazygit/state.yml
 
 config/karabiner/automatic_backups/
 
+
 ### macOS:
 # General
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Brew lock file, we don't want to force everyone to use the same versions
+Brewfile.lock.json
 
 # Icon must end with two \r
 Icon
