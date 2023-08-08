@@ -28,7 +28,7 @@ end
 alp.actions = {
   chrome = {
     moveTabToNewWindow = function(app)
-      app:selectMenuItem({"Tab", "Move Tab to New Window"})
+      app:selectMenuItem({ "Tab", "Move Tab to New Window" })
     end,
   },
 }
@@ -38,4 +38,14 @@ alp.shortcuts = {
     m = alp.actions.chrome.moveTabToNewWindow
   },
 }
+
+stackline = require "stackline"
+stackline:init({
+  paths = {
+    yabai = "/opt/homebrew/bin/yabai"
+  },
+  appearance = {
+    radius = 3,
+  },
+})
 
