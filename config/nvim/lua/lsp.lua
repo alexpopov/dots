@@ -14,6 +14,7 @@ require("mason-lspconfig").setup_handlers {
     require("lspconfig")[server_name].setup {}
   end,
   ["lua_ls"] = function()
+    lspconfig = require("lspconfig")
     lspconfig.lua_ls.setup {
       settings = {
         Lua = {
@@ -101,7 +102,10 @@ local on_attach = function(client, bufnr)
     "<cmd>lua vim.diagnostic.setloclist()<CR>",
     opts
   )
-  buf_set_keymap("n", "<Leader>af", "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000 }<CR>", opts)
+  buf_set_keymap("n", "<Leader>aff", "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000 }<CR>", opts)
+  buf_set_keymap("v", "<Leader>aff",
+    "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000, range = { ['start'] = vim.api.nvim_buf_get_mark(0, '<'), ['end'] = vim.api.nvim_buf_get_mark(0, '>') }<CR>",
+    opts)
 
   vim.diagnostic.config({
     virtual_text = {
