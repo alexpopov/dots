@@ -17,11 +17,11 @@ gui:
 
 promptToReturnFromSubprocess: false
 
-os:
-  edit: 'nvr -cc tabnew --remote {{filename}}'
-  editAtLine: 'nvr -cc tabnew -c :{{line}} --remote {{filename}}'
-  editAtLineAndWait: 'nvr -cc tabnew -c :{{line}} --remote-wait {{filename}}'
-  editInTerminal: false
+# os:
+#   edit: 'nvr -cc tabnew --remote {{filename}}'
+#   editAtLine: 'nvr -cc tabnew -c :{{line}} --remote {{filename}}'
+#   editAtLineAndWait: 'nvr -cc tabnew -c :{{line}} --remote-wait {{filename}}'
+#   editInTerminal: false
 
 git:
   paging:
