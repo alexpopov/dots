@@ -14,7 +14,7 @@ require("mason-lspconfig").setup_handlers {
     require("lspconfig")[server_name].setup {}
   end,
   ["lua_ls"] = function()
-    lspconfig = require("lspconfig")
+    local lspconfig = require("lspconfig")
     lspconfig.lua_ls.setup {
       settings = {
         Lua = {
