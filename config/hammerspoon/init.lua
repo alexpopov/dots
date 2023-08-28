@@ -13,6 +13,7 @@
 require("hs.ipc")
 
 require("hs.application")
+require("hs.fs")
 
 alex = require("alex")
 
@@ -39,13 +40,19 @@ alp.shortcuts = {
   },
 }
 
-stackline = require "stackline"
+
+local yabai_path = hs.fnutils.find(
+  { "/opt/homebrew/bin/yabai", "/Users/alexpopov/.local/homebrew/bin/yabai" },
+  function(path) return hs.fs.displayName(path) ~= nil end
+) or nil
+print("Resolved yabai path to: " .. yabai_path)
+
+local stackline = require "stackline"
 stackline:init({
   paths = {
-    yabai = "/opt/homebrew/bin/yabai"
+    yabai = yabai_path
   },
   appearance = {
     radius = 3,
   },
 })
-
