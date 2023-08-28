@@ -5,7 +5,7 @@ local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 local ensure_packer = function()
   local fn = vim.fn
   local install_path = fn.stdpath("data")
-    .. "/site/pack/packer/start/packer.nvim"
+      .. "/site/pack/packer/start/packer.nvim"
   if fn.empty(fn.glob(install_path)) > 0 then
     fn.system({
       "git",
@@ -39,12 +39,12 @@ return require("packer").startup(function(use)
   use("wbthomason/packer.nvim")
 
   -- From VimPlug:
-  use("machakann/vim-Verdin") -- ??autocomplete for vimscript
-  use("guns/xterm-color-table.vim") -- color table
-  use("junegunn/fzf") -- do fzf#install
-  use("junegunn/fzf.vim") -- do fzf#install
+  use("machakann/vim-Verdin")          -- ??autocomplete for vimscript
+  use("guns/xterm-color-table.vim")    -- color table
+  use("junegunn/fzf")                  -- do fzf#install
+  use("junegunn/fzf.vim")              -- do fzf#install
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
-  use("easymotion/vim-easymotion")  -- move quickly; bindings at bottom
+  use("easymotion/vim-easymotion")     -- move quickly; bindings at bottom
 
   use({
     "voldikss/vim-floaterm",
@@ -82,7 +82,8 @@ return require("packer").startup(function(use)
     config = function()
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
-          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json", "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline"
+          "bash", "c", "cpp", "lua", "rust", "javascript", "cmake", "comment", "go", "java", "javascript", "json",
+          "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline"
         },
         highlight = {
           enable = true,
@@ -123,9 +124,9 @@ return require("packer").startup(function(use)
         region_check_events = "InsertEnter",
         delete_check_events = "TextChanged,InsertLeave",
       })
-      require("luasnip.loaders.from_snipmate").lazy_load({paths = "./snippets"})
-      require("luasnip.loaders.from_snipmate").load({paths = "./private/snippets"})
-      require("luasnip.loaders.from_lua").load({paths = "./snippets"})
+      require("luasnip.loaders.from_snipmate").lazy_load({ paths = "./snippets" })
+      require("luasnip.loaders.from_snipmate").load({ paths = "./private/snippets" })
+      require("luasnip.loaders.from_lua").load({ paths = "./snippets" })
     end,
   })
 
@@ -179,11 +180,11 @@ return require("packer").startup(function(use)
           end,
         },
         sources = {
-          { name = "luasnip", priority = 8},
+          { name = "luasnip", priority = 8 },
           { name = "nvim_lsp" },
           { name = "nvim_lua" },
           { name = "path" },
-          { name = "buffer", keyword_length = 5 },
+          { name = "buffer",  keyword_length = 5 },
         },
         view = {
           entries = "custom",
@@ -270,15 +271,19 @@ return require("packer").startup(function(use)
           end
         end
       end
+
       function custom_actions.multi_selection_open_vsplit(prompt_bufnr)
         custom_actions._multiopen(prompt_bufnr, "vsplit")
       end
+
       function custom_actions.multi_selection_open_split(prompt_bufnr)
         custom_actions._multiopen(prompt_bufnr, "split")
       end
+
       function custom_actions.multi_selection_open_tab(prompt_bufnr)
         custom_actions._multiopen(prompt_bufnr, "tabe")
       end
+
       function custom_actions.multi_selection_open(prompt_bufnr)
         custom_actions._multiopen(prompt_bufnr, "edit")
       end
@@ -291,9 +296,9 @@ return require("packer").startup(function(use)
               ["<C-j>"] = actions.move_selection_next,
               ["<C-k>"] = actions.move_selection_previous,
               ["<tab>"] = actions.toggle_selection
-                + actions.move_selection_next,
+                  + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-                + actions.move_selection_previous,
+                  + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -302,16 +307,16 @@ return require("packer").startup(function(use)
             n = {
               ["<esc>"] = actions.close,
               ["<tab>"] = actions.toggle_selection
-                + actions.move_selection_next,
+                  + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-                + actions.move_selection_previous,
+                  + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
               ["<c-t>"] = custom_actions.multi_selection_open_tab,
             },
           },
-          layout_strategy="vertical",
+          layout_strategy = "vertical",
         },
       })
 
@@ -339,7 +344,7 @@ return require("packer").startup(function(use)
   use({
     "folke/which-key.nvim",
     config = function()
-      require("which-key").setup({ })
+      require("which-key").setup({})
     end,
   })
 
@@ -475,14 +480,14 @@ return require("packer").startup(function(use)
       })
       local wk = require("which-key")
       wk.register({
-        f = { name = " file tree",
-          f = {':NvimTreeFocus' .. '<CR>', "focus tree" },
-          t = {':NvimTreeToggle' .. '<CR>', "show tree" },
-          c = {':NvimTreeFindFile' .. '<CR>', "show current"},
-          h = {':NvimTreeCollapse' .. '<CR>', "collapse (hide) folder"}
+        f = {
+          name = " file tree",
+          f = { ':NvimTreeFocus' .. '<CR>', "focus tree" },
+          t = { ':NvimTreeToggle' .. '<CR>', "show tree" },
+          c = { ':NvimTreeFindFile' .. '<CR>', "show current" },
+          h = { ':NvimTreeCollapse' .. '<CR>', "collapse (hide) folder" }
         },
-      }, { prefix = '<localleader>'})
-
+      }, { prefix = '<localleader>' })
     end,
   })
 
@@ -555,6 +560,27 @@ return require("packer").startup(function(use)
   then
     use({ "/home/alexpopov/fbsource/fbcode/editor_support/nvim", as = "meta" })
   end
+
+  -- Open alternative files for the current buffer
+  use({
+    "rgroli/other.nvim",
+    config = function()
+      require("other-nvim").setup({})
+    end,
+  })
+
+  use({
+    "gbprod/yanky.nvim",
+    config = function()
+      require("yanky").setup({})
+      vim.keymap.set({ "n", "x" }, "p", "<Plug>(YankyPutAfter)")
+      vim.keymap.set({ "n", "x" }, "P", "<Plug>(YankyPutBefore)")
+      vim.keymap.set({ "n", "x" }, "gp", "<Plug>(YankyGPutAfter)")
+      vim.keymap.set({ "n", "x" }, "gP", "<Plug>(YankyGPutBefore)")
+      vim.keymap.set("n", "<c-n>", "<Plug>(YankyCycleForward)")
+      vim.keymap.set("n", "<c-p>", "<Plug>(YankyCycleBackward)")
+    end,
+  })
 
   if packer_bootstrap then
     require("packer").sync()
