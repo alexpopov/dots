@@ -20,6 +20,7 @@ EOF
 autocmd BufRead,BufNewFile TARGETS setfiletype conf
 autocmd BufRead,BufNewFile *.histedit.hg.txt setfiletype conf
 autocmd BufRead,BufNewFile skhdrc call SetSkhdrcSettings()
+autocmd BufRead,BufNewFile *.json set filetype=jsonc
 " remove whitespace at end of lines
 autocmd BufWritePre * :%s/\s\+$//e
 " Python-specific find def/class
