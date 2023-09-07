@@ -36,7 +36,8 @@ function wo {
   fi
 
   case "$verb" in
-    "setup" | "reload")
+    "setup" | "reload" | "last")
+      # Some commands edit environment, so they must run in this shell
       _w_print_debug_log "Running $verb in current shell"
       $command "$@"
       ;;
@@ -47,6 +48,7 @@ function wo {
       ($command "$@")
       ;;
   esac
+  _w_save_last_command
 }
 
 function workspace_do_shortlist {
@@ -56,7 +58,8 @@ function workspace_do_shortlist {
 
 function workspace_do_last {
   if [[ -f $ALP_WORKSPACES_STATE_LAST_COMMAND ]]; then
-    history -s $ALP_WORKSPACES_STATE_LAST_COMMAND
+    COMMAND="$(cat $ALP_WORKSPACES_STATE_LAST_COMMAND)"
+    history -s "$COMMAND"
     . $ALP_WORKSPACES_STATE_LAST_COMMAND
   else
     _w_fail_error 1 "Last command unknown: $ALP_WORKSPACES_STATE_LAST_COMMAND"
