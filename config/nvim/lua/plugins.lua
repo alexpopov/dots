@@ -46,6 +46,8 @@ return require("packer").startup(function(use)
   use("Vimjas/vim-python-pep8-indent") -- sane indentation for python
   use("easymotion/vim-easymotion")     -- move quickly; bindings at bottom
 
+  use("neoclide/jsonc.vim")
+
   use({
     "voldikss/vim-floaterm",
     config = function()
