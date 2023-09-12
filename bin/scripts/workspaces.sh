@@ -46,9 +46,9 @@ function wo {
       # Run everything else in subshell
       _w_print_debug_log "Running $verb in subshell"
       ($command "$@")
+      _w_save_last_command "$command $*"
       ;;
   esac
-  _w_save_last_command
 }
 
 function workspace_do_shortlist {
@@ -70,9 +70,11 @@ export ALP_WORKSPACES_STATE_DIR="$HOME/.local/state/workspaces"
 export ALP_WORKSPACES_STATE_LAST_COMMAND="${ALP_WORKSPACES_STATE_DIR}/last_command"
 
 function _w_save_last_command {
+  echo "SAVING $@"
   mkdir -p "$ALP_WORKSPACES_STATE_DIR"
   touch "$ALP_WORKSPACES_STATE_LAST_COMMAND"
   echo "$@" > $ALP_WORKSPACES_STATE_LAST_COMMAND
+  echo "SAVING DONE"
 }
 
 function _w_get_option {
