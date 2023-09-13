@@ -97,7 +97,8 @@ function workspace_do_reload {
     source $ALP_CURRENT_WORKSPACE
   else
     _w_print_error "I can't find the workspace..."
-    _w_print_error "Looked in: ${color_blue}${ALP_CURRENT_WORKSPACE:-unset}"
+    _w_print_error "Looked in: ${color_blue}${ALP_CURRENT_WORKSPACE:-unset}${color_reset}"
+    _w_print_warn "Have you tried ${color_blue}wo setup${color_reset} or ${color_blue}wo help${color_reset}?"
     return 1
   fi
 }
@@ -136,11 +137,11 @@ function _w_fail_error {
 }
 
 function _w_print_warn {
-  >&2 echo -e "${color_yellow}WARN${color_reset}:  $@"
+  >&2 echo -e "${color_yellow}WARN${color_reset}:  $@${color_reset}"
 }
 
 function _w_print_error {
-  >&2 echo -e "${color_red}ERROR${color_reset}: $@"
+  >&2 echo -e "${color_red}ERROR${color_reset}: $@${color_reset}"
 }
 
 function _w_print_debug_log {
