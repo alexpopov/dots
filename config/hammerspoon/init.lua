@@ -42,10 +42,14 @@ alp.shortcuts = {
 
 
 local yabai_path = hs.fnutils.find(
-  { "/opt/homebrew/bin/yabai", "/Users/alexpopov/.local/homebrew/bin/yabai" },
+  { "/opt/homebrew/bin/yabai", "/Users/alexpopov/.local/homebrew/bin/yabai", "/Users/alexpopov/homebrew/bin/yabai" },
   function(path) return hs.fs.displayName(path) ~= nil end
 ) or nil
-print("Resolved yabai path to: " .. yabai_path)
+if yabai_path == nil then
+  print("ERROR: Could not find yabai path!")
+else
+  print("Resolved yabai path to: " .. yabai_path)
+end
 
 local stackline = require "stackline"
 stackline:init({
