@@ -31,17 +31,6 @@
 # Mode: Actions
 :: m_actions @ : alert.sh simple 'Actions'
 
-m_actions < p : alert.sh debug
-m_actions < m [
-"Google Chrome" : alert.sh simple "Move Tab"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "Move Tab to New Window"})' back_to_default
-]
-m_actions < 0x2B [
-"Google Chrome" : alert.sh simple "Name Window"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Window", "Name Window…"}, true)' back_to_default
-]
-m_actions < t [
-"Google Chrome" : alert.sh simple "New Tab to Right"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "New Tab to the Right"})' back_to_default
-]
-
 default < 0x5A ; m_windows
 # globe/fn key on macbook
 default < 0xB3 ; m_windows
@@ -159,3 +148,18 @@ m_windows < 0x2A ; m_yabai_config
 m_yabai_config < f : yabai_utils.sh config float back_to_default
 m_yabai_config < t : yabai_utils.sh config bsp back_to_default
 m_yabai_config < r : yabai_utils.sh reload_config back_to_default
+
+
+m_actions < p : alert.sh debug
+m_actions < m [
+"Google Chrome" : alert.sh simple "Move Tab"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "Move Tab to New Window"})' back_to_default
+]
+m_actions < 0x2B [
+"Google Chrome" : alert.sh simple "Name Window"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Window", "Name Window…"}, true)' back_to_default
+]
+m_actions < t [
+"Google Chrome" : alert.sh simple "New Tab to Right"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "New Tab to the Right"})' back_to_default
+]
+
+m_actions < d : yabai_utils.sh dock show back_to_default
+m_actions < D : yabai_utils.sh dock hide back_to_default

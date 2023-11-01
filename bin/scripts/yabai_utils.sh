@@ -136,6 +136,27 @@ function toggle_fullscreen {
   maybe_back_to_normal "$@"
 }
 
+function auto_hide_dock {
+  action="$1"
+  shift
+  case "$action" in
+    "show")
+      osascript -e 'tell application "System Events" to set the autohide of the dock preferences to false'
+      yabai -m config left_padding 8
+      alert.sh simple "Show dock"
+      ;;
+    "hide")
+      osascript -e 'tell application "System Events" to set the autohide of the dock preferences to true'
+      yabai -m config left_padding 40
+      alert.sh simple "Hide dock"
+      ;;
+    *)
+      alert.sh simple "Unknown dock option $action"
+      ;;
+  esac
+  maybe_back_to_normal "$@"
+}
+
 
 USAGE="Usage: yabai_utils.sh focus west"
 
@@ -148,56 +169,60 @@ command="$1"
 shift
 
 case $command in
-    'focus')
-        focus_window "$@"
-        ;;
+  'focus')
+    focus_window "$@"
+    ;;
 
-    'config')
-        config "$@"
-        ;;
+  'config')
+    config "$@"
+    ;;
 
-    'grid')
-        grid "$@"
-        ;;
+  'grid')
+    grid "$@"
+    ;;
 
-    'swap')
-        swap_window "$@"
-        ;;
+  'swap')
+    swap_window "$@"
+    ;;
 
-    'warp')
-        warp_window "$@"
-        ;;
+  'warp')
+    warp_window "$@"
+    ;;
 
-    'reload_config')
-        reload_config "$@"
-        ;;
+  'reload_config')
+    reload_config "$@"
+    ;;
 
-    'fullscreen')
-        toggle_fullscreen "$@"
-        ;;
+  'fullscreen')
+    toggle_fullscreen "$@"
+    ;;
 
-    'stack')
-        create_stack "$@"
-        ;;
+  'stack')
+    create_stack "$@"
+    ;;
 
-    'unstack')
-        unstack "$@"
-         ;;
+  'unstack')
+    unstack "$@"
+    ;;
 
-    'toggle_manage')
-        toggle_manage "$@"
-        ;;
+  'toggle_manage')
+    toggle_manage "$@"
+    ;;
 
-    'run_hs')
-        run_hs "$@"
-        ;;
+  'run_hs')
+    run_hs "$@"
+    ;;
 
-    'show_expose')
-      show_expose "$@"
-      ;;
+  'show_expose')
+    show_expose "$@"
+    ;;
 
-    *)
-        hs -c 'hs.alert.show("yabai_utils: unhandled argument: $1")'
-        ;;
+  'dock')
+    auto_hide_dock "$@"
+    ;;
 
-esac
+  *)
+    hs -c "hs.alert.show(\"yabai_utils: unhandled argument: $1\")"
+    ;;
+
+  esac
