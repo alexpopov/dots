@@ -518,6 +518,10 @@ return require("packer").startup(function(use)
   })
 
   use({
+    "mechatroner/rainbow_csv"
+  })
+
+  use({
     "folke/paint.nvim",
     config = function()
       require("paint").setup({
