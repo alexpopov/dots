@@ -162,4 +162,4 @@ m_actions < t [
 ]
 
 m_actions < d : yabai_utils.sh dock show back_to_default
-m_actions < D : yabai_utils.sh dock hide back_to_default
+m_actions < shift - d : yabai_utils.sh dock hide back_to_default
