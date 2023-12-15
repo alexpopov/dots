@@ -562,6 +562,8 @@ return require("packer").startup(function(use)
     end,
   })
 
+  use("powerman/vim-plugin-AnsiEsc")
+
   if os.getenv("ENABLE_PRIVATE_FACEBOOK")
   then
     use({ "/home/alexpopov/fbsource/fbcode/editor_support/nvim", as = "meta" })
