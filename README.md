@@ -8,7 +8,7 @@ git clone --recursive
 
 If you forgot to do that:
 ```
-git submodule update --init
+git submodule update --init --recursive
 ```
 
 ## Symlinks
