@@ -93,6 +93,14 @@ then
     echo -e "  and install from package manager"
 fi
 
+if ! command -v git-prev &> /dev/null
+then
+    echo -e "${color_yellow}WARNING:$color_reset git-prev-next not installed"
+    echo -e "  lets you move up/down branches like in hg"
+    echo -e "  ADVICE: go to$color_purple" 'https://github.com/ridiculousfish/git-prev-next' $color_reset
+    echo -e "  clone it and then symlink the scripts to \$PATH"
+fi
+
 if [[ -n $NVIM_PYTHON ]]; then
   if ! [[ -f $NVIM_PYTHON ]]; then
     echo -e "${color_yellow}WARNING:$color_reset NVIM_PYTHON set but invalid"
