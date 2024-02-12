@@ -48,6 +48,9 @@ hi XcodeBrown ctermfg=094
 hi XcodeBoldBlue cterm=bold ctermfg=020
 hi XcodeBlue  ctermfg=020
 hi XcodePurple ctermfg=054
+hi XcodeGrey  ctermfg=251
+
+hi! link DiagnosticHint XcodeGrey
 
 hi! link @keyword XcodePink
 hi! link @variable.builtin XcodePink
