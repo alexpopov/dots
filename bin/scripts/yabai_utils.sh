@@ -157,6 +157,34 @@ function auto_hide_dock {
   maybe_back_to_normal "$@"
 }
 
+function style {
+  action="$1"
+  shift
+  case "$action" in
+
+    "condensed")
+      local padding=8
+      yabai -m config top_padding    $padding
+      yabai -m config bottom_padding $padding
+      yabai -m config left_padding   $padding
+      yabai -m config right_padding  $padding
+      yabai -m config window_gap     $padding
+      ;;
+
+    "airy")
+      local padding=120
+      yabai -m config top_padding    $padding
+      yabai -m config bottom_padding $padding
+      yabai -m config left_padding   $padding
+      yabai -m config right_padding  $padding
+      yabai -m config window_gap     30
+      ;;
+
+  esac
+
+  maybe_back_to_normal "$@"
+}
+
 
 USAGE="Usage: yabai_utils.sh focus west"
 
@@ -219,6 +247,10 @@ case $command in
 
   'dock')
     auto_hide_dock "$@"
+    ;;
+
+  'style')
+    style "$@"
     ;;
 
   *)
