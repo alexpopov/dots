@@ -157,11 +157,19 @@ function auto_hide_dock {
   maybe_back_to_normal "$@"
 }
 
+function manage_apps {
+  local rule="$1"
+  for app in "$@"; do
+    alert.sh simple "Doing $app"
+    yabai -m rule --add app="$app" manage="$rule"
+  done
+}
+
 function style {
   action="$1"
   shift
+  local apps=("Messages" "WhatsApp" "Discord" "Spark" "Messenger" "Slack" "Safari" "Books" "Music" "Telegram" "Notion" "Preview" "Things" "Calendar" "Photos" "Numbers" "Pages")
   case "$action" in
-
     "condensed")
       local padding=8
       yabai -m config top_padding    $padding
@@ -169,6 +177,8 @@ function style {
       yabai -m config left_padding   $padding
       yabai -m config right_padding  $padding
       yabai -m config window_gap     $padding
+      manage_apps off "${apps[@]}"
+      yabai -m rule --add label="Finder" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
       ;;
 
     "airy")
@@ -178,6 +188,8 @@ function style {
       yabai -m config left_padding   $padding
       yabai -m config right_padding  $padding
       yabai -m config window_gap     30
+      manage_apps on "${apps[@]}"
+      yabai -m rule --add label="Finder" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
       ;;
 
   esac
