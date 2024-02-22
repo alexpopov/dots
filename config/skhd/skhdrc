@@ -118,6 +118,10 @@ m_window_resize < c : yabai_utils.sh grid centre back_to_default
 m_window_resize < m : yabai_utils.sh grid small-centre back_to_default
 m_window_resize < f : yabai_utils.sh grid full back_to_default
 m_window_resize < 0x18 : yabai_utils.sh grid equal back_to_default
+m_window_resize < h : yabai_utils.sh resize left
+m_window_resize < l : yabai_utils.sh resize right
+m_window_resize < j : yabai_utils.sh resize down
+m_window_resize < k : yabai_utils.sh resize up
 
 # Swap Mode
 m_window_swap < h : yabai_utils.sh swap west

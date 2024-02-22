@@ -130,6 +130,36 @@ function grid {
   maybe_back_to_normal "$@"
 }
 
+function resize {
+  type=$1
+  shift
+  case "$type" in
+    'left')
+      yabai -m window --resize right:-20:0 2> /dev/null || yabai -m window --resize left:-20:0 2> /dev/null
+      ;;
+
+    'right')
+      yabai -m window --resize right:20:0 2> /dev/null || yabai -m window --resize left:20:0 2> /dev/null
+      ;;
+
+    'down')
+      yabai -m window --resize bottom:0:20 2> /dev/null || yabai -m window --resize top:0:20 2> /dev/null
+      ;;
+
+    'up')
+      yabai -m window --resize bottom:0:-20 2> /dev/null || yabai -m window --resize top:0:-20 2> /dev/null
+      ;;
+
+    *)
+      echo "unknown resize command $type"
+      maybe_back_to_normal "$@"
+      return
+      ;;
+  esac
+  # alert.sh simple "$type"
+  maybe_back_to_normal "$@"
+}
+
 function toggle_fullscreen {
   yabai -m window --toggle zoom-fullscreen
   alert.sh simple "Toggle: Fullscreen"
@@ -168,7 +198,7 @@ function manage_apps {
 function style {
   action="$1"
   shift
-  local apps=("Messages" "WhatsApp" "Discord" "Spark" "Messenger" "Slack" "Safari" "Books" "Music" "Telegram" "Notion" "Preview" "Things" "Calendar" "Photos" "Numbers" "Pages")
+  local apps=("Messages" "WhatsApp" "Discord" "Spark" "Messenger" "Slack" "Safari" "Books" "Music" "Telegram" "Notion" "Preview" "Things" "Calendar" "Photos" "Numbers" "Pages" "Workplace Chat")
   case "$action" in
     "condensed")
       local padding=8
@@ -188,7 +218,7 @@ function style {
       yabai -m config left_padding   $padding
       yabai -m config right_padding  $padding
       yabai -m config window_gap     30
-      manage_apps on "${apps[@]}"
+      manage_apps off "${apps[@]}"
       yabai -m rule --add label="Finder" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
       ;;
 
@@ -219,6 +249,10 @@ case $command in
 
   'grid')
     grid "$@"
+    ;;
+
+  'resize')
+    resize "$@"
     ;;
 
   'swap')
