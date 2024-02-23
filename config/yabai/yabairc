@@ -28,12 +28,15 @@ yabai -m config left_padding   $padding
 yabai -m config right_padding  $padding
 yabai -m config window_gap     $padding
 
-# Ignore Lists
-yabai -m rule --add label="Finder" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
+# This disabled/enables certain apps from being managed implicitly:
+yabai_utils.sh style condensed
+
+# Permenantly off list:
 yabai -m rule --add label="Safari" app="^Safari$" title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
-yabai -m rule --add label="Safari" app="^Safari$" manage=off
+yabai -m rule --add label="Finder Settings" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
 yabai -m rule --add label="System Preferences" app="^System Preferences$" title=".*" manage=off
 yabai -m rule --add label="System Settings" app="^System Settings$" title=".*" manage=off
+yabai -m rule --add app="System Information" manage=off
 yabai -m rule --add label="App Store" app="^App Store$" manage=off
 yabai -m rule --add label="Activity Monitor" app="^Activity Monitor$" manage=off
 yabai -m rule --add label="Calculator" app="^Calculator$" manage=off
@@ -41,38 +44,19 @@ yabai -m rule --add label="Dictionary" app="^Dictionary$" manage=off
 yabai -m rule --add label="Software Update" title="Software Update" manage=off
 yabai -m rule --add label="About This Mac" app="System Information" title="About This Mac" manage=off
 yabai -m rule --add app="Karabiner-Elements" manage=off
-yabai -m rule --add app="Telegram" manage=off
-yabai -m rule --add app="Messages" manage=off
-yabai -m rule --add app="Notion" manage=off
-yabai -m rule --add app="Preview" manage=off
-yabai -m rule --add app="Things" manage=off
 yabai -m rule --add app="QuickTime Player" manage=off
-yabai -m rule --add app="Workplace Chat" manage=off
 yabai -m rule --add app="Captin" manage=off
-yabai -m rule --add app="WhatsApp" manage=off
-yabai -m rule --add app="Discord" manage=off
-yabai -m rule --add app="Spark" manage=off
 yabai -m rule --add app="Cisco" manage=off
-yabai -m rule --add app="Spark" manage=off
-yabai -m rule --add app="Messenger" manage=off
-yabai -m rule --add app="Slack" manage=off
 yabai -m rule --add app="Outlook" manage=off
 yabai -m rule --add app="Choosy.*" manage=off
 yabai -m rule --add app="Bartender.*" manage=off
 yabai -m rule --add app="Google Drive" manage=off
 yabai -m rule --add app="Calendar" manage=off
-yabai -m rule --add app="Finder" manage=off
-yabai -m rule --add app="Photos" manage=off
-yabai -m rule --add app="Music" manage=off
 yabai -m rule --add app="Managed Software Centre" manage=off
 yabai -m rule --add app="Archive Utility" manage=off
 yabai -m rule --add app=".*sicht" manage=off
-yabai -m rule --add app="iTerm2" title=".*_um$" manage=off
-yabai -m rule --add app="Books" manage=off
 yabai -m rule --add app="Steam" manage=off
 yabai -m rule --add app="Paradox Launcher" manage=off
-yabai -m rule --add app="System Information" manage=off
-yabai -m rule --add app="System Settings" manage=off
 yabai -m rule --add app="Problem Reporter" manage=off
 yabai -m rule --add app="FaceTime" manage=off
 yabai -m rule --add app="Rocket" manage=off
@@ -80,7 +64,6 @@ yabai -m rule --add app="Meta Quest Remote Desktop" manage=off
 yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
 yabai -m rule --add app="Android Studio" manage=off
 # Generic file-opening dialog (checked only with Numbers)
-yabai -m rule --add app="Numbers|Pages|Preview" title="Open" manage=off
 yabai -m rule --add app="Calibre" manage=off
 yabai -m rule --add app="Maccy" manage=off
 yabai -m rule --add app="Keymapp" manage=off

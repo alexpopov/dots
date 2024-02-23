@@ -100,6 +100,9 @@ m_window_focus < n : yabai_utils.sh focus stack.next
 m_window_focus < p : yabai_utils.sh focus stack.prev
 m_window_focus < f : yabai_utils.sh focus most_reasonable back_to_default
 
+# Ignore
+m_window_focus < cmd - h -> :
+
 # Create Mode
 m_window_create < h : yabai_utils.sh stack west back_to_default
 m_window_create < j : yabai_utils.sh stack south back_to_default
