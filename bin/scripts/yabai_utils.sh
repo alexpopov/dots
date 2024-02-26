@@ -198,7 +198,29 @@ function manage_apps {
 function style {
   action="$1"
   shift
-  local apps=("Messages" "WhatsApp" "Discord" "Spark" "Messenger" "Slack" "Safari" "Books" "Music" "Telegram" "Notion" "Preview" "Things" "Calendar" "Photos" "Numbers" "Pages" "Sheets" "Workplace Chat" "Finder")
+  local apps=(
+    "Books"
+    "Calendar"
+    "Discord"
+    "Finder"
+    "Messages"
+    "Messenger"
+    "Music"
+    "Notion"
+    "Numbers"
+    "Pages"
+    "Photos"
+    "Preview"
+    "Safari"
+    "Sheets"
+    "Slack"
+    "Spark"
+    "Telegram"
+    "Things"
+    "WhatsApp"
+    "Workplace Chat"
+  )
+
   case "$action" in
     "condensed")
       local padding=8

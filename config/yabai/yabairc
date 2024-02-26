@@ -68,6 +68,7 @@ yabai -m rule --add app="Calibre" manage=off
 yabai -m rule --add app="Maccy" manage=off
 yabai -m rule --add app="Keymapp" manage=off
 yabai -m rule --add app="Logic Pro" manage=off
+yabai -m rule --add app="Hammerspoon" manage=off
 
 # find apps like this:
 # yabai -m query --windows | jq '.[] | select( .app == "Numbers" )'
