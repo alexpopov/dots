@@ -173,3 +173,7 @@ m_actions < shift - d : yabai_utils.sh dock hide back_to_default
 
 m_actions < s : alert.sh simple "Style: Condensed"; yabai_utils.sh style condensed back_to_default
 m_actions < shift - s : alert.sh simple "Style: Airy"; yabai_utils.sh style airy back_to_default
+
+
+# Switch to something else? This sped up scanning by combining a couple keys
+# m_actions < s : alert.sh simple "Scanner"; skhd -k "escape"; skhd -k "cmd - 0x1B"; skhd -k "cmd + shift - s";
