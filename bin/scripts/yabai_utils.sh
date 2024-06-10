@@ -161,8 +161,8 @@ function resize {
 }
 
 function toggle_fullscreen {
-  yabai -m window --toggle zoom-fullscreen
-  alert.sh simple "Toggle: Fullscreen"
+  # yabai -m window --toggle zoom-fullscreen
+  alert.sh simple "Toggle: Fullscreen is buggy WARNING"
   maybe_back_to_normal "$@"
 }
 
