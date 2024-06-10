@@ -51,6 +51,12 @@ function vime {
   nvr --remote $@
 }
 
+function jk_choose_dirs_v {
+  (IFS=$'\n'; gum filter $(dirs -v) | awk '{ print "+" $1 }')
+}
+
+alias dv="pushd \$(jk_choose_dirs_v)"
+
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
 # too often when I think I'm in vim
