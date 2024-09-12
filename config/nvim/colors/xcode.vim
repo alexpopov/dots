@@ -36,8 +36,8 @@ hi Folded       ctermbg=252 ctermfg=233
 hi FoldColumn   cterm=NONE ctermbg=NONE
 hi link Title Normal
 hi Visual       ctermbg=153
-hi SpecialKey   ctermfg=126 ctermbg=153
 hi Error        ctermfg=231 ctermbg=124
+hi link SpecialKey Error
 
 hi XcodeGreen ctermfg=22
 hi XcodeTeal  ctermfg=30

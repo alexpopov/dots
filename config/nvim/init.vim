@@ -58,6 +58,10 @@ let g:loaded_node_provider = 0
 let g:loaded_perl_provider = 0
 let g:loaded_ruby_provider = 0 " this probaby doesn't do anything
 
+set list
+set listchars=tab:>-
+match Error /\t/
+
 " Clear search
 map <silent> <C-x> :nohl<CR>
 map <silent> <leader>r :nohl<CR>
