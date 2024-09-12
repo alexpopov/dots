@@ -129,8 +129,7 @@ local null_ls = require("null-ls")
 null_ls.setup({
   on_attach = on_attach,
   sources = {
-    null_ls.builtins.formatting.trim_whitespace,
-    null_ls.builtins.formatting.trim_newlines,
+    null_ls.builtins.formatting.trail_space,
   },
 })
 

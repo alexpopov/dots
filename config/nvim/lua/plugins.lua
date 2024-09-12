@@ -103,7 +103,7 @@ return require("packer").startup(function(use)
 
 
   use({
-    "jose-elias-alvarez/null-ls.nvim",
+    "nvimtools/none-ls.nvim",
     requires = { "nvim-lua/plenary.nvim" },
   })
 
@@ -237,6 +237,8 @@ return require("packer").startup(function(use)
     end,
   })
 
+  use { 'nvim-telescope/telescope-fzf-native.nvim', run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release' }
+
   use({
     "nvim-telescope/telescope.nvim",
     requires = { "nvim-lua/plenary.nvim" },
@@ -298,9 +300,9 @@ return require("packer").startup(function(use)
               ["<C-j>"] = actions.move_selection_next,
               ["<C-k>"] = actions.move_selection_previous,
               ["<tab>"] = actions.toggle_selection
-                  + actions.move_selection_next,
+                + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-                  + actions.move_selection_previous,
+                + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -309,9 +311,9 @@ return require("packer").startup(function(use)
             n = {
               ["<esc>"] = actions.close,
               ["<tab>"] = actions.toggle_selection
-                  + actions.move_selection_next,
+                + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-                  + actions.move_selection_previous,
+                + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -320,6 +322,15 @@ return require("packer").startup(function(use)
           },
           layout_strategy = "vertical",
         },
+        extensions = {
+          fzf = {
+            fuzzy = true,                    -- false will only do exact matching
+            override_generic_sorter = true,  -- override the generic sorter
+            override_file_sorter = true,     -- override the file sorter
+            case_mode = "smart_case",        -- or "ignore_case" or "respect_case"
+            -- the default case_mode is "smart_case"
+          }
+        }
       })
 
       -- vim.api.nvim_set_keymap(
@@ -342,6 +353,10 @@ return require("packer").startup(function(use)
       -- )
     end,
   })
+
+-- To get fzf loaded and working with telescope, you need to call
+-- load_extension, somewhere after setup function:
+require('telescope').load_extension('fzf')
 
   use({
     "folke/which-key.nvim",
