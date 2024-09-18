@@ -17,91 +17,101 @@ endl = '<CR>'
 set_keymap = vim.api.nvim_set_keymap
 
 -- Window Movement
-set_keymap('n', '<C-J>', '<C-W><C-J>', {noremap = true, desc = "move to split south"})
-set_keymap('n', '<C-H>', '<C-W><C-H>', {noremap = true, desc = "move to split west"})
-set_keymap('n', '<C-K>', '<C-W><C-K>', {noremap = true, desc = "move to split north"})
-set_keymap('n', '<C-L>', '<C-W><C-L>', {noremap = true, desc = "move to split east"})
+set_keymap('n', '<C-J>', '<C-W><C-J>', { noremap = true, desc = "move to split south" })
+set_keymap('n', '<C-H>', '<C-W><C-H>', { noremap = true, desc = "move to split west" })
+set_keymap('n', '<C-K>', '<C-W><C-K>', { noremap = true, desc = "move to split north" })
+set_keymap('n', '<C-L>', '<C-W><C-L>', { noremap = true, desc = "move to split east" })
 
 -- leader commands
-wk.register({
-  f = {
-    name = " Find",
-    a = { function() require'telescope.builtin'.grep_string{ shorten_path = true, word_match = '-w', only_sort_text = true, search = ''} end, "Find All Files" },
-    b = { ':Telescope buffers' .. endl, "Find Buffer" },
-    h = { ':Telescope current_buffer_fuzzy_find' .. endl, "Find Here (in this file)"},
-    H = { ':Telescope help_tags' .. endl, "Help tags"},
-    l = { ":lua require'telescope.builtin'.grep_string{ shorten_path = true, grep_open_files = true, word_match = '-w', only_sort_text = true, search = ''}" .. endl, "Find Line (in open files)"},
-    f = { ':Telescope find_files' .. endl, "Find File"},
-    m = { function() require'telescope.builtin'.builtin(require("telescope.themes").get_dropdown({preview = false})) end, "Search Telescopes"},
-  },
-}, { prefix = leader })
--- leader commands that are recursive for normal and visual
-wk.register({
-  c = {
-    name = " Comment",
-    ["<space>"] = { "gcc", "Toggle" },
-    a = { "gcgc", "Toggle Section" },
-  },
-}, { mode = "n", prefix = leader , noremap = false })
-wk.register({
-  c = {
-    ["<space>"] = { ":Commentary" .. endl, "Toggle" },
-  },
+wk.add(
+  {
+    { "<Leader>f",  group = " Find" },
+    { "<Leader>fH", ":Telescope help_tags<CR>", desc = "Help tags" },
+    {
+      "<Leader>fa",
+      function()
+        require 'telescope.builtin'.grep_string { shorten_path = true, word_match = '-w', only_sort_text
+        = true, search = '' }
+      end,
+      desc = "Find All Files"
+    },
+    {
+      "<Leader>fb",
+      ":Telescope buffers<CR>",
+      desc =
+      "Find Buffer"
+    },
+    {
+      "<Leader>ff",
+      ":Telescope find_files<CR>",
+      desc =
+      "Find File"
+    },
+    {
+      "<Leader>fh",
+      ":Telescope current_buffer_fuzzy_find<CR>",
+      desc =
+      "Find Here (in this file)"
+    },
+    {
+      "<Leader>fl",
+      ":lua require'telescope.builtin'.grep_string{ shorten_path = true, grep_open_files = true, word_match = '-w', only_sort_text = true, search = ''}<CR>",
+      desc =
+      "Find Line (in open files)"
+    },
+    {
+      "<Leader>fm",
+      function()
+        require 'telescope.builtin'.builtin(require("telescope.themes").get_dropdown({
+          preview = false }))
+      end,
+      desc =
+      "Search Telescopes"
+    },
+  })
 
-}, { mode = "v", prefix = leader , noremap = false })
+-- leader commands that are recursive for normal and visual
+wk.add(
+  {
+    { "<Leader>c",        group = " Comment", remap = true },
+    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle",         mode = "v",  remap = true },
+    { "<Leader>ca",       "gcgc",             desc = "Toggle Section", remap = true },
+  }
+)
 
 -- local-leader commands
-wk.register({
-  e = {
-    name = " edit",
-    v = {
-      name = " vim files",
-      v = { ':edit ~/.config/nvim/init.vim' .. endl, "init.vim" },
-      i = { ':edit ~/.config/nvim/lua/lua_init.lua' .. endl, "init_lua.lua" },
-      m = { ':edit ~/.config/nvim/lua/mappings.lua' .. endl, "mappings.lua" },
-      p = { ':edit ~/.config/nvim/lua/plugins.lua' .. endl, "plugins.lua" },
-      o = { ':edit ~/.config/nvim/lua/options.lua' .. endl, "options.lua" },
-      l = { ':edit ~/.config/nvim/lua/lsp.lua' .. endl, "lsp.lua" },
-    },
-    b = {
-      name = " bash files",
-      e = { ':edit ~/.bash_profile' .. endl, "~/.bash_profile" },
-      b = { ':edit ~/.config/bash/bash_profile.sh' .. endl, "bash_profile.sh" },
-      s = { ':edit ~/.config/bash/sanity_check.sh' .. endl, "sanity_check.sh" },
-    },
-  },
-  r = {
-    name = " reload",
-    v = {
-      name = " vim files",
-      v = { ':source ~/.config/nvim/init.vim' .. endl, "init.vim" },
-      i = { ':lua alp.utils.reload_module(lua_init)' .. endl, "init_lua.lua" },
-      m = { ':lua alp.utils.reload_module(mappings)' .. endl, "mappings.lua" },
-      p = { ':lua alp.utils.reload_module(plugins)' .. endl, "plugins.lua" },
-      o = { ':lua alp.utils.reload_module(options)' .. endl, "options.lua" },
-      l = { ':lua alp.utils.reload_module(lsp)' .. endl, "lsp.lua" },
-    },
-  },
-  b = {
-    name = " buffers",
-    -- This function is still defined in init.vim
-    d = { ':call DeleteHiddenBuffers()', "Delete Hidden Buffers" },
-  },
-  t = {
-    name = " tabs",
-    n = { ":tabnew"..endl, "New Tab"},
-  },
-  g = {
-    name = " go",
-    h = { ":lua require('tree-climber').goto_prev" .. endl, "previous" },
-    l = { ":lua require('tree-climber').goto_next" .. endl, "next" },
-    k = { ":lua require('tree-climber').goto_parent" .. endl, "parent" },
-    j = { ":lua require('tree-climber').goto_child" .. endl, "child" },
-  },
-  q = {
-    name = " config",
-    n = { ":lua vim.opt.number = true; vim.opt.relativenumber = true" .. endl, "line numbers" }
-  },
-}, { prefix = localLeader })
-
-
+wk.add(
+  {
+    { "<localleader>b",   group = " buffers" },
+    { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
+    { "<localleader>e",   group = " edit" },
+    { "<localleader>eb",  group = " bash files" },
+    { "<localleader>ebb", ":edit ~/.config/bash/bash_profile.sh<CR>",                      desc = "bash_profile.sh" },
+    { "<localleader>ebe", ":edit ~/.bash_profile<CR>",                                     desc = "~/.bash_profile" },
+    { "<localleader>ebs", ":edit ~/.config/bash/sanity_check.sh<CR>",                      desc = "sanity_check.sh" },
+    { "<localleader>ev",  group = " vim files" },
+    { "<localleader>evi", ":edit ~/.config/nvim/lua/lua_init.lua<CR>",                     desc = "init_lua.lua" },
+    { "<localleader>evl", ":edit ~/.config/nvim/lua/lsp.lua<CR>",                          desc = "lsp.lua" },
+    { "<localleader>evm", ":edit ~/.config/nvim/lua/mappings.lua<CR>",                     desc = "mappings.lua" },
+    { "<localleader>evo", ":edit ~/.config/nvim/lua/options.lua<CR>",                      desc = "options.lua" },
+    { "<localleader>evp", ":edit ~/.config/nvim/lua/plugins.lua<CR>",                      desc = "plugins.lua" },
+    { "<localleader>evv", ":edit ~/.config/nvim/init.vim<CR>",                             desc = "init.vim" },
+    { "<localleader>g",   group = " go" },
+    { "<localleader>gh",  ":lua require('tree-climber').goto_prev<CR>",                    desc = "previous" },
+    { "<localleader>gj",  ":lua require('tree-climber').goto_child<CR>",                   desc = "child" },
+    { "<localleader>gk",  ":lua require('tree-climber').goto_parent<CR>",                  desc = "parent" },
+    { "<localleader>gl",  ":lua require('tree-climber').goto_next<CR>",                    desc = "next" },
+    { "<localleader>q",   group = " config" },
+    { "<localleader>qn",  ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
+    { "<localleader>r",   group = " reload" },
+    { "<localleader>rv",  group = " vim files" },
+    { "<localleader>rvi", ":lua alp.utils.reload_module(lua_init)<CR>",                    desc = "init_lua.lua" },
+    { "<localleader>rvl", ":lua alp.utils.reload_module(lsp)<CR>",                         desc = "lsp.lua" },
+    { "<localleader>rvm", ":lua alp.utils.reload_module(mappings)<CR>",                    desc = "mappings.lua" },
+    { "<localleader>rvo", ":lua alp.utils.reload_module(options)<CR>",                     desc = "options.lua" },
+    { "<localleader>rvp", ":lua alp.utils.reload_module(plugins)<CR>",                     desc = "plugins.lua" },
+    { "<localleader>rvv", ":source ~/.config/nvim/init.vim<CR>",                           desc = "init.vim" },
+    { "<localleader>t",   group = " tabs" },
+    { "<localleader>tn",  ":tabnew<CR>",                                                   desc = "New Tab" },
+  }
+)
