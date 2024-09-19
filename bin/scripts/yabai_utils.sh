@@ -193,6 +193,7 @@ function manage_apps {
     yabai -m rule --remove "$app"
     yabai -m rule --add label="$app" app="$app" manage="$rule"
   done
+  yabai -m rule --apply
 }
 
 function style {
@@ -241,6 +242,9 @@ function style {
       yabai -m config window_gap     30
       manage_apps on "${apps[@]}"
       ;;
+
+    *)
+      echo "error, unknown action $action"
 
   esac
 
