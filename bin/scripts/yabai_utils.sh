@@ -192,6 +192,7 @@ function manage_apps {
   for app in "$@"; do
     yabai -m rule --remove "$app"
     yabai -m rule --add label="$app" app="$app" manage="$rule"
+    yabai -m rule --apply "$app"
   done
   yabai -m rule --apply
 }
