@@ -64,9 +64,6 @@ return require("packer").startup(function(use)
   use("qpkorr/vim-bufkill")
   use("wesQ3/vim-windowswap")
 
-  use("numirias/semshi")
-  -- Maybe it's time to say goodbye to Semshi
-
   use("gburca/vim-logcat")
   -- End VimPlug
 
