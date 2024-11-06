@@ -128,9 +128,6 @@ M.on_attach = on_attach
 local null_ls = require("null-ls")
 null_ls.setup({
   on_attach = on_attach,
-  sources = {
-    null_ls.builtins.formatting.trail_space,
-  },
 })
 
 return M
