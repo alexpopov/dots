@@ -87,54 +87,6 @@ hi link diffFile Identifier
 
 hi link NvimInternalError Error
 
-" " Python
-" hi pythonBuiltin            ctermfg=091 " int, str, etc -- purple
-" hi pythonBuiltinFunc        ctermfg=091 " various built-in functions
-" hi pythonBuiltinObj         ctermfg=094 " some dunders
-" hi pythonBuiltinType        ctermfg=091 " various built-in types
-" hi pythonCustomFunc         ctermfg=030 " ?
-" "hi pythonDottedName         ctermfg=226 " ? doesn't worK
-" hi pythonFunction           ctermfg=226 " ?
-" hi pythonDecorator          ctermfg=094 " @udf for example
-" hi pythonInclude            ctermfg=094  " Python imports, etc
-" hi pythonImport             ctermfg=094  " Pythin imports
-" hi pythonInstances          ctermfg=226 " ?
-" hi pythonFunction           ctermfg=16 " ?
-" hi pythonStatement          cterm=bold ctermfg=163 " class, return, def, pass, etc
-" hi pythonConditional        cterm=bold ctermfg=163 " if else etc
-" hi pythonRepeat	            cterm=bold ctermfg=163 " while, for
-" hi pythonOperator           cterm=bold ctermfg=163 " and, or
-" hi pythonException          cterm=bold ctermfg=163 " raise
-" hi pythonExClass            ctermfg=091 " raise
-" hi pythonSingleton          ctermfg=091
-" hi pythonBuiltinConstant    ctermfg=226
-" hi pythonBoolean            cterm=bold ctermfg=163 " True, False
-" hi pythonAttribute          ctermfg=226
-" hi pythonString             ctermfg=160
-" hi pythonQuotes             ctermfg=160
-" hi docstring                ctermfg=28
-" hi pythonClassVar           cterm=bold ctermfg=163 " self, cls
-" hi pythonNone               cterm=bold ctermfg=163 " None
-" hi pythonRun                ctermfg=28
-" hi pythonTodo               ctermfg=160
-" hi pythonClass              ctermfg=30
-" hi pythonFuncArgs           ctermfg=30
-
-
-"autocmd Filetype python call SetColors()
-"function SetColors()
-    ""syn keyword pythonBuiltin class def pass return with as nonlocal
-    "syn keyword pythonBoolean   True False None
-    "syn keyword pythonOperator  self cls
-    "syn keyword pythonDecorator dataclass udf staticmethod
-    "syn keyword pythonBuiltin List Any Dict Iterator Mapping Optional Sequence
-    "syn keyword pythonBuiltin Tuple Type TypeVar Union cast
-    ""syn match pythonStatement /,/
-    "syn match pythonInclude /__[a-z]\+/ " doesn't work :(
-
-    ""syn match docstring /"""\_.\{-}"""/
-"endfunction
-
 " Javascript
 hi javaScriptReserved ctermfg=126
 hi javaScriptNumber ctermfg=020
