@@ -1,8 +1,8 @@
 local specs = {
-  {"guns/xterm-color-table.vim"},    -- color table
-  {"junegunn/fzf", dir = "~/.fzf", build = "./install --all" },
-  {"junegunn/fzf.vim"},
-  {"Vimjas/vim-python-pep8-indent"}, -- sane indentation for python
+  { "guns/xterm-color-table.vim" }, -- color table
+  { "junegunn/fzf",                 dir = "~/.fzf", build = "./install --all" },
+  { "junegunn/fzf.vim" },
+  { "Vimjas/vim-python-pep8-indent" }, -- sane indentation for python
 
   {
     "voldikss/vim-floaterm",
@@ -17,11 +17,11 @@ local specs = {
     end,
   },
 
-  {"dylon/vim-antlr", lazy = true,},
-  {"solarnz/thrift.vim", lazy = true,},
-  {"qpkorr/vim-bufkill", lazy = true,},
-  {"wesQ3/vim-windowswap", lazy = true,},
-  {"gburca/vim-logcat", lazy = true,},
+  { "dylon/vim-antlr",      lazy = true, },
+  { "solarnz/thrift.vim",   lazy = true, },
+  { "qpkorr/vim-bufkill",   lazy = true, },
+  { "wesQ3/vim-windowswap", lazy = true, },
+  { "gburca/vim-logcat",    lazy = true, },
 
   {
     "nvimtools/none-ls.nvim",
@@ -112,9 +112,9 @@ local specs = {
     end,
   },
 
-  { "hrsh7th/cmp-path"},
-  { "hrsh7th/cmp-nvim-lua"},
-  { "hrsh7th/cmp-cmdline"},
+  { "hrsh7th/cmp-path" },
+  { "hrsh7th/cmp-nvim-lua" },
+  { "hrsh7th/cmp-cmdline" },
 
   {
     "saadparwaiz1/cmp_luasnip",
@@ -169,23 +169,23 @@ local specs = {
     },
   },
 
-  {"tpope/vim-commentary"},
-  {"tpope/vim-repeat"},
+  { "tpope/vim-commentary" },
+  { "tpope/vim-repeat" },
   {
     "kylechui/nvim-surround",
     version = "*",
     event = "VeryLazy",
     config = function()
-        require("nvim-surround").setup({
-            -- Configuration here, or leave empty to use defaults
-        })
+      require("nvim-surround").setup({
+        -- Configuration here, or leave empty to use defaults
+      })
     end,
   },
 
 
   {
     "nvim-lualine/lualine.nvim",
-    dependencies =  {"kyazdani42/nvim-web-devicons"},
+    dependencies = { "kyazdani42/nvim-web-devicons" },
     config = function()
       local onelight = require("lualine.themes.onelight")
 
@@ -211,7 +211,7 @@ local specs = {
 
   {
     "kyazdani42/nvim-tree.lua",
-    requires = "kyazdani42/nvim-web-devicons",
+    dependencies = { "kyazdani42/nvim-web-devicons", "folke/which-key.nvim" },
     config = function()
       require("nvim-tree").setup({
         view = {
@@ -227,13 +227,13 @@ local specs = {
       })
       local wk = require("which-key")
       wk.add(
-      {
-        { "<localleader>f",  group = " file tree" },
-        { "<localleader>fc", ":NvimTreeFindFile<CR>", desc = "show current" },
-        { "<localleader>ff", ":NvimTreeFocus<CR>",    desc = "focus tree" },
-        { "<localleader>fh", ":NvimTreeCollapse<CR>", desc = "collapse (hide) folder" },
-        { "<localleader>ft", ":NvimTreeToggle<CR>",   desc = "show tree" },
-      }
+        {
+          { "<localleader>f",  group = " file tree" },
+          { "<localleader>fc", ":NvimTreeFindFile<CR>", desc = "show current" },
+          { "<localleader>ff", ":NvimTreeFocus<CR>",    desc = "focus tree" },
+          { "<localleader>fh", ":NvimTreeCollapse<CR>", desc = "collapse (hide) folder" },
+          { "<localleader>ft", ":NvimTreeToggle<CR>",   desc = "show tree" },
+        }
       )
     end,
   },
@@ -252,7 +252,9 @@ local specs = {
   },
 
   -- Possibly of limited usefulness...
-  { "andrewferrier/debugprint.nvim" },
+  {
+    "andrewferrier/debugprint.nvim",
+  },
   { "mechatroner/rainbow_csv" },
 
   {
@@ -271,54 +273,54 @@ local specs = {
             hl = "Todo",
           },
           -- {
-            --   -- bash variables
-            --   filter = { filetype = bash },
-            --   pattern = "$[%l_-]+",
-            --   hl = "XcodeTeal",
-            -- },
-            -- {
-              --   -- bash variables
-              --   filter = { filetype = bash },
-              --   pattern = "${.+}",
-              --   hl = "XcodeTeal",
-              -- },
-            },
-          })
-        end,
-      },
+          --   -- bash variables
+          --   filter = { filetype = bash },
+          --   pattern = "$[%l_-]+",
+          --   hl = "XcodeTeal",
+          -- },
+          -- {
+          --   -- bash variables
+          --   filter = { filetype = bash },
+          --   pattern = "${.+}",
+          --   hl = "XcodeTeal",
+          -- },
+        },
+      })
+    end,
+  },
 
-      {
-        "folke/persistence.nvim",
-        event = "BufReadPre", -- this will only start session saving when an actual file was opened
-        module = "persistence",
-        config = function()
-          require("persistence").setup()
-        end,
-      },
+  {
+    "folke/persistence.nvim",
+    event = "BufReadPre",     -- this will only start session saving when an actual file was opened
+    module = "persistence",
+    config = function()
+      require("persistence").setup()
+    end,
+  },
 
-      {"powerman/vim-plugin-AnsiEsc"},
+  { "powerman/vim-plugin-AnsiEsc" },
 
-      -- Open alternative files for the current buffer
-      {
-        "rgroli/other.nvim",
-        config = function()
-          require("other-nvim").setup({})
-        end,
-      },
+  -- Open alternative files for the current buffer
+  {
+    "rgroli/other.nvim",
+    config = function()
+      require("other-nvim").setup({})
+    end,
+  },
 
-      {
-        "gbprod/yanky.nvim",
-        config = function()
-          require("yanky").setup({})
-          vim.keymap.set({ "n", "x" }, "p", "<Plug>(YankyPutAfter)")
-          vim.keymap.set({ "n", "x" }, "P", "<Plug>(YankyPutBefore)")
-          vim.keymap.set({ "n", "x" }, "gp", "<Plug>(YankyGPutAfter)")
-          vim.keymap.set({ "n", "x" }, "gP", "<Plug>(YankyGPutBefore)")
-          vim.keymap.set("n", "<c-n>", "<Plug>(YankyCycleForward)")
-          vim.keymap.set("n", "<c-p>", "<Plug>(YankyCycleBackward)")
-        end,
-      },
+  {
+    "gbprod/yanky.nvim",
+    config = function()
+      require("yanky").setup({})
+      vim.keymap.set({ "n", "x" }, "p", "<Plug>(YankyPutAfter)")
+      vim.keymap.set({ "n", "x" }, "P", "<Plug>(YankyPutBefore)")
+      vim.keymap.set({ "n", "x" }, "gp", "<Plug>(YankyGPutAfter)")
+      vim.keymap.set({ "n", "x" }, "gP", "<Plug>(YankyGPutBefore)")
+      vim.keymap.set("n", "<c-n>", "<Plug>(YankyCycleForward)")
+      vim.keymap.set("n", "<c-p>", "<Plug>(YankyCycleBackward)")
+    end,
+  },
 
-    }
+}
 
-    return specs
+return specs
