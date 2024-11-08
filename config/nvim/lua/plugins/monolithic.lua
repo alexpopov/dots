@@ -3,7 +3,6 @@ local specs = {
   {"junegunn/fzf", dir = "~/.fzf", build = "./install --all" },
   {"junegunn/fzf.vim"},
   {"Vimjas/vim-python-pep8-indent"}, -- sane indentation for python
-  {"neoclide/jsonc.vim", lazy = true,},
 
   {
     "voldikss/vim-floaterm",
