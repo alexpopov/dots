@@ -81,14 +81,6 @@ function! RegisterAntlrCommands()
     nnoremap <Leader>ad /^\<<C-r><C-w>\>/<CR>
 endfunction
 
-
-"" Semshi bindings
-map <leader>sr  :Semshi rename <CR>
-map <leader>sgc :Semshi goto class next <CR>
-map <leader>sgC :Semshi goto class prev <CR>
-map <leader>sgf :Semshi goto function next <CR>
-map <leader>sgF :Semshi goto function prev <CR>
-
 " TODO: move to lua?
 " Delete Buffers
 function! DeleteHiddenBuffers()
