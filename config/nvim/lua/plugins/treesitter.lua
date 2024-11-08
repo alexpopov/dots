@@ -1,13 +1,14 @@
 return {
   {
     "nvim-treesitter/nvim-treesitter",
-    lazy = true,
+    lazy = false,
     config = function()
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
           "bash", "c", "cpp", "lua", "rust", "cmake", "comment", "go", "java", "javascript", "json",
           "make", "python", "regex", "vim", "yaml", "kotlin", "markdown", "markdown_inline"
         },
+        auto_install = false,
         highlight = {
           enable = true,
           disable = { "latex" },

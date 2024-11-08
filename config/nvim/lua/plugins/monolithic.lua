@@ -5,7 +5,7 @@ local specs = {
   {"junegunn/fzf.vim"},
   {"Vimjas/vim-python-pep8-indent"}, -- sane indentation for python
   {"easymotion/vim-easymotion"},     -- move quickly; bindings at bottom
-  {"neoclide/jsonc.vim"},
+  {"neoclide/jsonc.vim", lazy = true,},
 
   {
     "voldikss/vim-floaterm",
@@ -19,11 +19,11 @@ local specs = {
     end,
   },
 
-  {"dylon/vim-antlr"},
-  {"solarnz/thrift.vim"},
-  {"qpkorr/vim-bufkill"},
-  {"wesQ3/vim-windowswap"},
-  {"gburca/vim-logcat"},
+  {"dylon/vim-antlr", lazy = true,},
+  {"solarnz/thrift.vim", lazy = true,},
+  {"qpkorr/vim-bufkill", lazy = true,},
+  {"wesQ3/vim-windowswap", lazy = true,},
+  {"gburca/vim-logcat", lazy = true,},
 
   {"bfredl/nvim-luadev"},
 
@@ -32,11 +32,16 @@ local specs = {
     dependencies = { "nvim-lua/plenary.nvim" },
   },
 
-  {"honza/vim-snippets"},
+  {
+    "honza/vim-snippets",
+    lazy = true,
+  },
   {
     "L3MON4D3/LuaSnip",
     lazy = true,
-    enabled = false,
+    version = "v2.*",
+    enabled = true,
+    build = "make install_jsregexp",
     config = function()
       local ls = require("luasnip")
       ls.config.set_config({
@@ -51,7 +56,7 @@ local specs = {
 
   {
     "hrsh7th/nvim-cmp",
-    dependencies = { "hrsh7th/cmp-nvim-lsp", "hrsh7th/cmp-buffer", "LuaSnip", },
+    dependencies = { "hrsh7th/cmp-nvim-lsp", "hrsh7th/cmp-buffer", "L3MON4D3/LuaSnip", },
     config = function()
       -- vim.opt.completeopt = { "menu", "menuone", "noselect" }
 
@@ -143,7 +148,7 @@ local specs = {
 
   {
     "nvim-telescope/telescope.nvim",
-    dependencies = { "nvim-lua/plenary.nvim", "junegunn/fzf", },
+    dependencies = { "nvim-lua/plenary.nvim", "junegunn/fzf", "nvim-telescope/telescope-fzf-native.nvim" },
     config = function()
       -- Allow multi select https://github.com/nvim-telescope/telescope.nvim/issues/1048
       local actions = require("telescope.actions")
@@ -234,6 +239,10 @@ local specs = {
           }
         }
       })
+
+      -- To get fzf loaded and working with telescope, you need to call
+      -- load_extension, somewhere after setup function:
+      require('telescope').load_extension('fzf')
 
       -- vim.api.nvim_set_keymap(
       --   "n",
@@ -404,9 +413,5 @@ local specs = {
       },
 
     }
-
-    -- To get fzf loaded and working with telescope, you need to call
-    -- load_extension, somewhere after setup function:
-    require('telescope').load_extension('fzf')
 
     return specs
