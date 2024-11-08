@@ -74,8 +74,7 @@ wk.add(
 wk.add(
   {
     { "<Leader>c",        group = " Comment", remap = true },
-    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle",         mode = "v",  remap = true },
-    { "<Leader>ca",       "gcgc",             desc = "Toggle Section", remap = true },
+    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle",         mode = {"v", "n"},  remap = true },
   }
 )
 
