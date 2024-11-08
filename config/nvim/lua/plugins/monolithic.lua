@@ -337,7 +337,11 @@ local specs = {
 
   {
     "ggandor/leap.nvim",
-    config = function() require("leap").set_default_keymaps() end
+    config = function()
+      local leap = require("leap")
+      leap.create_default_mappings()
+      leap.opts.equivalence_classes = { ' \t\r\n', '([{', ')]}', '\'"`' }
+    end
   },
   {
     "ggandor/flit.nvim",
