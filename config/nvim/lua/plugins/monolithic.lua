@@ -1,5 +1,4 @@
 local specs = {
-  {"machakann/vim-Verdin"},          -- ??autocomplete for vimscript
   {"guns/xterm-color-table.vim"},    -- color table
   {"junegunn/fzf", dir = "~/.fzf", build = "./install --all" },
   {"junegunn/fzf.vim"},
