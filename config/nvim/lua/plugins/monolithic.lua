@@ -23,8 +23,6 @@ local specs = {
   {"wesQ3/vim-windowswap", lazy = true,},
   {"gburca/vim-logcat", lazy = true,},
 
-  {"bfredl/nvim-luadev"},
-
   {
     "nvimtools/none-ls.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
