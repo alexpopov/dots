@@ -3,7 +3,7 @@ alp = {} -- global variable for my stuff
 
 alp.utils = require("utils")
 
-require("plugins")
+require("config.lazy")
 require("options")
 require("mappings")
 require("lsp")
