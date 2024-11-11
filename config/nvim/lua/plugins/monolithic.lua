@@ -135,6 +135,7 @@ local specs = {
     -- Doesn't work: I get errors. maybe try again later
     "folke/trouble.nvim",
     cmd = "Trouble",
+    opts = {},
     keys = {
       {
         "<leader>txx",
