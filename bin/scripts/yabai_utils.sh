@@ -198,8 +198,40 @@ function manage_apps {
 }
 
 function style {
-  action="$1"
+  local action="$1"
   shift
+
+  case "$action" in
+    "condensed")
+      local padding=8
+      yabai -m config top_padding    $padding
+      yabai -m config bottom_padding $padding
+      yabai -m config left_padding   $padding
+      yabai -m config right_padding  $padding
+      yabai -m config window_gap     $padding
+      ;;
+
+    "airy")
+      local padding=120
+      yabai -m config top_padding    $padding
+      yabai -m config bottom_padding $padding
+      yabai -m config left_padding   $padding
+      yabai -m config right_padding  $padding
+      yabai -m config window_gap     30
+      ;;
+
+    *)
+      echo "error, unknown action $action"
+
+  esac
+
+  maybe_back_to_normal "$@"
+}
+
+function manage {
+  local action="$1"
+  shift
+
   local apps=(
     "Books"
     "Calendar"
@@ -224,23 +256,11 @@ function style {
   )
 
   case "$action" in
-    "condensed")
-      local padding=8
-      yabai -m config top_padding    $padding
-      yabai -m config bottom_padding $padding
-      yabai -m config left_padding   $padding
-      yabai -m config right_padding  $padding
-      yabai -m config window_gap     $padding
+    "less")
       manage_apps off "${apps[@]}"
       ;;
 
-    "airy")
-      local padding=120
-      yabai -m config top_padding    $padding
-      yabai -m config bottom_padding $padding
-      yabai -m config left_padding   $padding
-      yabai -m config right_padding  $padding
-      yabai -m config window_gap     30
+    "more")
       manage_apps on "${apps[@]}"
       ;;
 
@@ -256,8 +276,8 @@ function style {
 USAGE="Usage: yabai_utils.sh focus west"
 
 if [ "$#" == "0" ]; then
-	echo "$USAGE"
-	exit 1
+  echo "$USAGE"
+  exit 1
 fi
 
 command="$1"
@@ -322,6 +342,10 @@ case $command in
 
   'style')
     style "$@"
+    ;;
+
+  'manage')
+    manage "$@"
     ;;
 
   *)
