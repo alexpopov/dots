@@ -42,7 +42,7 @@ alp.shortcuts = {
 
 
 local yabai_path = hs.fnutils.find(
-  { "/opt/homebrew/bin/yabai", "/Users/alexpopov/.local/homebrew/bin/yabai", "/Users/alexpopov/homebrew/bin/yabai" },
+  { "/opt/homebrew/bin/yabai", "/Users/alexpopov/.local/homebrew/bin/yabai", "/Users/alexpopov/homebrew/bin/yabai", "/Users/alexpopov/.local/bin/yabai" },
   function(path) return hs.fs.displayName(path) ~= nil end
 ) or nil
 if yabai_path == nil then
