@@ -7,6 +7,9 @@ config/nvim/lua/private/
 config/nvim/private/
 config/lazygit/state.yml
 
+# Lock-file for lazy-git
+config/nvim/lazy-lock.json
+
 config/karabiner/automatic_backups/
 
 
