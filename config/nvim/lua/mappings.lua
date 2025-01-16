@@ -78,14 +78,21 @@ wk.add(
   }
 )
 
+-- edit files fast
+wk.add(
+{
+  { "<localleader>e", group = " edit" },
+  { "<localleader>ed", ":FZF ~/dots/<CR>", desc = " edit dots config files" },
+  { "<localleader>ev", ":FZF ~/.config/nvim/<CR>", desc = " vim files" },
+  { "<localleader>es", ":FZF ~/fbsource/fbcode/scripts/alexpopov/<CR>", desc = " fbcode scripts" },
+}
+)
+
 -- local-leader commands
 wk.add(
   {
     { "<localleader>b",   group = " buffers" },
     { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
-    { "<localleader>e",   group = " edit" },
-    { "<localleader>ed",  ":FZF ~/dots/<CR>",                                              desc = " edit dots config files" },
-    { "<localleader>ev",  ":FZF ~/.config/nvim/<CR>",                                      desc = " vim files" },
     { "<localleader>g",   group = " go" },
     { "<localleader>gh",  ":lua require('tree-climber').goto_prev<CR>",                    desc = "previous" },
     { "<localleader>gj",  ":lua require('tree-climber').goto_child<CR>",                   desc = "child" },
