@@ -256,6 +256,13 @@ local specs = {
   -- Possibly of limited usefulness...
   {
     "andrewferrier/debugprint.nvim",
+    opts = {},
+    lazy = false,
+    version = '*',
+  },
+  {
+    'echasnovski/mini.nvim',
+    version = '*'
   },
   { "mechatroner/rainbow_csv" },
 
@@ -293,8 +300,8 @@ local specs = {
 
   {
     "folke/persistence.nvim",
-    event = "BufReadPre",     -- this will only start session saving when an actual file was opened
-    opts = { },
+    event = "BufReadPre", -- this will only start session saving when an actual file was opened
+    opts = {},
   },
 
   { "powerman/vim-plugin-AnsiEsc" },
