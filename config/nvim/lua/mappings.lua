@@ -74,7 +74,7 @@ wk.add(
 wk.add(
   {
     { "<Leader>c",        group = " Comment", remap = true },
-    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle",         mode = {"v", "n"},  remap = true },
+    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle", mode = { "v", "n" }, remap = true },
   }
 )
 
@@ -84,17 +84,8 @@ wk.add(
     { "<localleader>b",   group = " buffers" },
     { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
     { "<localleader>e",   group = " edit" },
-    { "<localleader>eb",  group = " bash files" },
-    { "<localleader>ebb", ":edit ~/.config/bash/bash_profile.sh<CR>",                      desc = "bash_profile.sh" },
-    { "<localleader>ebe", ":edit ~/.bash_profile<CR>",                                     desc = "~/.bash_profile" },
-    { "<localleader>ebs", ":edit ~/.config/bash/sanity_check.sh<CR>",                      desc = "sanity_check.sh" },
-    { "<localleader>ev",  group = " vim files" },
-    { "<localleader>evi", ":edit ~/.config/nvim/lua/lua_init.lua<CR>",                     desc = "init_lua.lua" },
-    { "<localleader>evl", ":edit ~/.config/nvim/lua/lsp.lua<CR>",                          desc = "lsp.lua" },
-    { "<localleader>evm", ":edit ~/.config/nvim/lua/mappings.lua<CR>",                     desc = "mappings.lua" },
-    { "<localleader>evo", ":edit ~/.config/nvim/lua/options.lua<CR>",                      desc = "options.lua" },
-    { "<localleader>evp", ":edit ~/.config/nvim/lua/plugins.lua<CR>",                      desc = "plugins.lua" },
-    { "<localleader>evv", ":edit ~/.config/nvim/init.vim<CR>",                             desc = "init.vim" },
+    { "<localleader>ed",  ":FZF ~/dots/<CR>",                                              desc = " edit dots config files" },
+    { "<localleader>ev",  ":FZF ~/.config/nvim/<CR>",                                      desc = " vim files" },
     { "<localleader>g",   group = " go" },
     { "<localleader>gh",  ":lua require('tree-climber').goto_prev<CR>",                    desc = "previous" },
     { "<localleader>gj",  ":lua require('tree-climber').goto_child<CR>",                   desc = "child" },
