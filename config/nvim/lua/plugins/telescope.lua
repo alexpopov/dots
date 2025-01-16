@@ -1,5 +1,9 @@
 return {
   {
+    'axkirillov/easypick.nvim',
+    dependencies = { "nvim-telescope/telescope.nvim" },
+  },
+  {
     'nvim-telescope/telescope-fzf-native.nvim',
     build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release'
   },
@@ -66,9 +70,9 @@ return {
               ["<C-j>"] = actions.move_selection_next,
               ["<C-k>"] = actions.move_selection_previous,
               ["<tab>"] = actions.toggle_selection
-              + actions.move_selection_next,
+                  + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-              + actions.move_selection_previous,
+                  + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -77,9 +81,9 @@ return {
             n = {
               ["<esc>"] = actions.close,
               ["<tab>"] = actions.toggle_selection
-              + actions.move_selection_next,
+                  + actions.move_selection_next,
               ["<s-tab>"] = actions.toggle_selection
-              + actions.move_selection_previous,
+                  + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
