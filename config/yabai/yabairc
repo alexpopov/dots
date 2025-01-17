@@ -72,6 +72,9 @@ yabai -m rule --add app="Logic Pro" manage=off
 yabai -m rule --add app="Hammerspoon" manage=off
 yabai -m rule --add app="SilverFast 9" manage=off
 
+# Apply all rules
+yabai -m rule --apply
+
 # find apps like this:
 # yabai -m query --windows | jq '.[] | select( .app == "Numbers" )'
 
