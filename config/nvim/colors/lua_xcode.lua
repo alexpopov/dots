@@ -1,0 +1,3 @@
+local cterm_colors = {
+
+}
