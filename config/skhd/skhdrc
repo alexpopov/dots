@@ -99,6 +99,10 @@ m_window_focus < l : yabai_utils.sh focus east
 m_window_focus < n : yabai_utils.sh focus stack.next
 m_window_focus < p : yabai_utils.sh focus stack.prev
 m_window_focus < f : yabai_utils.sh focus most_reasonable back_to_default
+m_window_focus < shift - h : yabai_utils.sh focus_display west
+m_window_focus < shift - j : yabai_utils.sh focus_display south
+m_window_focus < shift - k : yabai_utils.sh focus_display north
+m_window_focus < shift - l : yabai_utils.sh focus_display east
 
 # Ignore
 m_window_focus < cmd - h -> :
@@ -137,6 +141,10 @@ m_window_warp < h : yabai_utils.sh warp west back_to_default
 m_window_warp < j : yabai_utils.sh warp south back_to_default
 m_window_warp < k : yabai_utils.sh warp north back_to_default
 m_window_warp < l : yabai_utils.sh warp east back_to_default
+m_window_warp < shift - h : yabai_utils.sh warp_display west back_to_default
+m_window_warp < shift - j : yabai_utils.sh warp_display south back_to_default
+m_window_warp < shift - k : yabai_utils.sh warp_display north back_to_default
+m_window_warp < shift - l : yabai_utils.sh warp_display east back_to_default
 
 # Tabs
 m_window_tabs < h : skhd -k "ctrl + shift - tab;"

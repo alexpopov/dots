@@ -37,6 +37,17 @@ function focus_window {
     maybe_back_to_normal "$@"
 }
 
+function focus_display {
+    direction="$1"
+    shift
+    case "$direction" in
+        *)
+            yabai -m display --focus $direction
+            ;;
+    esac
+    maybe_back_to_normal "$@"
+}
+
 function swap_window {
     direction="$1"
     shift
@@ -61,6 +72,20 @@ function warp_window {
         *)
             yabai -m window --warp $direction
             ;;
+    esac
+    maybe_back_to_normal "$@"
+}
+
+function warp_display {
+    direction="$1"
+    shift
+    case "$direction" in
+        *)
+          # TODO: also change focus there
+          local current_window_id="$(yabai -m query --windows --window | jq '.id')"
+          yabai -m window --display $direction
+          yabai -m window --focus "$current_window_id"
+          ;;
     esac
     maybe_back_to_normal "$@"
 }
@@ -288,6 +313,10 @@ case $command in
     focus_window "$@"
     ;;
 
+  'focus_display')
+    focus_display "$@"
+    ;;
+
   'config')
     config "$@"
     ;;
@@ -306,6 +335,10 @@ case $command in
 
   'warp')
     warp_window "$@"
+    ;;
+
+  'warp_display')
+    warp_display "$@"
     ;;
 
   'reload_config')
