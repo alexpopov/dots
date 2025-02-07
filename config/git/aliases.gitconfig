@@ -1,0 +1,7 @@
+[alias]
+    # Find first diff that isn't authored by you (probable branch spot)
+    find-split = "!git log --pretty=format:'%ce %h' -n 99 | awk -v my_name=\"^$(whoami)\" '$0 ~ my_name { next } $1 { print $2; exit }'"
+
+    # rebase relative to branch point found using `find-split` above
+    histedit = !git rebase -i $(git find-split)
+# ft=gitconfig
