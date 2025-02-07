@@ -22,9 +22,14 @@ set_keymap('n', '<C-H>', '<C-W><C-H>', { noremap = true, desc = "move to split w
 set_keymap('n', '<C-K>', '<C-W><C-K>', { noremap = true, desc = "move to split north" })
 set_keymap('n', '<C-L>', '<C-W><C-L>', { noremap = true, desc = "move to split east" })
 
+-- map <silent> <leader>fc /<<<<<<<\\|\|\|\|\|\|\|\|\\|=======\\|>>>>>>><CR>
 -- leader commands
 wk.add(
   {
+    {
+      "<Leader>fc", "/<<<<<<<\\||||||||\\|=======\\|>>>>>>><CR>",
+      desc = "Find Conflicts"
+    },
     { "<Leader>f",  group = " Find" },
     { "<Leader>fH", ":Telescope help_tags<CR>", desc = "Help tags" },
     {
@@ -82,7 +87,7 @@ wk.add(
 wk.add(
 {
   { "<localleader>e", group = " edit" },
-  { "<localleader>ed", ":FZF ~/dots/<CR>", desc = " edit dots config files" },
+  { "<localleader>ed", ":FZF ~/dots/<CR>", desc = " dots config files" },
   { "<localleader>ev", ":FZF ~/.config/nvim/<CR>", desc = " vim files" },
   { "<localleader>es", ":FZF ~/fbsource/fbcode/scripts/alexpopov/<CR>", desc = " fbcode scripts" },
 }

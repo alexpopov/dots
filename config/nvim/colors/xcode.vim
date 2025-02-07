@@ -26,8 +26,8 @@ endif
 
 " General colours
 hi Cursor       ctermfg=020 ctermbg=016 " blue
-hi Normal       ctermfg=234 ctermbg=231 " black
-hi NonText      ctermfg=231 ctermbg=231 " white
+hi Normal       ctermfg=234 ctermbg=15 guifg=234 guibg=231 " black
+hi NonText      ctermfg=11 ctermbg=15 " orange on white
 hi LineNr       ctermfg=239 ctermbg=NONE " grey
 hi StatusLine   ctermfg=249 ctermbg=238
 hi StatusLineNC ctermfg=241 ctermbg=249
@@ -36,7 +36,7 @@ hi Folded       ctermbg=252 ctermfg=233
 hi FoldColumn   cterm=NONE ctermbg=NONE
 hi link Title Normal
 hi Visual       ctermbg=153
-hi Error        ctermfg=231 ctermbg=124
+hi Error        ctermfg=15 ctermbg=124
 hi link SpecialKey Error
 
 hi XcodeGreen ctermfg=22
