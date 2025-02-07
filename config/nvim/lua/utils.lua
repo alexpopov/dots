@@ -17,4 +17,13 @@ function M.create_scratch_buffer()
   vim.bo[buf.bufnr()].noswapfile = "true"
 end
 
+function M.safe_require(module_name)
+  local status_ok, module = pcall(require, module_name)
+  if not status_ok then
+    vim.notify("Couldn't load module '" .. module_name .. "'", vim.log.levels.INFO)
+    return nil
+  end
+  return module
+end
+
 return M
