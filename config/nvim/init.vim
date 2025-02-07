@@ -70,7 +70,6 @@ match Error /\t/
 map <silent> <C-x> :nohl<CR>
 map <silent> <leader>r :nohl<CR>
 
-map <silent> <leader>fc /<<<<<<<\\|\|\|\|\|\|\|\|\\|=======\\|>>>>>>><CR>
 
 "
 function! RegisterAntlrCommands()
