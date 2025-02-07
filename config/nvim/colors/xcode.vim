@@ -14,7 +14,6 @@ endif
 
 let colors_name = "xcode"
 
-
 " Vim >= 7.0 specific colours
 if version >= 700
   hi CursorLine   cterm=NONE ctermfg=NONE ctermbg=NONE

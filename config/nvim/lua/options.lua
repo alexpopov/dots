@@ -40,7 +40,9 @@ opt.cmdheight = 1
 opt.updatetime = 300 -- diagnostic message time
 opt.signcolumn = "no"
 
-vim.cmd("colorscheme xcode")
+-- Millions and millions of colors
+vim.opt.termguicolors = true
+vim.cmd("colorscheme lua_xcode")
 
 --
 ---- show absolute numbers in insert mode, relative in normal mode
