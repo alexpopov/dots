@@ -22,6 +22,7 @@ ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
 
 # binary stuff
 ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
+ln -sfn "$DOTS_BIN_DIR/scripts/tmux" "$BIN_DIR/scripts"
 
 # macOS specific but doesn't hurt
 mkdir -p "$HOME/.hammerspoon/"
