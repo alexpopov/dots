@@ -1,6 +1,9 @@
 local cmd = vim.cmd
 local wk = require("which-key")
 
+-- TODO: refactor this file into multiple files and have a top-level init.lua
+-- file in the folder
+
 --  write/quit typos
 cmd("command! WQ wq")
 cmd("command! Wq wq")
@@ -10,11 +13,7 @@ cmd("command! Q q")
 vim.g.mapleader = ","
 vim.g.maplocalleader = "\\"
 
-localLeader = '<localleader>'
-leader = '<Leader>'
-endl = '<CR>'
-
-set_keymap = vim.api.nvim_set_keymap
+local set_keymap = vim.api.nvim_set_keymap
 
 -- Window Movement
 set_keymap('n', '<C-J>', '<C-W><C-J>', { noremap = true, desc = "move to split south" })
@@ -51,6 +50,12 @@ wk.add(
       ":Telescope find_files<CR>",
       desc =
       "Find File"
+    },
+    {
+      "<Leader>fr",
+      ":Telescope registers<CR>",
+      desc =
+      "Clipboard/Registers"
     },
     {
       "<Leader>fh",
