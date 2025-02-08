@@ -1,10 +1,12 @@
 -- Port of old Xcode vimscript colorscheme I copied from
 -- Christian Ohlin Jansson (john.christian.ohlin@gmail.com)
 -- but then edited pretty heavily based on my own color preferences
+-- Colors are most closely based on Xcode 5
 
 vim.cmd("highlight clear")
 vim.o.background = "light"
 
+-- These are the 256-color choices I made by hand/eye based on Ohlin's original
 local c = {
   white = {cterm = 15, gui = "#ffffff"},
   black = {cterm = 16, gui = "#000000"},
@@ -23,15 +25,32 @@ local c = {
   error_red = {cterm = 124, gui = "#af0000"},
   xcode_green = {cterm = 22, gui = "#005f00"},
   xcode_teal = {cterm = 30, gui = "#008787"},
-  xcode_pink = {cterm = 163, gui = "#df00af"},
+  xcode_pink = {cterm = 163, gui = "#b30061"},
   xcode_red = {cterm = 160, gui = "#df0000"},
   xcode_brown = {cterm = 94, gui = "#875f00"},
   xcode_blue = {cterm = 20, gui = "#0000df"},
   xcode_purple = {cterm = 54, gui = "#5f0087"},
   xcode_grey = {cterm = 251, gui = "#c6c6c6"},
 
-  bright_purple = {cterm = 91, gui = "#8700af"},
+  bright_purple = {cterm = 91, gui = "#4d009e"},
 }
+
+local xcode5_basic_c = vim.deepcopy(c)
+xcode5_basic_c.xcode_green.gui = "#008000" -- or maybe 1c8517
+xcode5_basic_c.xcode_teal.gui = "#2b839f"
+xcode5_basic_c.xcode_red.gui = "#a31414"
+
+local xcode5_presentation_c = vim.deepcopy(c)
+xcode5_presentation_c.xcode_green.gui = "#1c8517"
+xcode5_presentation_c.xcode_teal.gui = "#458a94"
+xcode5_presentation_c.xcode_brown.gui = "#80662b"
+xcode5_presentation_c.xcode_blue.gui = "#000dfc"
+xcode5_presentation_c.bright_purple.gui = "#4d009e"
+xcode5_presentation_c.xcode_purple.gui = "#2e0d6e"
+xcode5_presentation_c.xcode_pink.gui = "#b30061"
+xcode5_presentation_c.xcode_red.gui = "#b8000f"
+
+c = xcode5_presentation_c
 
 local group_colors = {
   -- Vim 7.0 colors
@@ -177,3 +196,85 @@ end
 for name, link in pairs(links) do
   set_highlight_link(name, link)
 end
+
+-- This is from the XML file dictating Xcode 5.1.1 Presentation Mode
+--
+-- xcode.syntax.attribute
+-- 0.512 0.423 0.157 1          -- xcode brown? #80662b
+--
+-- xcode.syntax.preprocessor
+-- 0.429738 0.124544 0.052806 1 -- darker xcode brown #6e1f0f
+--
+-- xcode.syntax.identifier.macro
+-- 0.391 0.22 0.125 1            -- xcode brown #63361f
+--
+--
+--
+-- xcode.syntax.character
+-- 0 0.0445914 0.99822 1        -- xcode blue #000dfc
+--
+-- xcode.syntax.number
+-- 0 0.0445914 0.99822 1        -- xcode blue for sure, same as above
+--
+--
+--
+-- xcode.syntax.comment
+-- 0.114885 0.521968 0.0985181 1 -- xcode green #1c8517
+--
+--
+--
+-- xcode.syntax.identifier.class
+-- 0.187687 0.436989 0.472891 1  -- xcode teal #307078
+--
+-- xcode.syntax.identifier.class.system
+-- 0.265175 0.536459 0.576187 1  -- lighter teal? #458a94
+--
+-- xcode.syntax.identifier.variable
+-- 0.265175 0.536459 0.576187 1  -- same teal as lighter teal, basically #458a91
+--
+--
+--
+-- xcode.syntax.identifier.type.system
+-- 0.302778 0 0.619657 1         -- xcode purple #4d009e
+--
+-- xcode.syntax.identifier.constant.system
+-- 0.181 0.052 0.431 1           -- darker purple? #2e0d6e
+--
+-- xcode.syntax.identifier.function.system
+-- 0.181 0.052 0.431 1           -- same darker
+--
+-- xcode.syntax.identifier.type
+-- 0.359 0.149 0.601 1           -- even more purple #5c2699
+--
+-- xcode.syntax.identifier.variable.system
+-- 0.359 0.149 0.601 1           -- same as purple above
+--
+--
+--
+-- xcode.syntax.identifier.constant
+-- 0.149 0.278 0.294 1           -- dark grey? #26474a
+--
+-- xcode.syntax.identifier.function
+-- 0.123594 0.233835 0.24757 1   -- another dark grey? #1f3b42
+--
+--
+-- xcode.syntax.keyword
+-- 0.706817 0 0.382636 1         -- rich hot pink #b30061
+--
+--
+--
+-- xcode.syntax.identifier.plain
+-- 0 0 0 1                       -- pure black
+--
+-- xcode.syntax.plain
+-- 0 0 0 1                       -- black
+--
+--
+--
+-- xcode.syntax.string
+-- 0.727675 0 0.0666152 1        -- xcode string red #b8000f
+--
+--
+-- xcode.syntax.url
+-- 0.055 0.055 1 1</string       -- don't care about URLs
+
