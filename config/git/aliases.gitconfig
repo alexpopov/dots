@@ -1,7 +1,24 @@
 [alias]
     # Find first diff that isn't authored by you (probable branch spot)
-    find-split = "!git log --pretty=format:'%ce %h' -n 99 | awk -v my_name=\"^$(whoami)\" '$0 ~ my_name { next } $1 { print $2; exit }'"
+    find-split = "!git log --pretty=format:'%ce %h %d' -n 99 | awk -v my_name=\"^$(whoami)\" '/origin/ { print $2; exit } $0 ~ my_name { next } $1 { print $2; exit }'"
 
     # rebase relative to branch point found using `find-split` above
     histedit = !git rebase -i $(git find-split)
-# ft=gitconfig
+
+    rebi = !git rebase PORE_FETCH_LAST_0 $(git branch | fzf | sed 's/^..//')
+
+    # Show link for current diff
+    showdiff = "!f() { git show $1 | awk '/phab/ { print $3 }'; }; f"
+    # Show diff number for current diff
+    showdiffn = "!f() { git show $1 | awk '/phab/ { n = split($0, A, \"/\"); print A[n] }'; }; f"
+
+    # Show number for current task
+    showtask = "!f() { git show $1 | awk '/Tasks:/ { print $2 }'; }; f"
+
+    ls = "!f() { git rev-list $(git find-split)^..HEAD | while read sha1; do \
+        local d=$(git showdiffn $sha1); \
+        local t=$(git showtask $sha1); \
+        git --no-pager show -s \
+        --pretty=\"%C(auto)%h %d %C(auto)%s %C(bold) $d  $t%C(reset)\" $sha1; \
+        done }; f"
+# vim: set ft=gitconfig
