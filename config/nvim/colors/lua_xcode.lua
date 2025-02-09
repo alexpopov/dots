@@ -125,6 +125,8 @@ local links = {
 
   NvimInternalerror = "Error",
 
+  EndOfBuffer = "LineNr",
+
   -- Lua-specific
   ["@constructor.lua"] = "Normal",
 
