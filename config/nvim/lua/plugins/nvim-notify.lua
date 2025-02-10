@@ -2,7 +2,6 @@ local specs = {
   {
     'rcarriga/nvim-notify',
     init = function()
-      -- vim.opt.termguicolors = true
       vim.notify = require("notify")
     end,
     opts = {
