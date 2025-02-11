@@ -40,8 +40,10 @@ opt.cmdheight = 1
 opt.updatetime = 300 -- diagnostic message time
 opt.signcolumn = "no"
 
--- Millions and millions of colors
-vim.opt.termguicolors = true
+if vim.fn.getenv("COLORTERM") ~= vim.NIL then
+  -- Millions and millions of colors
+  vim.opt.termguicolors = true
+end
 vim.cmd("colorscheme lua_xcode")
 
 --
