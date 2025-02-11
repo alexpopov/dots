@@ -202,7 +202,7 @@ function auto_hide_dock {
       ;;
     "hide")
       osascript -e 'tell application "System Events" to set the autohide of the dock preferences to true'
-      yabai -m config left_padding 40
+      yabai -m config left_padding 8
       alert.sh simple "Hide dock"
       ;;
     *)
