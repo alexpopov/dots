@@ -20,6 +20,7 @@ local c = {
   text_black = {cterm = 234, gui = "#1c1c1c"},
   primary_blue = {cterm = 20, gui = "#0000df"},
   selection_blue = {cterm = 153, gui = "#afdfff"},
+  selection_pink = {cterm = 219, gui = "#FFB0FF"},
 
   -- Xcode Colors
   error_red = {cterm = 124, gui = "#af0000"},
@@ -88,6 +89,9 @@ local group_colors = {
   Keyword = {c.bright_purple, c.skip},
   Search = {c.dark_grey, c.selection_blue, {underline = true}},
   Delimiter = {c.bright_purple, c.skip, {bold = true}},
+
+  -- For My Stuff
+  AiRecommendation = {c.skip, c.selection_pink},
 }
 
 local links = {
