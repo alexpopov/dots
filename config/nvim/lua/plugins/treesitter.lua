@@ -30,5 +30,4 @@ return {
     end,
   },
   {"nvim-treesitter/nvim-treesitter-textobjects", lazy = true, dependencies = "nvim-treesitter/nvim-treesitter", },
-  {'nvim-treesitter/playground', lazy = true, dependencies = "nvim-treesitter/nvim-treesitter", },
 }
