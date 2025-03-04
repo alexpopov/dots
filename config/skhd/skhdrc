@@ -129,6 +129,10 @@ m_window_resize < h : yabai_utils.sh resize left
 m_window_resize < l : yabai_utils.sh resize right
 m_window_resize < j : yabai_utils.sh resize down
 m_window_resize < k : yabai_utils.sh resize up
+m_window_resize < shift - h : yabai_utils.sh resize left 100
+m_window_resize < shift - l : yabai_utils.sh resize right 100
+m_window_resize < shift - j : yabai_utils.sh resize down 100
+m_window_resize < shift - k : yabai_utils.sh resize up 100
 
 # Swap Mode
 m_window_swap < h : yabai_utils.sh swap west

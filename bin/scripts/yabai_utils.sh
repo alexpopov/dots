@@ -156,23 +156,25 @@ function grid {
 }
 
 function resize {
-  type=$1
+  local type=$1
+  shift
+  local amount=${1:-20}
   shift
   case "$type" in
     'left')
-      yabai -m window --resize right:-20:0 2> /dev/null || yabai -m window --resize left:-20:0 2> /dev/null
+      yabai -m window --resize "right:-${amount}:0" 2> /dev/null || yabai -m window --resize "left:-${amount}:0" 2> /dev/null
       ;;
 
     'right')
-      yabai -m window --resize right:20:0 2> /dev/null || yabai -m window --resize left:20:0 2> /dev/null
+      yabai -m window --resize "right:${amount}:0" 2> /dev/null || yabai -m window --resize "left:${amount}:0" 2> /dev/null
       ;;
 
     'down')
-      yabai -m window --resize bottom:0:20 2> /dev/null || yabai -m window --resize top:0:20 2> /dev/null
+      yabai -m window --resize "bottom:0:${amount}" 2> /dev/null || yabai -m window --resize "top:0:${amount}" 2> /dev/null
       ;;
 
     'up')
-      yabai -m window --resize bottom:0:-20 2> /dev/null || yabai -m window --resize top:0:-20 2> /dev/null
+      yabai -m window --resize "bottom:0:-${amount}" 2> /dev/null || yabai -m window --resize "top:0:-${amount}" 2> /dev/null
       ;;
 
     *)
