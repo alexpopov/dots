@@ -32,17 +32,5 @@ tmux send-keys -t "$t_window_yabai.1" 'yabai' C-m
 tmux send-keys -t "$t_window_yabai.2" 'cd dots; vim config/nvim/lua/lua_init.lua' C-m
 tmux send-keys -t "$t_window_yabai.3" 'cd dots' C-m
 
+tmux a -t "$session"
 
-
-# # In Pane 1
-# tmux split-window -t "$t_window_yabai" -h # split into left and right
-# # In Pane 2
-# tmux send-keys -t "$t_window_yabai" 'cd ~/dots/; nvim' Enter
-
-# # Pane 1
-# tmux select-pane -t 0
-# tmux split-window -v
-# # Pane C
-# tmux send-keys -t "$t_window_yabai" 'yabai' Enter
-# tmux select-pane -t
-# tmux split-window -t "$t_window_yabai" -v
