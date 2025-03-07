@@ -46,62 +46,23 @@ if vim.fn.getenv("COLORTERM") ~= vim.NIL then
 end
 vim.cmd("colorscheme lua_xcode")
 
---
----- show absolute numbers in insert mode, relative in normal mode
---vim.cmd([[
---  augroup numbertoggle
---    autocmd!
---    autocmd BufEnter,FocusGained,InsertLeave * set relativenumber
---    autocmd BufLeave,FocusLost,InsertEnter   * set norelativenumber
---  augroup END
---]])
+local function paste()
+  return {
+    vim.fn.split(vim.fn.getreg(""), "\n"),
+    vim.fn.getregtype(""),
+  }
+end
 
--- configure pasting back to Laptop... should probably gate this behind some
--- check eventually
-
--- vim.g.clipboard = {
---   name = "Laptop Clipboard",
---   copy = {
---     ["*"] = {
---       "ssh",
---       "-i",
---       "~/.ssh/copy_paste_key_ed25519",
---       "-p",
---       "9001",
---       "localhost",
---       "'pbcopy'"
---     },
---     ["+"] = {
---       "ssh",
---       "-i",
---       "~/.ssh/copy_paste_key_ed25519",
---       "-p",
---       "9001",
---       "localhost",
---       "'pbcopy'"
---     },
---   },
---   paste = {
---     ["*"] = {
---       "ssh",
---       "-i",
---       "~/.ssh/copy_paste_key_ed25519",
---       "-p",
---       "9001",
---       "localhost",
---       "'pbpaste'"
---     },
---     ["+"] = {
---       "ssh",
---       "-i",
---       "~/.ssh/copy_paste_key_ed25519",
---       "-p",
---       "9001",
---       "localhost",
---       "'pbpaste'"
---     },
---   },
---   cache_enabled = true,
--- }
+vim.g.clipboard = {
+  name = 'OSC 52',
+  copy = {
+    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+  },
+  paste = {
+    ['+'] = paste,
+    ['*'] = paste,
+  },
+}
 
 return M
