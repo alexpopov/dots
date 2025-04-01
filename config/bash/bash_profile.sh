@@ -4,6 +4,9 @@ HISTFILESIZE=-1
 HISTSIZE=1000000
 shopt -s histappend
 
+# Control-D won't kill shell
+IGNOREEOF=10
+
 # Set up personal aliases, functions, etc.  See https://fburl.com/bash.
 alias notify='echo SEND_TERMINAL_NOTIFICATION'
 alias vimdiff='/home/alexpopov/bin/vim -d'
