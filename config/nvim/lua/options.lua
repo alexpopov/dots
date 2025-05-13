@@ -46,11 +46,4 @@ if vim.fn.getenv("COLORTERM") ~= vim.NIL then
 end
 vim.cmd("colorscheme lua_xcode")
 
-local function paste()
-  return {
-    vim.fn.split(vim.fn.getreg(""), "\n"),
-    vim.fn.getregtype(""),
-  }
-end
-
 return M
