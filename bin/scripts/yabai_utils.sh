@@ -281,16 +281,23 @@ function manage {
     "WhatsApp"
     "Workplace Chat"
   )
+  local nomanagerule="No Manage"
 
   case "$action" in
     "less")
+      yabai -m rule --remove "$nomanagerule"
       manage_apps off "${apps[@]}"
       ;;
 
     "more")
+      yabai -m rule --remove "$nomanagerule"
       manage_apps on "${apps[@]}"
       ;;
 
+    "none")
+      yabai -m rule --add label="$nomanagerule" app=".*" manage="off"
+      yabai -m rule --apply
+      ;;
     *)
       echo "error, unknown action $action"
 
