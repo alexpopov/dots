@@ -71,6 +71,9 @@ yabai -m rule --add app="Buckets" manage=off
 yabai -m rule --add app="Logic Pro" manage=off
 yabai -m rule --add app="Hammerspoon" manage=off
 yabai -m rule --add app="SilverFast 9" manage=off
+yabai -m rule --add app="Final Cut Pro" manage=off
+yabai -m rule --add app="GarageBand" manage=off
+yabai -m rule --add app="Logic Pr.*" manage=off
 
 # Apply all rules
 yabai -m rule --apply
