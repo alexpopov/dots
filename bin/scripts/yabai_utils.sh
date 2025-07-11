@@ -20,6 +20,7 @@ function show_expose {
 function focus_window {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     case "$direction" in
         'stack.next')
             yabai -m window --focus stack.next || yabai -m window --focus stack.first
@@ -34,23 +35,23 @@ function focus_window {
             yabai -m window --focus $direction
             ;;
     esac
-    maybe_back_to_normal "$@"
 }
 
 function focus_display {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     case "$direction" in
         *)
             yabai -m display --focus $direction
             ;;
     esac
-    maybe_back_to_normal "$@"
 }
 
 function swap_window {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     case "$direction" in
         'stack.next')
             yabai -m window --swap stack.next || yabai -m window --swap stack.first
@@ -62,23 +63,23 @@ function swap_window {
             yabai -m window --swap $direction
             ;;
     esac
-    maybe_back_to_normal "$@"
 }
 
 function warp_window {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     case "$direction" in
         *)
             yabai -m window --warp $direction
             ;;
     esac
-    maybe_back_to_normal "$@"
 }
 
 function warp_display {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     case "$direction" in
         *)
           alert.sh simple "$direction"
@@ -88,47 +89,47 @@ function warp_display {
           yabai -m window --focus "$current_window_id"
           ;;
     esac
-    maybe_back_to_normal "$@"
 }
 
 function config {
     type="$1"
     shift
+    maybe_back_to_normal "$@"
     yabai -m config layout $type
     alert.sh simple "Layout mode: $type"
-    maybe_back_to_normal "$@"
 }
 
 function reload_config {
+    maybe_back_to_normal "$@"
     source ~/.yabairc
     alert.sh simple "Reloading config..."
-    maybe_back_to_normal "$@"
 }
 
 
 function create_stack {
     direction="$1"
     shift
+    maybe_back_to_normal "$@"
     yabai -m window --stack $direction
     alert.sh simple "Stacking $direction"
-    maybe_back_to_normal "$@"
 }
 
 function unstack {
-    window=$(yabai -m query --windows --window | jq -r '.id') && yabai -m window east --stack $window || (yabai -m window $window --toggle float && yabai -m window $window --toggle float)
     maybe_back_to_normal "$@"
+    window=$(yabai -m query --windows --window | jq -r '.id') && yabai -m window east --stack $window || (yabai -m window $window --toggle float && yabai -m window $window --toggle float)
 }
 
 function toggle_manage {
+  maybe_back_to_normal "$@"
   window=$(yabai -m query --windows --window | jq -r '.id')
   yabai -m window $window --toggle float
   alert.sh simple "Toggling Managed Status"
-  maybe_back_to_normal "$@"
 }
 
 function grid {
   type=$1
   shift
+  maybe_back_to_normal "$@"
   case "$type" in
     'centre')
       yabai -m window --grid 9:9:2:1:5:6
@@ -156,12 +157,10 @@ function grid {
 
     *)
       echo "unknown resize command $type"
-      maybe_back_to_normal "$@"
       return
       ;;
   esac
   alert.sh simple "$type"
-  maybe_back_to_normal "$@"
 }
 
 function resize {
@@ -169,6 +168,7 @@ function resize {
   shift
   local amount=${1:-20}
   shift
+  maybe_back_to_normal "$@"
   case "$type" in
     'left')
       yabai -m window --resize "right:-${amount}:0" 2> /dev/null || yabai -m window --resize "left:-${amount}:0" 2> /dev/null
@@ -188,23 +188,22 @@ function resize {
 
     *)
       echo "unknown resize command $type"
-      maybe_back_to_normal "$@"
       return
       ;;
   esac
   # alert.sh simple "$type"
-  maybe_back_to_normal "$@"
 }
 
 function toggle_fullscreen {
+  maybe_back_to_normal "$@"
   yabai -m window --toggle zoom-fullscreen
   # alert.sh simple "Toggle: Fullscreen is buggy WARNING"
-  maybe_back_to_normal "$@"
 }
 
 function auto_hide_dock {
   action="$1"
   shift
+  maybe_back_to_normal "$@"
   case "$action" in
     "show")
       osascript -e 'tell application "System Events" to set the autohide of the dock preferences to false'
@@ -220,7 +219,6 @@ function auto_hide_dock {
       alert.sh simple "Unknown dock option $action"
       ;;
   esac
-  maybe_back_to_normal "$@"
 }
 
 function manage_apps {
@@ -236,6 +234,7 @@ function manage_apps {
 function style {
   local action="$1"
   shift
+  maybe_back_to_normal "$@"
 
   case "$action" in
     "condensed")
@@ -261,12 +260,12 @@ function style {
 
   esac
 
-  maybe_back_to_normal "$@"
 }
 
 function manage {
   local action="$1"
   shift
+  maybe_back_to_normal "$@"
 
   local apps=(
     "Books"
@@ -312,7 +311,6 @@ function manage {
 
   esac
 
-  maybe_back_to_normal "$@"
 }
 
 
