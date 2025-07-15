@@ -133,6 +133,9 @@ m_window_resize < shift - h : yabai_utils.sh resize left 100
 m_window_resize < shift - l : yabai_utils.sh resize right 100
 m_window_resize < shift - j : yabai_utils.sh resize down 100
 m_window_resize < shift - k : yabai_utils.sh resize up 100
+m_window_resize < b : yabai_utils.sh grid balance back_to_default
+m_window_resize < r : yabai_utils.sh grid rotate
+
 
 # Swap Mode
 m_window_swap < h : yabai_utils.sh swap west
@@ -149,6 +152,9 @@ m_window_warp < shift - h : yabai_utils.sh warp_display west back_to_default
 m_window_warp < shift - j : yabai_utils.sh warp_display south back_to_default
 m_window_warp < shift - k : yabai_utils.sh warp_display north back_to_default
 m_window_warp < shift - l : yabai_utils.sh warp_display east back_to_default
+m_window_warp < 1 : yabai_utils.sh warp_display 1 back_to_default
+m_window_warp < 2 : yabai_utils.sh warp_display 2 back_to_default
+m_window_warp < 3 : yabai_utils.sh warp_display 3 back_to_default
 
 # Tabs
 m_window_tabs < h : skhd -k "ctrl + shift - tab;"

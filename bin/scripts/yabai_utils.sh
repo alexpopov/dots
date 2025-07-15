@@ -81,6 +81,7 @@ function warp_display {
     shift
     case "$direction" in
         *)
+          alert.sh simple "$direction"
           # TODO: also change focus there
           local current_window_id="$(yabai -m query --windows --window | jq '.id')"
           yabai -m window --display $direction
@@ -143,6 +144,14 @@ function grid {
 
     'equal')
       yabai -m query --windows --space | jq -r '.[] | select(."is-floating" == false) | .id'  | xargs -I{} yabai -m window {} --ratio abs:0.5
+      ;;
+
+    'balance')
+      yabai -m space --layout bsp
+      ;;
+
+    'rotate')
+      yabai -m space --rotate 270
       ;;
 
     *)
