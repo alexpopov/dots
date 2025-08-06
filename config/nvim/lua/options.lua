@@ -19,7 +19,6 @@ opt.scrolloff = 12 -- keep 12 lines below and above cursor always
 opt.timeoutlen = 500
 opt.incsearch = true
 
-
 -- split reasonably
 opt.splitbelow = true
 opt.splitright = true

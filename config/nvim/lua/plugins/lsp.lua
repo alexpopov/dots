@@ -1,12 +1,18 @@
 return {
-  {"neovim/nvim-lspconfig",
-    dependencies = {"williamboman/mason.nvim"},
-  },
   {
-    "williamboman/mason.nvim",
-    lazy = false,
+    "mason-org/mason-lspconfig.nvim",
+    opts = {},
+    ensure_installed = { "lua_ls", "shellcheck" },
+    dependencies = {
+      {
+        "mason-org/mason.nvim",
+        opts = {
+          pip = {
+            install_args = { "--index-url", "https://pypi.org/simple"}
+          }
+        },
+      },
+      "neovim/nvim-lspconfig",
+    },
   },
-  {"williamboman/mason-lspconfig.nvim"},
-
-  {'williamboman/nvim-lsp-installer'},
 }

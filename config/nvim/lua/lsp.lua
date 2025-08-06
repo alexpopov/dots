@@ -3,33 +3,20 @@ local M = {}
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 M.capabilities = capabilities
 
-require("mason").setup()
-require("mason-lspconfig").setup()
-
-require("mason-lspconfig").setup_handlers {
-  -- The first entry (without a key) will be the default handler
-  -- and will be called for each installed server that doesn't have
-  -- a dedicated handler.
-  function(server_name) -- default handler (optional)
-    require("lspconfig")[server_name].setup {}
-  end,
-  ["lua_ls"] = function()
-    local lspconfig = require("lspconfig")
-    lspconfig.lua_ls.setup {
-      settings = {
-        Lua = {
-          diagnostics = {
-            globals = { "vim" }
-          }
-        }
-      }
-    }
-  end
-}
 
 
 -- lspconfig settings
-
+-- Start a language server client from a native lspconfig config.
+local nvim_lsp = require("lspconfig")
+nvim_lsp.lua_ls.setup({
+  settings = {
+    Lua = {
+      diagnostics = {
+        globals = { "vim" },
+      },
+    },
+  },
+})
 -- Use an on_attach function to only map the following keys
 -- after the language server attaches to the current buffer
 local on_attach = function(client, bufnr)
