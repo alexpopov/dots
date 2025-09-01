@@ -7,7 +7,14 @@ function jk_mac_fix_brew {
 }
 
 # Add bash keybindings for fzf
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+if [ -f ~/.fzf.bash ]; then
+  source ~/.fzf.bash
+else
+  echo "Warning: \$HOME/.fzf.bash missing"
+  echo "If you have fzf installed, run the following to create it:"
+  echo
+  echo 'fzf --bash > ~/.fzf.bash'
+fi
 
 
 # May want to gate this in the future:
