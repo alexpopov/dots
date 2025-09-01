@@ -75,6 +75,7 @@ yabai -m rule --add app="Final Cut Pro" manage=off
 yabai -m rule --add app="GarageBand" manage=off
 yabai -m rule --add app="Logic Pr.*" manage=off
 yabai -m rule --add app="Alfred.*" manage=off
+yabai -m rule --add app="Shortcat.*" manage=off
 
 # Apply all rules
 yabai -m rule --apply
