@@ -1,0 +1,9 @@
+module gluetun_policy 1.0;
+
+require {
+    type tun_tap_device_t;
+    type container_t;
+    class chr_file { getattr ioctl open read write };
+}
+
+allow container_t tun_tap_device_t:chr_file { getattr ioctl open read write };
