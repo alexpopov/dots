@@ -156,10 +156,18 @@ function _install_package_git-prev {
   ln -sf $git_prev_path/git-prev $HOME/.local/bin/ 
 }
 
-function _install_avahi-daemon {
+function _install_package_avahi-daemon {
   _default_install_package "avahi"
   _log_info "Enabling avahi-daemon"
   sudo systemctl enable --now avahi-daemon
+}
+
+function _install_package_et {
+  _default_install_package "et"
+  if is_fedora || is_raspberry_pi ; then 
+    _log_info "Enabling et server"
+    sudo systemctl enable --now et.service
+  fi
 }
 
 function clone_dots {
@@ -265,6 +273,9 @@ function platform_specific_packages {
 
       # docker-compose but better
       packages+=("podman" "podman-compose")
+
+      # selinux tools
+      packages+=("setools-console")
     fi
   fi
   echo "${packages[@]}"
@@ -275,6 +286,8 @@ TODOs=(
   "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred" 
   "Other Mac apps: Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin"
   "Mac-specific utilities: skhd, yabai"
+  "File with platform-specific TODOs and only print per platform"
+  "Use tuned on Fedora to use less power?"
 )
 for todo in "${TODOs[@]}"; do 
   _log_warn "${color_green}TODO${color_reset}: $todo${color_reset}"
