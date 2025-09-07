@@ -41,3 +41,19 @@ if [[ -n $BUILD_KO_READER ]]; then
 fi
 
 export PATH
+
+function kobo_sync_to_device {
+  rsync -av --size-only \
+    --exclude='*.sdr/' \
+    --exclude='Audiobooks/' \
+    --exclude="German/" \
+    --exclude="PDFs/" \
+    --exclude="Pages/" \
+    /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Books/ \
+    /Volumes/KOBOeReader/
+    # --exclude='*.pdf' \
+}
+
+function kobo_backup_to_mac {
+  rsync -av /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
+}
