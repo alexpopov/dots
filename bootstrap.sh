@@ -27,6 +27,10 @@ function is_raspberry_pi {
   grep -q "Raspberry Pi" /proc/cpuinfo
 }
 
+function is_work_computer {
+  return 1
+}
+
 function _fail_error {
   local error=1
   [[ -n $2 ]] && error="$2"
@@ -152,6 +156,12 @@ function _install_package_git-prev {
   ln -sf $git_prev_path/git-prev $HOME/.local/bin/ 
 }
 
+function _install_avahi-daemon {
+  _default_install_package "avahi"
+  _log_info "Enabling avahi-daemon"
+  sudo systemctl enable --now avahi-daemon
+}
+
 function clone_dots {
   if [[ -d $HOME/dots/ ]]; then 
     _log_btw "Dots repo cloned. Skipping!"
@@ -245,11 +255,40 @@ Host github.com
   _log_warn "${color_blue}git remote set-url origin git@github.com:alexpopov/dots.git"
 }
 
+# print packages as words 
+function platform_specific_packages {
+  local packages=()
+  if is_fedora; then 
+    if ! is_work_computer; then 
+      # for bonjour-style local mDNS resolution
+      packages+="avahi-daemon"
+
+      # docker-compose but better
+      packages+=("podman" "podman-compose")
+    fi
+  fi
+  echo "${packages[@]}"
+}
+
+TODOs=(
+  "implement ${color_blue}is_work_computer"
+  "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred" 
+  "Other Mac apps: Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin"
+  "Mac-specific utilities: skhd, yabai"
+)
+for todo in "${TODOs[@]}"; do 
+  _log_warn "${color_green}TODO${color_reset}: $todo${color_reset}"
+done
 #    ___           _          ____        _      __ 
 #   / _ )___ ___ _(_)__      / __/_______(_)__  / /_
 #  / _  / -_) _ `/ / _ \    _\ \/ __/ __/ / _ \/ __/
 # /____/\__/\_, /_/_//_/   /___/\__/_/ /_/ .__/\__/ 
 #          /___/                        /_/         
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    _log_info "Thanks for sourcing! The rest of the script will not be executed."
+    _log_info "If you'd like to execute the script, call it without ${color_blue}source"
+    return
+fi
 
 mkdir -p $HOME/{.local/{bin,share},.config/}
 
@@ -257,8 +296,8 @@ mkdir -p $HOME/{.local/{bin,share},.config/}
 # NOTE: write the binary name, not the package name
 _BOOTSTRAP_PACKAGES_TO_INSTALL="vim nvim git et tmux fzf ag python3"
 
-for PACKAGE in $_BOOTSTRAP_PACKAGES_TO_INSTALL ; do 
-  _install_package "$PACKAGE"
+for package in $_BOOTSTRAP_PACKAGES_TO_INSTALL ; do 
+  _install_package "$package"
 done
 
 # New personal systems have nothing set in gitconfig
@@ -273,8 +312,14 @@ export_fzf_bindings
 # NOTE: write the binary name, not the package name
 _LATE_PACKAGES_TO_INSTALL="gum cmake jq git-prev tree lazygit delta"
 
-for PACKAGE in $_LATE_PACKAGES_TO_INSTALL ; do 
-  _install_package "$PACKAGE"
+for package in $_LATE_PACKAGES_TO_INSTALL ; do 
+  _install_package "$package"
+done
+
+for package in $(platform_specific_packages) ; do 
+  _install_package "$package"
 done
 
 create_links
+
+_log_info "Bootstrapping complete! 🎉 "
