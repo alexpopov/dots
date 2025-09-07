@@ -69,9 +69,8 @@ function jk_choose_dirs_v {
 
 alias dv="pushd \$(jk_choose_dirs_v)"
 
-
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
 # too often when I think I'm in vim
 bind -r '\C-l'
 
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+[ -f ~/.config/fzf/fzf.bash ] && source ~/.config/fzf/fzf.bash
