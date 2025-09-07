@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 DOTS_DIR="$HOME/dots/"  # Set this absolute path
 DOTS_CONFIG_DIR="$DOTS_DIR/config"
