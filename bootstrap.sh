@@ -42,6 +42,10 @@ function _log_btw {
   echo -e "${color_grey}BTW:  ${color_reset}$1${color_reset}"
 }
 
+function _log_warn {
+  echo -e "${color_yellow}WARN: ${color_reset}$1${color_reset}"
+}
+
 function _install_package {
   local package="$1"
   test -z "$package" && _fail_error "${color_blue}_install_package${color_blue} expects 1 argument" 
@@ -211,6 +215,36 @@ function create_basic_git_config {
   rebase = true' | tee $HOME/.gitconfig
 }
 
+function ssh_config_support_github {
+  local ssh_config="$HOME/.ssh/config" 
+  # if does not exist: create file
+  if [[ ! -f $ssh_config ]]; then 
+    _log_info "Creating ssh config at ${color_blue}$ssh_config"
+    touch "$ssh_config"
+  fi
+  # if contains github entry: return
+  if grep -q "github.com" "$ssh_config"; then 
+    _log_btw "Verified GitHub SSH config exists for @alexpopov"
+    return
+  fi
+  _log_info "GitHub entry missing from SSH config."
+  if [[ ! -f $HOME/.ssh/id_ed25519 ]]; then 
+    _log_info "SSH key missing. Creating SSH key for GitHub. Please leave default name."
+    ssh-keygen -t ed25519 -C "hello@alexpopov.ca" || _fail_error "Error creating SSH key, try RSA maybe? See ${color_blue}https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent"
+  fi
+  _log_info "Creating new SSH config entry to use ${color_blue}$HOME/.ssh/id_ed25519${color_reset} for GitHub"
+  echo '
+Host github.com
+  AddKeysToAgent yes
+  IdentityFile ~/.ssh/id_ed25519' | tee -a "$ssh_config"
+  _log_info "Adding key to ${color_blue}ssh-agent${color_blue}"
+  eval `ssh-agent -s`
+  ssh-add $HOME/.ssh/id_ed25519
+  _log_warn "you need to ${color_blue}cat $HOME/.ssh/id_ed25519.pub${color_reset} and add the result to your SSH keys in github"
+  _log_warn "You may need to manually add SSH origin to the local dots git repo. Run: "
+  _log_warn "${color_blue}git remote set-url origin git@github.com:alexpopov/dots.git"
+}
+
 #    ___           _          ____        _      __ 
 #   / _ )___ ___ _(_)__      / __/_______(_)__  / /_
 #  / _  / -_) _ `/ / _ \    _\ \/ __/ __/ / _ \/ __/
@@ -229,6 +263,7 @@ done
 
 # New personal systems have nothing set in gitconfig
 create_basic_git_config
+ssh_config_support_github
 
 # This requires git, which isn't installed on everything by default
 clone_dots
