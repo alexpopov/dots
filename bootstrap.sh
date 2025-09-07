@@ -245,8 +245,8 @@ function ssh_config_support_github {
   _log_info "Creating new SSH config entry to use ${color_blue}$HOME/.ssh/id_ed25519${color_reset} for GitHub"
   echo '
 Host github.com
-  AddKeysToAgent yes
-  IdentityFile ~/.ssh/id_ed25519' | tee -a "$ssh_config"
+    AddKeysToAgent yes
+    IdentityFile ~/.ssh/id_ed25519' | tee -a "$ssh_config"
   _log_info "Adding key to ${color_blue}ssh-agent${color_blue}"
   eval `ssh-agent -s`
   ssh-add $HOME/.ssh/id_ed25519
