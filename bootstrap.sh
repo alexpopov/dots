@@ -263,7 +263,7 @@ function export_fzf_bindings {
 function create_links {
   _log_btw "Creating links and necessary directories."
   # Make all necessary directories
-  mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR"
+  mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR" 
 
   ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"
@@ -271,11 +271,16 @@ function create_links {
   ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR"  # tmux refuses to use XDG, this is for us to have tmux.conf
-  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
-  ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
+  ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR"
+  ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR"
 
+  # tmux refuses to use XDG, this is for us to have tmux.conf
+  ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR"  
+  ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
   ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
+
+  # input also refuses to use XDF
+  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
   ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
 
   # binary stuff
