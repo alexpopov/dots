@@ -1,0 +1,17 @@
+[Unit]
+Description=Media & Torrent Stack (Podman-Compose)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Restart=on-failure
+WorkingDirectory=/home/alp/Containers/media-stack/
+ExecStart=/usr/bin/podman-compose up -d
+ExecStop=/usr/bin/podman-compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
+
