@@ -155,6 +155,30 @@ function grid {
       yabai -m space --rotate 270
       ;;
 
+    '3' | '4' | '5')
+      # <rows>:<cols>:<start-x>:<start-y>:<width>:<height>
+      local grid="$type"
+      local where="$1"
+      echo "Grid: $type, where: $where"
+      shift
+      local grid_size="$grid:$grid"
+      local window_placement=
+      local window_length=$((grid - 2))
+      local window_size=
+      local grid_specifier=
+      case "$where" in
+        d)
+          window_placement="1:1"
+          window_size="$window_length:$window_length"
+          grid_specifier="${grid_size}:${window_placement}:${window_size}"
+          ;;
+        *)
+          echo "unknown area: '$where'"
+      esac
+      echo "Grid specifier: $grid_specifier"
+      yabai -m window --grid "$grid_specifier"
+      ;;
+
     *)
       echo "unknown resize command $type"
       return

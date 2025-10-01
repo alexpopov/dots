@@ -21,6 +21,9 @@
 :: m_window_create @ : alert.sh simple 'Creating'
 
 :: m_window_resize @ : alert.sh simple 'Resize'
+:: m_window_resize_3 @ : alert.sh simple 'Resize Thirds'
+:: m_window_resize_4 @ : alert.sh simple 'Resize Fourths'
+:: m_window_resize_5 @ : alert.sh simple 'Resize Fifths'
 
 :: m_window_tabs @ : alert.sh simple 'Tabs'
 
@@ -42,8 +45,8 @@ m_windows < a ; m_actions
 
 
 # Exit Hyper
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions, m_window_warp < escape ; default
-m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_tabs, m_window_swap, m_actions, m_window_warp < 0x5A ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_resize_3, m_window_resize_4, m_window_resize_5, m_window_tabs, m_window_swap, m_actions, m_window_warp < escape ; default
+m_hyper, m_windows, m_open, m_yabai_config, m_window_focus, m_window_create, m_window_resize, m_window_resize_3, m_window_resize_4, m_window_resize_5, m_window_tabs, m_window_swap, m_actions, m_window_warp < 0x5A ; default
 
 # R: reload
 m_hyper < r : skhd --reload; alert.sh simple 'reloading...'
@@ -135,6 +138,13 @@ m_window_resize < shift - j : yabai_utils.sh resize down 100
 m_window_resize < shift - k : yabai_utils.sh resize up 100
 m_window_resize < b : yabai_utils.sh grid balance back_to_default
 m_window_resize < r : yabai_utils.sh grid rotate
+m_window_resize < 3 ; m_window_resize_3
+m_window_resize < 4 ; m_window_resize_4
+m_window_resize < 5 ; m_window_resize_5
+
+m_window_resize_3 < d : yabai_utils.sh grid 3 d back_to_default
+m_window_resize_4 < d : yabai_utils.sh grid 4 d back_to_default
+m_window_resize_5 < d : yabai_utils.sh grid 5 d back_to_default
 
 
 # Swap Mode
@@ -155,6 +165,9 @@ m_window_warp < shift - l : yabai_utils.sh warp_display east back_to_default
 m_window_warp < 1 : yabai_utils.sh warp_display 1 back_to_default
 m_window_warp < 2 : yabai_utils.sh warp_display 2 back_to_default
 m_window_warp < 3 : yabai_utils.sh warp_display 3 back_to_default
+# warp fullscreen on monitor 1.
+# Warping to another monitor will un-fullscreen automatically
+m_window_warp < f : yabai_utils.sh warp_display 1 back_to_default; yabai_utils.sh fullscreen
 
 # Tabs
 m_window_tabs < h : skhd -k "ctrl + shift - tab;"
