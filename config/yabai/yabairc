@@ -17,7 +17,7 @@
 yabai -m config window_placement second_child
 
 # focus
-yabai -m config mouse_follows_focus off
+yabai -m config mouse_follows_focus on
 yabai -m config auto_balance on
 
 # Padding
@@ -76,6 +76,7 @@ yabai -m rule --add app="GarageBand" manage=off
 yabai -m rule --add app="Logic Pr.*" manage=off
 yabai -m rule --add app="Alfred.*" manage=off
 yabai -m rule --add app="Shortcat.*" manage=off
+yabai -m rule --add app="Magic Island" manage=off
 
 # Apply all rules
 yabai -m rule --apply
