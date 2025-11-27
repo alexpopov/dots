@@ -120,6 +120,7 @@ m_window_create < ctrl - k : yabai_utils.sh stack north
 m_window_create < ctrl - l : yabai_utils.sh stack east
 
 m_window_create < u : yabai_utils.sh unstack back_to_default
+m_window_create < ctrl - u : yabai_utils.sh unstack
 
 # Grid Mode
 m_window_resize < c : yabai_utils.sh grid centre back_to_default
