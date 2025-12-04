@@ -12,18 +12,14 @@ gui:
     selectedRangeBgColor:
       - white
       - bold
-
   mouseEvents: false
-
 promptToReturnFromSubprocess: false
-
 # os:
 #   edit: 'nvr -cc tabnew --remote {{filename}}'
 #   editAtLine: 'nvr -cc tabnew -c :{{line}} --remote {{filename}}'
 #   editAtLineAndWait: 'nvr -cc tabnew -c :{{line}} --remote-wait {{filename}}'
 #   editInTerminal: false
-
 git:
-  paging:
-    colorArg: always
-    pager: delta --light --paging=never
+  pagers:
+    - colorArg: always
+      pager: delta --light --paging=never
