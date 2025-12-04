@@ -1,8 +1,12 @@
 return {
   {
     "mason-org/mason-lspconfig.nvim",
-    opts = {},
-    ensure_installed = { "lua_ls", "shellcheck" },
+    opts = {
+      ensure_installed = { 
+        "lua_ls", 
+        -- "shellcheck",
+      },
+    },
     dependencies = {
       {
         "mason-org/mason.nvim",
