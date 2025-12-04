@@ -1,5 +1,5 @@
 -- TODO: Make this configurable
-local update_treesitter = false
+local update_treesitter = true
 local ensure_installed
 if (update_treesitter == true)  then
   ensure_installed = {
