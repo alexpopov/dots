@@ -244,7 +244,12 @@ local specs = {
     "ggandor/leap.nvim",
     config = function()
       local leap = require("leap")
-      leap.create_default_mappings()
+      vim.keymap.set({'n', 'x', 'o'}, 's', function ()
+          leap.leap {}
+      end)
+      vim.keymap.set({'n', 'x', 'o'}, 'S', function ()
+          leap.leap {backward = true}
+      end)
       leap.opts.equivalence_classes = { ' \t\r\n', '([{', ')]}', '\'"`' }
     end
   },
