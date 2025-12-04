@@ -3,12 +3,9 @@ local M = {}
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 M.capabilities = capabilities
 
-
-
--- lspconfig settings
--- Start a language server client from a native lspconfig config.
-local nvim_lsp = require("lspconfig")
-nvim_lsp.lua_ls.setup({
+-- New vim.lsp.config approach (Neovim 0.11+)
+-- Configure lua_ls
+vim.lsp.config("lua_ls", {
   settings = {
     Lua = {
       diagnostics = {
@@ -16,105 +13,82 @@ nvim_lsp.lua_ls.setup({
       },
     },
   },
+  capabilities = capabilities,
 })
--- Use an on_attach function to only map the following keys
--- after the language server attaches to the current buffer
-local on_attach = function(client, bufnr)
-  local function buf_set_keymap(...)
-    vim.api.nvim_buf_set_keymap(bufnr, ...)
-  end
-  local function buf_set_option(...)
-    vim.api.nvim_buf_set_option(bufnr, ...)
-  end
 
-  --Enable completion triggered by <c-x><c-o>
-  buf_set_option("omnifunc", "v:lua.vim.lsp.omnifunc")
+-- Enable the LSP server for lua files
+vim.lsp.enable("lua_ls")
 
-  -- Mappings.
-  local opts = { noremap = true, silent = true }
+-- Use LspAttach autocommand for keymaps (replaces on_attach)
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("UserLspConfig", { clear = true }),
+  callback = function(ev)
+    local bufnr = ev.buf
 
-  -- See `:help vim.lsp.*` for documentation on any of the below functions
-  buf_set_keymap("n", "<Leader>aD", "<cmd>lua vim.lsp.buf.declaration()<CR>", opts)
-  buf_set_keymap("n", "<Leader>ad", "<cmd>lua vim.lsp.buf.definition()<CR>", opts)
-  buf_set_keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", opts)
-  buf_set_keymap("n", "<Leader>ai", "<cmd>lua vim.lsp.buf.implementation()<CR>", opts)
-  buf_set_keymap(
-    "n",
-    "<C-k>",
-    "<cmd>lua vim.lsp.buf.signature_help()<CR>",
-    opts
-  )
-  buf_set_keymap(
-    "n",
-    "<Leader>awa",
-    "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>",
-    opts
-  )
-  buf_set_keymap(
-    "n",
-    "<Leader>awr",
-    "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>",
-    opts
-  )
-  buf_set_keymap(
-    "n",
-    "<Leader>awl",
-    "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
-    opts
-  )
-  buf_set_keymap(
-    "n",
-    "<Leader>ar",
-    "<cmd>lua vim.lsp.buf.rename()<CR>",
-    opts
-  )
-  buf_set_keymap(
-    "n",
-    "<Leader>aca",
-    "<cmd>lua vim.lsp.buf.code_action()<CR>",
-    opts
-  )
-  buf_set_keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", opts)
-  buf_set_keymap(
-    "n",
-    "<Leader>ae",
-    "<cmd>lua vim.diagnostic.open_float()<CR>",
-    opts
-  )
-  buf_set_keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", opts)
-  buf_set_keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
-  buf_set_keymap(
-    "n",
-    "<Leader>aq",
-    "<cmd>lua vim.diagnostic.setloclist()<CR>",
-    opts
-  )
-  buf_set_keymap("n", "<Leader>aff", "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000 }<CR>", opts)
-  buf_set_keymap("v", "<Leader>aff",
-    "<cmd>lua vim.lsp.buf.format { timeout_ms = 5000, range = { ['start'] = vim.api.nvim_buf_get_mark(0, '<'), ['end'] = vim.api.nvim_buf_get_mark(0, '>') }<CR>",
-    opts)
+    -- Enable completion triggered by <c-x><c-o>
+    vim.bo[bufnr].omnifunc = "v:lua.vim.lsp.omnifunc"
 
-  vim.diagnostic.config({
-    virtual_text = {
-      source = "always",
-      format = function(diagnostic)
-        local new_line_location = diagnostic.message:find("\n")
+    -- Mappings
+    local opts = { buffer = bufnr, noremap = true, silent = true }
 
-        if new_line_location ~= nil then
-          return diagnostic.message:sub(1, new_line_location)
-        else
-          return diagnostic.message
-        end
-      end,
-    },
-  })
+    -- See `:help vim.lsp.*` for documentation on any of the below functions
+    vim.keymap.set("n", "<Leader>aD", vim.lsp.buf.declaration, opts)
+    vim.keymap.set("n", "<Leader>ad", vim.lsp.buf.definition, opts)
+    vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
+    vim.keymap.set("n", "<Leader>ai", vim.lsp.buf.implementation, opts)
+    vim.keymap.set("n", "<C-k>", vim.lsp.buf.signature_help, opts)
+    vim.keymap.set("n", "<Leader>awa", vim.lsp.buf.add_workspace_folder, opts)
+    vim.keymap.set("n", "<Leader>awr", vim.lsp.buf.remove_workspace_folder, opts)
+    vim.keymap.set("n", "<Leader>awl", function()
+      print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    end, opts)
+    vim.keymap.set("n", "<Leader>ar", vim.lsp.buf.rename, opts)
+    vim.keymap.set("n", "<Leader>aca", vim.lsp.buf.code_action, opts)
+    vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
+    vim.keymap.set("n", "<Leader>ae", vim.diagnostic.open_float, opts)
+    vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
+    vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
+    vim.keymap.set("n", "<Leader>aq", vim.diagnostic.setloclist, opts)
+    vim.keymap.set("n", "<Leader>aff", function()
+      vim.lsp.buf.format({ timeout_ms = 5000 })
+    end, opts)
+    vim.keymap.set("v", "<Leader>aff", function()
+      vim.lsp.buf.format({
+        timeout_ms = 5000,
+        range = {
+          ["start"] = vim.api.nvim_buf_get_mark(0, "<"),
+          ["end"] = vim.api.nvim_buf_get_mark(0, ">"),
+        },
+      })
+    end, opts)
+
+    vim.diagnostic.config({
+      virtual_text = {
+        source = "always",
+        format = function(diagnostic)
+          local new_line_location = diagnostic.message:find("\n")
+          if new_line_location ~= nil then
+            return diagnostic.message:sub(1, new_line_location)
+          else
+            return diagnostic.message
+          end
+        end,
+      },
+    })
+  end,
+})
+
+-- For backwards compatibility, export on_attach for plugins that still use it
+M.on_attach = function(client, bufnr)
+  -- The LspAttach autocmd above handles everything now
+  -- This is kept for any plugins that might call it directly
 end
-M.on_attach = on_attach
 
 -- null-ls configs
 local null_ls = require("null-ls")
 null_ls.setup({
-  on_attach = on_attach,
+  -- null-ls still uses the traditional on_attach pattern
+  -- but keymaps are now handled by the LspAttach autocmd
 })
 
 return M

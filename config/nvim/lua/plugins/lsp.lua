@@ -16,6 +16,8 @@ return {
           }
         },
       },
+      -- nvim-lspconfig is still useful for server command/filetype defaults
+      -- but no longer required for the core LSP functionality in 0.11+
       "neovim/nvim-lspconfig",
     },
   },
