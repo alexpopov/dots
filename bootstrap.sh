@@ -27,8 +27,21 @@ function is_raspberry_pi {
   grep -q "Raspberry Pi" /proc/cpuinfo
 }
 
+function is_centos {
+  [[ -f /etc/centos-release ]]
+}
+
+function is_devserver {
+  [[ -f /etc/fbwhoami ]] && grep -q "DEVICE_HOSTNAME_SCHEME" /etc/fbwhoami
+}
+
 function is_work_computer {
-  return 1
+  if is_mac; then
+    [[ -d "/usr/facebook" ]] || [[ -d "/opt/chef" ]]
+  else
+    # For devservers and other Linux work machines
+    is_devserver
+  fi
 }
 
 function _fail_error {
@@ -81,6 +94,8 @@ function _default_install_package {
     sudo dnf5 install "$package" -y
   elif is_raspberry_pi; then
     sudo apt-get install "$package" -y
+  elif is_centos; then
+    sudo dnf install "$package" -y
   else
     _fail_error "Unhandled OS in ${color_blue}_default_install_package"
   fi
@@ -121,8 +136,26 @@ function _install_package_delta {
 
 function _install_package_lazygit {
   local package="lazygit"
-  is_fedora && sudo dnf copr enable dejan/lazygit
-  _default_install_package "$package"
+
+  if is_fedora; then
+    sudo dnf copr enable dejan/lazygit
+    _default_install_package "$package"
+  elif is_centos; then
+    _log_warn "Lazygit requires manual installation on CentOS/devservers"
+    _log_info "Follow these steps:"
+    _log_info "1. Visit ${color_blue}https://github.com/jesseduffield/lazygit/releases"
+    _log_info "2. Find the ${color_blue}linux_x86_64.tar.gz${color_reset} asset and copy its link address"
+    _log_info "3. Run the following commands:"
+    _log_info "   ${color_blue}pushd ~/.local/share"
+    _log_info "   ${color_blue}wget <paste-the-link-here>"
+    _log_info "   ${color_blue}tar -xzf lazygit_*_linux_x86_64.tar.gz"
+    _log_info "   ${color_blue}ln -sf ~/.local/share/lazygit ~/.local/bin/lazygit"
+    _log_info "   ${color_blue}popd"
+    echo ""
+    read -p "Press Enter to continue after completing the installation..."
+  else
+    _default_install_package "$package"
+  fi
 }
 
 function _install_package_gum {
@@ -282,8 +315,7 @@ function platform_specific_packages {
 }
 
 TODOs=(
-  "implement ${color_blue}is_work_computer"
-  "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred" 
+  "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred"
   "Other Mac apps: Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin"
   "Mac-specific utilities: skhd, yabai"
   "File with platform-specific TODOs and only print per platform"
