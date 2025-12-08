@@ -3,6 +3,23 @@
   email = hello@alexpopov.ca
 
 [pull]
-	rebase = true
+  rebase = true
+
+[alais]
+  amend = !git commit --amend --no-edit
+
+  find-split = "!git log --pretty=format:'%ce %h' -n 99 | awk '/^alexpopov.*/ { next } $1 { print $2; exit }'"
+
+  ls= !git log $(git find-split)^..HEAD --oneline
+
+
+  now = log -n 1
+
+  recon = rebase --continue
+
+
+  histedit = !git rebase -i $(git find-split)
+
+  nuke = "!if $(read -p 'Nuke? ' -n 1 -r) ; then echo 'Nuking' ; git reset --hard HEAD && git clean -fd ; fi"
 
 # vi: ft=gitconfig
