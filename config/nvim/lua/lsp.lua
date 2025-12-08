@@ -16,6 +16,30 @@ vim.lsp.config("lua_ls", {
   capabilities = capabilities,
 })
 
+vim.api.nvim_create_user_command("LspStopByName", function(opts)
+  local target = opts.args
+  local bufnr = vim.api.nvim_get_current_buf()
+  for _, client in pairs(vim.lsp.get_active_clients({ bufnr = bufnr })) do
+    if client.name == target then
+      client.stop()
+      vim.notify("Stopped " .. target .. " LSP", vim.log.levels.INFO)
+      return
+    end
+  end
+  vim.notify("No active LSP client named: " .. target, vim.log.levels.WARN)
+
+end, {
+    nargs = 1,
+    complete = function()
+      -- provide completion of active client names
+      local names = {}
+      for _, client in pairs(vim.lsp.get_active_clients({ bufnr = vim.api.nvim_get_current_buf() })) do
+        table.insert(names, client.name)
+      end
+      return names
+    end
+  })
+
 -- Enable the LSP server for lua files
 vim.lsp.enable("lua_ls")
 
