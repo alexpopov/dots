@@ -21,19 +21,11 @@ EOF
 " below: adds comment highlighting to JSON
 " autocmd FileType json syntax match Comment +\/\/.\+$+
 " adds highlighting for Buck
-autocmd BufRead,BufNewFile TARGETS set filetype=conf
 autocmd BufRead,BufNewFile *.histedit.hg.txt set filetype=conf
-autocmd BufRead,BufNewFile *.gitconfig set filetype=bash
+autocmd BufRead,BufNewFile *.gitconfig set filetype=gitconfig
 autocmd BufRead,BufNewFile skhdrc call SetSkhdrcSettings()
 autocmd BufRead,BufNewFile *.json set filetype=jsonc
 
-" " remove whitespace at end of lines
-" autocmd BufWritePre * :%s/\s\+$//e
-" Python-specific find def/class
-autocmd FileType python map <buffer> map <localleader>fc :BLines<CR>^class<space>
-autocmd FileType python map <buffer> <localleader>fd :Telescope current_buffer_fuzzy_find<CR>^def<space>
-autocmd FileType python map <buffer> <localleader>fD :Telescope current_buffer_fuzzy_find<CR>^class<space>
-autocmd FileType antlr4 call RegisterAntlrCommands()
 " C++ specific
 autocmd FileType cpp call SetIndentTwo()
 autocmd FileType cpp setlocal commentstring=//\ %s
