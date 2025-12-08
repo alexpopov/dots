@@ -95,8 +95,3 @@ map <localleader>hd :call ViewDiff()<CR>
 
 map <leader>afc :%py3f /usr/local/share/clang/clang-format.py<CR>
 
-
-" Facebook stuff
-if !empty(glob("~/.config/nvim/private/facebook.vim"))
-  source ~/.config/nvim/private/facebook.vim
-endif
