@@ -16,6 +16,19 @@ else
   echo 'fzf --bash > ~/.fzf.bash'
 fi
 
+# Bash completion
+[[ -r "/usr/local/etc/bash_completion" ]] && . "/usr/local/etc/bash_completion"
+
+# Load Git completion
+# Get it with: 
+# curl -o ~/.local/bin/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash
+if [ -f ~/.local/bin/.git-completion.bash ]; then
+  . ~/.local/bin/.git-completion.bash
+else
+  echo "Error: git-completion not installed. Check out mac_support.sh"
+  echo "TODO: bootstrap this part"
+fi
+
 
 # May want to gate this in the future:
 
@@ -43,17 +56,32 @@ fi
 export PATH
 
 function kobo_sync_to_device {
-  rsync -av --size-only \
+  local destination_path=
+  local local_path="/Volumes/KOBOeReader/"
+  local kobo_ssh="root@192.168.1.74"
+  if [[ -d $local_path ]] ; then 
+    # echo "Not plugged in..."
+    # echo "Trying ssh..."
+    destination_path="$local_path"
+  # elif nc -z -w 3 192.168.1.74 2222 > /dev/null 2>&1 ; then 
+  #   # we can ssh to kobo
+  #   echo "Can ssh!"
+  #   destination_path="kobo:/mnt/onboard/"
+  else
+    echo "Error: no kobo plugged in or on network"
+    return 1
+  fi
+  rsync -av --size-only --progress \
     --exclude='*.sdr/' \
     --exclude='Audiobooks/' \
     --exclude="German/" \
     --exclude="PDFs/" \
     --exclude="Pages/" \
     /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Books/ \
-    /Volumes/KOBOeReader/
+    "$destination_path"
     # --exclude='*.pdf' \
 }
 
 function kobo_backup_to_mac {
-  rsync -av /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
+  rsync -av --progress /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
 }
