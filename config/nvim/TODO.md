@@ -10,7 +10,7 @@
    - `buf.bufnr()` is invalid - `nvim_create_buf` returns a buffer number directly, not a table
    - Use `buf` directly: `vim.bo[buf].buftype = "nofile"` etc.
 
-3. [ ] **Broken reload mappings** - `mappings.lua:115-119`
+3. [x] **Broken reload mappings** - `mappings.lua:115-119`
    - Module names passed without quotes: `lua_init`, `lsp`, etc. are undefined variables
    - Wrap module names in quotes: `"lua_init"`, `"lsp"`, etc.
 
