@@ -103,3 +103,8 @@
     - Instead of hardcoded `\rvo`, `\rvl`, etc. mappings
     - Single binding that opens Telescope picker with available config modules
     - Select module to reload with `R()`
+
+22. [ ] **Stop using init.vim entirely**
+    - Rename `init.vim` to `init.lua`
+    - Migrate all remaining VimScript to Lua
+    - This eliminates the need to `:source` VimScript separately
