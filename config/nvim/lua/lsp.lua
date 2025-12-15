@@ -19,7 +19,7 @@ vim.lsp.config("lua_ls", {
 vim.api.nvim_create_user_command("LspStopByName", function(opts)
   local target = opts.args
   local bufnr = vim.api.nvim_get_current_buf()
-  for _, client in pairs(vim.lsp.get_active_clients({ bufnr = bufnr })) do
+  for _, client in pairs(vim.lsp.get_clients({ bufnr = bufnr })) do
     if client.name == target then
       client.stop()
       vim.notify("Stopped " .. target .. " LSP", vim.log.levels.INFO)
@@ -33,7 +33,7 @@ end, {
     complete = function()
       -- provide completion of active client names
       local names = {}
-      for _, client in pairs(vim.lsp.get_active_clients({ bufnr = vim.api.nvim_get_current_buf() })) do
+      for _, client in pairs(vim.lsp.get_clients({ bufnr = vim.api.nvim_get_current_buf() })) do
         table.insert(names, client.name)
       end
       return names
