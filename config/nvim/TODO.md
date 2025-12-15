@@ -95,16 +95,26 @@
     - `init.vim:87`: "TODO: remove" (ViewDiff function)
     - `mappings.lua:4`: "TODO: refactor this file into multiple files"
 
-20. [ ] **Consider migrating remaining `init.vim` to pure Lua**
-    - Most config is already Lua
-    - `init.vim` could become `init.lua` with remaining VimScript migrated
+20. [ ] **Migrate init.vim to init.lua**
+    - Stop using init.vim entirely
+    - Migrate all remaining VimScript to Lua
+    - Eliminates the need to `:source` VimScript separately
 
 21. [x] **Use Telescope to pick module to reload**
     - Instead of hardcoded `\rvo`, `\rvl`, etc. mappings
     - Single binding that opens Telescope picker with available config modules
     - Select module to reload with `R()`
 
-22. [ ] **Stop using init.vim entirely**
-    - Rename `init.vim` to `init.lua`
-    - Migrate all remaining VimScript to Lua
-    - This eliminates the need to `:source` VimScript separately
+22. [ ] **Install `fd` for Telescope**
+    - Telescope recommends `sharkdp/fd` for faster file finding
+    - Add to bootstrap.sh or document as a dependency
+
+23. [ ] **debugprint.nvim uses deprecated `vim.validate` API**
+    - Will break in Neovim 1.0
+    - Check for plugin updates or report issue upstream
+    - Consider removing if not actively used
+
+24. [ ] **Keybinding conflict: `<Leader>r` overlaps with `<Leader>rwp`**
+    - `<Leader>r` clears search highlighting (init.vim:65)
+    - `<Leader>rwp` is from debugprint.nvim
+    - Remap one of them to avoid delay
