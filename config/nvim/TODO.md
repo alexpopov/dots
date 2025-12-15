@@ -98,3 +98,8 @@
 20. [ ] **Consider migrating remaining `init.vim` to pure Lua**
     - Most config is already Lua
     - `init.vim` could become `init.lua` with remaining VimScript migrated
+
+21. [x] **Use Telescope to pick module to reload**
+    - Instead of hardcoded `\rvo`, `\rvl`, etc. mappings
+    - Single binding that opens Telescope picker with available config modules
+    - Select module to reload with `R()`
