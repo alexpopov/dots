@@ -24,4 +24,13 @@ function M.safe_require(module_name)
   return module
 end
 
+function M.show_notify_history()
+  local ok, notify = pcall(require, "notify")
+  if ok then
+    require("telescope").extensions.notify.notify()
+  else
+    vim.cmd("messages")
+  end
+end
+
 return M
