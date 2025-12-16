@@ -153,6 +153,7 @@ wk.add(
   {
     { "<localleader>b",   group = " buffers" },
     { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
+    { "<localleader>u",   function() require("utils").pick_function() end,                 desc = "Run function picker" },
     { "<localleader>g",   group = " go" },
     { "<localleader>gh",  ":lua require('tree-climber').goto_prev<CR>",                    desc = "previous" },
     { "<localleader>gj",  ":lua require('tree-climber').goto_child<CR>",                   desc = "child" },
