@@ -84,14 +84,5 @@ function! DeleteHiddenBuffers()
     endfor
 endfunction
 
-" TODO: remove
-function! ViewDiff()
-    enew
-    1,$ !hg diff
-    setf diff
-endfunction
-
-map <localleader>hd :call ViewDiff()<CR>
-
 map <leader>afc :%py3f /usr/local/share/clang/clang-format.py<CR>
 

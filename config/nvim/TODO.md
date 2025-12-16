@@ -92,7 +92,7 @@
 19. [ ] **Resolve existing TODOs in code**
     - `init.vim:12`: "TODO: set this in lua" (noswapfile/nobackup)
     - `init.vim:77`: "TODO: move to lua?" (DeleteHiddenBuffers function)
-    - `init.vim:87`: "TODO: remove" (ViewDiff function)
+    - ~`init.vim:87`: "TODO: remove" (ViewDiff function)~ DONE
     - `mappings.lua:4`: "TODO: refactor this file into multiple files"
 
 20. [ ] **Migrate init.vim to init.lua**
