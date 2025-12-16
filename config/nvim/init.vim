@@ -18,8 +18,6 @@ lua << EOF
 config = require('lua_init')
 EOF
 
-" below: adds comment highlighting to JSON
-" autocmd FileType json syntax match Comment +\/\/.\+$+
 " adds highlighting for Buck
 autocmd BufRead,BufNewFile *.histedit.hg.txt set filetype=conf
 autocmd BufRead,BufNewFile *.gitconfig set filetype=gitconfig

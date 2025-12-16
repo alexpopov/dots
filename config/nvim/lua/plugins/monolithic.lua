@@ -53,8 +53,6 @@ local specs = {
     "hrsh7th/nvim-cmp",
     dependencies = { "hrsh7th/cmp-nvim-lsp", "hrsh7th/cmp-buffer", "L3MON4D3/LuaSnip", },
     config = function()
-      -- vim.opt.completeopt = { "menu", "menuone", "noselect" }
-
       local luasnip = require("luasnip")
       local cmp = require("cmp")
       cmp.setup({
@@ -286,18 +284,6 @@ local specs = {
             pattern = "@nocommit.*",
             hl = "Todo",
           },
-          -- {
-          --   -- bash variables
-          --   filter = { filetype = bash },
-          --   pattern = "$[%l_-]+",
-          --   hl = "XcodeTeal",
-          -- },
-          -- {
-          --   -- bash variables
-          --   filter = { filetype = bash },
-          --   pattern = "${.+}",
-          --   hl = "XcodeTeal",
-          -- },
         },
       })
     end,

@@ -104,7 +104,6 @@ wk.add(
     { "<localleader>b",   group = " buffers" },
     { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
     { "<localleader>u",   function() require("telescope.pick_function")() end,               desc = "Run function picker" },
-    { "<localleader>g",   group = " go" },
     { "<localleader>q",   group = " config" },
     { "<localleader>qn",  ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
     { "<localleader>r",   group = " reload" },
