@@ -5,11 +5,10 @@ function M.load_latest_session()
 end
 
 function M.create_scratch_buffer()
-  local buf = vim.api.nvim_create_buf(true, true)
-  vim.api.nvim_buf_set_name(buf, "[scratch]")
-  vim.bo[buf.bufnr()].buftype = "nofile"
-  vim.bo[buf.bufnr()].bufhidden = "hide"
-  vim.bo[buf.bufnr()].noswapfile = "true"
+  local dir = "/tmp/nvim." .. os.getenv("USER")
+  vim.fn.mkdir(dir, "p")
+  local filename = dir .. "/scratch_" .. os.date("%Y%m%d_%H%M%S") .. ".txt"
+  vim.cmd.edit(filename)
 end
 
 function M.safe_require(module_name)

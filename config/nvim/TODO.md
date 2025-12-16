@@ -6,7 +6,7 @@
    - `vim.lsp.get_active_clients()` is deprecated in Neovim 0.10+
    - Replace with `vim.lsp.get_clients()`
 
-2. [ ] **Bug in `create_scratch_buffer`** - `utils.lua:15-17`
+2. [x] **Bug in `create_scratch_buffer`** - `utils.lua:15-17`
    - `buf.bufnr()` is invalid - `nvim_create_buf` returns a buffer number directly, not a table
    - Use `buf` directly: `vim.bo[buf].buftype = "nofile"` etc.
 
