@@ -4,7 +4,7 @@
 # Strategies (in order):
 # 1. PORE_FETCH_LAST_0 (pore repos)
 # 2. static.xml manifest lookup (repo/pore trees)
-# 3. Upstream tracking branch or common branches (regular git)
+# 3. Common upstream branches (regular git)
 # 4. Fallback: HEAD~20
 
 set -euo pipefail
@@ -76,14 +76,8 @@ try_manifest() {
     [[ -n "$revision" ]] && echo "$revision"
 }
 
-# Strategy 3: upstream tracking or common branches
+# Strategy 3: common upstream branches
 try_upstream() {
-    # Try tracking branch first
-    local upstream
-    if upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null); then
-        try_merge_base "$upstream" && return 0
-    fi
-
     # Try common upstream branches
     for branch in origin/main origin/master upstream/main upstream/master main master; do
         if git rev-parse "$branch" &>/dev/null; then
