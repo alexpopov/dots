@@ -1,24 +1,37 @@
 [alias]
-    # Find first diff that isn't authored by you (probable branch spot)
-    find-split = "!git log --pretty=format:'%ce %h %d' -n 99 | awk -v my_name=\"^$(whoami)\" '/origin/ { print $2; exit } $0 ~ my_name { next } $1 { print $2; exit }'"
-
-    # rebase relative to branch point found using `find-split` above
+    # Rebase relative to branch point found using find-split
+    # (git-find-split and git-ls scripts are on PATH)
     histedit = !git rebase -i $(git find-split)
 
+    # Interactive rebase with fzf branch selection
     rebi = !git rebase PORE_FETCH_LAST_0 $(git branch | fzf | sed 's/^..//')
 
-    # Show link for current diff
-    showdiff = "!f() { git show $1 | awk '/phab/ { print $3 }'; }; f"
-    # Show diff number for current diff
-    showdiffn = "!f() { git show $1 | awk '/phab/ { n = split($0, A, \"/\"); print A[n] }'; }; f"
+    # Quick amend without editing message
+    amend = !git commit --amend --no-edit
 
-    # Show number for current task
-    showtask = "!f() { git show $1 | awk '/Tasks:/ { print $2 }'; }; f"
+    # Show current commit
+    now = log -n 1
 
-    ls = "!f() { git rev-list $(git find-split)^..HEAD | while read sha1; do \
-        local d=$(git showdiffn $sha1); \
-        local t=$(git showtask $sha1); \
-        git --no-pager show -s \
-        --pretty=\"%C(auto)%h %d %C(auto)%s %C(bold) $d  $t%C(reset)\" $sha1; \
-        done }; f"
+    # Continue rebase
+    recon = rebase --continue
+
+    # Nuclear option - hard reset and clean
+    nuke = "!if $(read -p 'Nuke? ' -n 1 -r) ; then echo 'Nuking' ; git reset --hard HEAD && git clean -fd ; fi"
+
+    # Detailed smartlog with graph
+    smartlog = log --graph --pretty=format:'\
+        commit: %C(bold red)%h%Creset %C(bold magenta)%d %Creset%n\
+        date: %C(bold yellow)%cd %Creset%C(yellow)%cr%Creset%n\
+        author: %C(bold blue)%an%Creset %C(blue)<%ae>%Creset%n\
+        %C(cyan)%s%n\
+        %Creset\
+        '
+
+    # Mercurial-style log with graph
+    hglog = log --graph --pretty=format:'%C(bold yellow) %h%Creset %ar %ae %C(bold green)%d %Creset%n   %s%n'
+
+    # Short aliases for logs
+    ll = !git hglog
+    l = !git log $(git find-split)^..HEAD
+
 # vim: set ft=gitconfig

@@ -1,25 +1,15 @@
+# Sample gitconfig - copy to ~/.gitconfig and customize
+# See ~/.config/git/aliases.gitconfig for aliases
+
 [user]
-  name = Alex Popov
-  email = hello@alexpopov.ca
+    # Set name and email to match this machine/account
+    name = Your Name
+    email = your.email@example.com
 
 [pull]
-  rebase = true
+    rebase = true
 
-[alais]
-  amend = !git commit --amend --no-edit
+[include]
+    path = ~/.config/git/aliases.gitconfig
 
-  find-split = "!git log --pretty=format:'%ce %h' -n 99 | awk '/^alexpopov.*/ { next } $1 { print $2; exit }'"
-
-  ls= !git log $(git find-split)^..HEAD --oneline
-
-
-  now = log -n 1
-
-  recon = rebase --continue
-
-
-  histedit = !git rebase -i $(git find-split)
-
-  nuke = "!if $(read -p 'Nuke? ' -n 1 -r) ; then echo 'Nuking' ; git reset --hard HEAD && git clean -fd ; fi"
-
-# vi: ft=gitconfig
+# vim: set ft=gitconfig
