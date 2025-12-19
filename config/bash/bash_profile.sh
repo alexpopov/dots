@@ -67,6 +67,12 @@ function jk_choose_dirs_v {
   (IFS=$'\n'; gum filter $(dirs -v) | awk '{ print "+" $1 }')
 }
 
+# fd respects gitignores
+if command -v fd >/dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git --exclude node_modules'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+fi
+
 alias dv="pushd \$(jk_choose_dirs_v)"
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
