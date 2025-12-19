@@ -53,6 +53,11 @@ if [[ -n $BUILD_KO_READER ]]; then
   # END: tools to build KOReader
 fi
 
+# Add Blender to PATH if installed
+if [ -d "/Applications/Blender.app/Contents/MacOS" ]; then
+  PATH="/Applications/Blender.app/Contents/MacOS:$PATH"
+fi
+
 export PATH
 
 function kobo_sync_to_device {
