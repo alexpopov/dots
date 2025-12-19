@@ -219,9 +219,9 @@ function setup_neovim_venv {
   _log_info "Installing/upgrading ${color_blue}pynvim${color_reset} and ${color_blue}neovim-remote${color_reset} in neovim venv"
   "$nvim_venv_path/bin/pip3" install --upgrade pynvim neovim-remote
 
-  # Symlink nvr to ~/.local/bin
-  _log_info "Symlinking ${color_blue}nvr${color_reset} to ${color_blue}~/.local/bin/nvr${color_reset}"
-  ln -sf "$nvim_venv_path/bin/nvr" "$HOME/.local/bin/nvr"
+  # Symlink nvr to ~/.local/bin as nvr-classic
+  _log_info "Symlinking ${color_blue}nvr${color_reset} to ${color_blue}~/.local/bin/nvr-classic${color_reset}"
+  ln -sf "$nvim_venv_path/bin/nvr" "$HOME/.local/bin/nvr-classic"
 }
 
 function clone_dots {

@@ -63,6 +63,36 @@ function vime {
   nvr --remote $@
 }
 
+function nvr {
+  local window_name=""
+
+  # Get tmux window name if in tmux session
+  if [[ -n "$TMUX" ]]; then
+    window_name=$(tmux display-message -p '#W')
+  fi
+
+  # If not in tmux or window name is "bash", prompt for a new name
+  if [[ -z "$TMUX" ]] || [[ "$window_name" == "bash" ]]; then
+    local new_name=$(gum input --placeholder "Enter a name for this nvr session")
+    if [[ -z "$new_name" ]]; then
+      echo "Error: No name provided"
+      return 1
+    fi
+    # Rename the tmux window if we're in tmux
+    if [[ -n "$TMUX" ]]; then
+      tmux rename-window "$new_name"
+    fi
+    window_name="$new_name"
+  fi
+
+  # Create socket directory if it doesn't exist
+  mkdir -p ~/.local/state
+
+  # Use nvr-classic with the named socket
+  local socket_path="$HOME/.local/state/nvr-$window_name"
+  nvr-classic --servername "$socket_path" "$@"
+}
+
 function jk_choose_dirs_v {
   (IFS=$'\n'; gum filter $(dirs -v) | awk '{ print "+" $1 }')
 }
