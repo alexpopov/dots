@@ -16,6 +16,15 @@ vim.lsp.config("lua_ls", {
   capabilities = capabilities,
 })
 
+-- Configure csharp_ls (doesn't have mason-schemas, so auto-register won't pick it up)
+vim.lsp.config("csharp_ls", {
+  cmd = { "csharp-ls" },
+  filetypes = { "cs" },
+  root_markers = { "*.sln", "*.csproj" },
+  capabilities = capabilities,
+})
+vim.lsp.enable("csharp_ls")
+
 vim.api.nvim_create_user_command("LspStopByName", function(opts)
   local target = opts.args
   local bufnr = vim.api.nvim_get_current_buf()
@@ -40,8 +49,7 @@ end, {
     end
   })
 
--- Enable the LSP server for lua files
-vim.lsp.enable("lua_ls")
+-- LSP servers are auto-enabled via lsp_auto_register.lua
 
 -- Use LspAttach autocommand for keymaps (replaces on_attach)
 vim.api.nvim_create_autocmd("LspAttach", {
@@ -113,6 +121,9 @@ local null_ls = require("null-ls")
 null_ls.setup({
   -- null-ls still uses the traditional on_attach pattern
   -- but keymaps are now handled by the LspAttach autocmd
+  sources = {
+    null_ls.builtins.formatting.csharpier,
+  },
 })
 
 return M
