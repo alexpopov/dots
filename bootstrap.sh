@@ -197,10 +197,31 @@ function _install_package_avahi-daemon {
 
 function _install_package_et {
   _default_install_package "et"
-  if is_fedora || is_raspberry_pi ; then 
+  if is_fedora || is_raspberry_pi ; then
     _log_info "Enabling et server"
     sudo systemctl enable --now et.service
   fi
+}
+
+function setup_neovim_venv {
+  local nvim_venv_path="$HOME/.local/virtualenvs/nvim"
+
+  # Create venv if it doesn't exist
+  if [[ ! -d "$nvim_venv_path" ]]; then
+    _log_info "Creating neovim Python virtual environment"
+    mkdir -p "$HOME/.local/virtualenvs"
+    python3 -m venv "$nvim_venv_path"
+  else
+    _log_btw "Already created: ${color_blue}nvim virtual env${color_reset}. Skipping!"
+  fi
+
+  # Install/upgrade pynvim and neovim-remote
+  _log_info "Installing/upgrading ${color_blue}pynvim${color_reset} and ${color_blue}neovim-remote${color_reset} in neovim venv"
+  "$nvim_venv_path/bin/pip3" install --upgrade pynvim neovim-remote
+
+  # Symlink nvr to ~/.local/bin
+  _log_info "Symlinking ${color_blue}nvr${color_reset} to ${color_blue}~/.local/bin/nvr${color_reset}"
+  ln -sf "$nvim_venv_path/bin/nvr" "$HOME/.local/bin/nvr"
 }
 
 function clone_dots {
@@ -361,10 +382,12 @@ for package in $_LATE_PACKAGES_TO_INSTALL ; do
   _install_package "$package"
 done
 
-for package in $(platform_specific_packages) ; do 
+for package in $(platform_specific_packages) ; do
   _install_package "$package"
 done
 
 create_links
+
+setup_neovim_venv
 
 _log_info "Bootstrapping complete! 🎉 "
