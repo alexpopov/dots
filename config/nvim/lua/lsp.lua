@@ -110,12 +110,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
--- For backwards compatibility, export on_attach for plugins that still use it
-M.on_attach = function(client, bufnr)
-  -- The LspAttach autocmd above handles everything now
-  -- This is kept for any plugins that might call it directly
-end
-
 -- null-ls configs
 local null_ls = require("null-ls")
 null_ls.setup({
