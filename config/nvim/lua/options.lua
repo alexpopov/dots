@@ -1,6 +1,11 @@
 local opt = vim.opt
 local M = {}
 
+-- Disable backup/swap files
+opt.swapfile = false
+opt.backup = false
+opt.writebackup = false
+
 local set_tabs = function(count)
     opt.tabstop = count     -- 2 space tabs
     opt.softtabstop = count -- number of spaces in a tab when editing

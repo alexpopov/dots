@@ -9,11 +9,6 @@ endif
 set notermguicolors
 colorscheme xcode
 
-" TODO: set this in lua
-set noswapfile " recovery files are just a pain
-set nobackup
-set nowb
-
 lua << EOF
 config = require('lua_init')
 EOF
