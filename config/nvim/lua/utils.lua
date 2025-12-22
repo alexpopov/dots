@@ -33,4 +33,23 @@ function M.show_notify_history()
   end
 end
 
+-- Delete all buffers not visible in any window/tab
+function M.delete_hidden_buffers()
+  local visible_bufs = {}
+  for _, tabpage in ipairs(vim.api.nvim_list_tabpages()) do
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+      visible_bufs[vim.api.nvim_win_get_buf(win)] = true
+    end
+  end
+
+  local deleted = 0
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and not visible_bufs[buf] then
+      pcall(vim.api.nvim_buf_delete, buf, { force = false })
+      deleted = deleted + 1
+    end
+  end
+  vim.notify("Deleted " .. deleted .. " hidden buffers", vim.log.levels.INFO)
+end
+
 return M

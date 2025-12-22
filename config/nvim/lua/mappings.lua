@@ -102,7 +102,7 @@ wk.add(
 wk.add(
   {
     { "<localleader>b",   group = " buffers" },
-    { "<localleader>bd",  ":call DeleteHiddenBuffers()",                                   desc = "Delete Hidden Buffers" },
+    { "<localleader>bd",  function() require("utils").delete_hidden_buffers() end,            desc = "Delete Hidden Buffers" },
     { "<localleader>u",   function() require("telescope.pick_function")() end,               desc = "Run function picker" },
     { "<localleader>q",   group = " config" },
     { "<localleader>qn",  ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
