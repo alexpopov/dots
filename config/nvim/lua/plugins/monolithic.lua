@@ -239,33 +239,21 @@ local specs = {
   },
 
   {
-    url = "https://codeberg.org/andyg/leap.nvim.git",
+    "ggandor/leap.nvim",
     config = function()
       local leap = require("leap")
-      -- Main leap motions
       vim.keymap.set({'n', 'x', 'o'}, 's', function ()
           leap.leap {}
       end)
       vim.keymap.set({'n', 'x', 'o'}, 'S', function ()
           leap.leap {backward = true}
       end)
-
-      -- f/F/t/T replacement using leap-ft with inputlen = 1
-      vim.keymap.set({'n', 'x', 'o'}, 'f', function ()
-          leap.leap { inputlen = 1 }
-      end)
-      vim.keymap.set({'n', 'x', 'o'}, 'F', function ()
-          leap.leap { backward = true, inputlen = 1 }
-      end)
-      vim.keymap.set({'n', 'x', 'o'}, 't', function ()
-          leap.leap { offset = -1, inputlen = 1 }
-      end)
-      vim.keymap.set({'n', 'x', 'o'}, 'T', function ()
-          leap.leap { backward = true, offset = 1, inputlen = 1 }
-      end)
-
       leap.opts.equivalence_classes = { ' \t\r\n', '([{', ')]}', '\'"`' }
     end
+  },
+  {
+    "ggandor/flit.nvim",
+    config = function() require("flit").setup() end
   },
 
   -- Possibly of limited usefulness...
