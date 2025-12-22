@@ -1,6 +1,5 @@
 local specs = {
   { "guns/xterm-color-table.vim" }, -- color table
-  -- { "junegunn/fzf",                 dir = "~/.fzf", build = "./install --all" },
   { "junegunn/fzf.vim" },
   { "Vimjas/vim-python-pep8-indent" }, -- sane indentation for python
   {
@@ -78,7 +77,6 @@ local specs = {
           ["<Tab>"] = function(fallback)
             if cmp.visible() then
               cmp.confirm()
-              -- cmp.select_next_item()
             elseif luasnip.expand_or_jumpable() then
               luasnip.expand_or_jump()
             else
@@ -322,10 +320,7 @@ local specs = {
     ---@module 'oil'
       ---@type oil.SetupOpts
       opts = {},
-    -- Optional dependencies
       dependencies = { { "nvim-mini/mini.icons", opts = {} } },
-    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
-      -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
       lazy = false,
   }
 
