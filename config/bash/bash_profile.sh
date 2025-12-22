@@ -33,9 +33,14 @@ PATH="$PATH:/opt/homebrew/opt/bin/"
 PATH="$PATH:/opt/homebrew/bin/"
 export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
-# Set this to what editor you want to use if
-# Bash needs to show you one
-export EDITOR=vim
+export NVIM_PYTHON="$HOME/.local/virtualenvs/nvim/bin/python3"
+
+# Set editor to nvim if available, otherwise vim
+if command -v nvim >/dev/null 2>&1; then
+  export EDITOR=nvim
+else
+  export EDITOR=vim
+fi
 
 test -e "${HOME}/.iterm2_shell_integration.bash" && source "${HOME}/.iterm2_shell_integration.bash"
 
