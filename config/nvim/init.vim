@@ -3,12 +3,6 @@ if filereadable(expand("$ADMIN_SCRIPTS/master.vimrc"))
   source $ADMIN_SCRIPTS/master.vimrc
 endif
 
-" I don't know why, but iTerm2 on Mac just makes my xcode theme do nothing
-" as of nvim 0.10.0 when it auto-detects that termguicolors is true
-" this goes back to pre-0.10 behavior where cterm values are used by default
-set notermguicolors
-colorscheme xcode
-
 lua << EOF
 config = require('lua_init')
 EOF
