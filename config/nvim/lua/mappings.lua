@@ -30,54 +30,6 @@ wk.add(
       desc = "Find Conflicts"
     },
     { "<Leader>f",  group = " Find" },
-    { "<Leader>fH", ":Telescope help_tags<CR>", desc = "Help tags" },
-    {
-      "<Leader>fa",
-      function()
-        require 'telescope.builtin'.grep_string { shorten_path = true, word_match = '-w', only_sort_text
-        = true, search = '' }
-      end,
-      desc = "Find All Files"
-    },
-    {
-      "<Leader>fb",
-      ":Telescope buffers<CR>",
-      desc =
-      "Find Buffer"
-    },
-    {
-      "<Leader>ff",
-      ":Telescope find_files<CR>",
-      desc =
-      "Find File"
-    },
-    {
-      "<Leader>fr",
-      ":Telescope registers<CR>",
-      desc =
-      "Clipboard/Registers"
-    },
-    {
-      "<Leader>fh",
-      ":Telescope current_buffer_fuzzy_find<CR>",
-      desc =
-      "Find Here (in this file)"
-    },
-    {
-      "<Leader>fl",
-      ":lua require'telescope.builtin'.grep_string{ shorten_path = true, grep_open_files = true, word_match = '-w', only_sort_text = true, search = ''}<CR>",
-      desc =
-      "Find Line (in open files)"
-    },
-    {
-      "<Leader>fm",
-      function()
-        require 'telescope.builtin'.builtin(require("telescope.themes").get_dropdown({
-          preview = false }))
-      end,
-      desc =
-      "Search Telescopes"
-    },
   })
 
 -- leader commands that are recursive for normal and visual
