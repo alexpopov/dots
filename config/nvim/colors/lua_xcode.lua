@@ -61,6 +61,11 @@ local group_colors = {
   Pmenu = {c.black, c.light_grey},
   PmenuSel = {c.black, c.middle_grey},
 
+  -- Tab line (top of screen)
+  TabLine = {{cterm = 241, gui = "#606060"}, c.light_grey}, -- inactive tabs: grey text on light grey
+  TabLineSel = {c.black, c.white, {bold = true}}, -- active tab: black on white, bold
+  TabLineFill = {c.skip, c.light_grey}, -- empty tabline area: light grey
+
   -- General Section
   Cursor = {c.primary_blue, c.white},
   Normal = {c.black, c.white},
