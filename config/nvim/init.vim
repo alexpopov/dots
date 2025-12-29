@@ -13,24 +13,6 @@ autocmd BufRead,BufNewFile *.gitconfig set filetype=gitconfig
 autocmd BufRead,BufNewFile skhdrc call SetSkhdrcSettings()
 autocmd BufRead,BufNewFile *.json set filetype=jsonc
 
-" C++ specific
-autocmd FileType cpp call SetIndentTwo()
-autocmd FileType cpp setlocal commentstring=//\ %s
-
-autocmd FileType json call SetIndentFour()
-autocmd FileType java call SetIndentTwo()
-autocmd FileType bash call SetIndentTwo()
-autocmd FileType sh call SetIndentTwo()
-
-function! SetIndentTwo()
-    set tabstop=2
-    set shiftwidth=2
-endfunction
-function! SetIndentFour()
-    set tabstop=4
-    set shiftwidth=4
-endfunction
-
 function! SetSkhdrcSettings()
     syntax match alert_text 'alert\.sh \w\+ \(\w\+\)?'
     syntax match yabai_text 'yabai_utils\.sh \w\+ \(\w\+\)?'
