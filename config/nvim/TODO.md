@@ -25,16 +25,12 @@
    - Removed VimScript SetIndentTwo/SetIndentFour functions
    - All indentation now handled via ftplugin/*.lua files using options.set_tabs()
 
-6. [ ] **Mixed VimScript/Lua autocmds**
-   - `init.vim:24-36` uses VimScript autocmds
-   - LSP/other code uses Lua autocmds
-   - Migrate all to Lua `vim.api.nvim_create_autocmd()`
+6. [x] **Mixed VimScript/Lua autocmds**
+   - Migrated all autocmds to Lua in init.lua using `vim.api.nvim_create_autocmd()`
 
-7. [ ] **Duplicate icon plugin dependencies**
-   - `nvim-tree.lua` uses `kyazdani42/nvim-web-devicons`
-   - `lualine.nvim` uses `kyazdani42/nvim-web-devicons`
-   - `oil.nvim` uses `nvim-mini/mini.icons`
-   - Pick one icon provider consistently
+7. [x] **Duplicate icon plugin dependencies**
+   - Standardized on `kyazdani42/nvim-web-devicons`
+   - Changed oil.nvim from mini.icons to nvim-web-devicons
 
 8. [ ] **`<C-k>` mapping conflict** - `lsp.lua:63` vs `mappings.lua:21`
    - LSP maps `<C-k>` to `signature_help`
@@ -89,10 +85,9 @@
     - `init.vim:77` DeleteHiddenBuffers → moved to utils.lua
     - `mappings.lua:4`: "TODO: refactor this file" remains open
 
-20. [ ] **Migrate init.vim to init.lua**
-    - Stop using init.vim entirely
-    - Migrate all remaining VimScript to Lua
-    - Eliminates the need to `:source` VimScript separately
+20. [x] **Migrate init.vim to init.lua**
+    - Deleted init.vim, created init.lua
+    - All config now 100% Lua
 
 21. [x] **Use Telescope to pick module to reload**
     - Instead of hardcoded `\rvo`, `\rvl`, etc. mappings

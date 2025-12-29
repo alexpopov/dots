@@ -261,10 +261,6 @@ local specs = {
     lazy = false,
     version = '*',
   },
-  {
-    'echasnovski/mini.nvim',
-    version = '*'
-  },
   { "mechatroner/rainbow_csv" },
 
   {
@@ -320,7 +316,7 @@ local specs = {
     ---@module 'oil'
       ---@type oil.SetupOpts
       opts = {},
-      dependencies = { { "nvim-mini/mini.icons", opts = {} } },
+      dependencies = { "kyazdani42/nvim-web-devicons" },
       lazy = false,
   }
 
