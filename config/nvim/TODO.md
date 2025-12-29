@@ -16,17 +16,14 @@
 
 ## Medium Priority (Inconsistencies & Deprecated Patterns)
 
-4. [ ] **Conflicting `termguicolors` settings**
-   - `init.vim:9` sets `notermguicolors`
-   - `options.lua:44` conditionally sets `termguicolors = true`
-   - The Lua setting runs later, potentially overriding the VimScript intent
-   - Decide on one approach and consolidate
+4. [x] **Conflicting `termguicolors` settings**
+   - Removed `notermguicolors` from init.vim
+   - options.lua handles termguicolors based on COLORTERM env var
+   - Using lua_xcode colorscheme only
 
-5. [ ] **Duplicate indentation logic**
-   - VimScript functions `SetIndentTwo()`/`SetIndentFour()` in `init.vim:38-45`
-   - Lua function `set_tabs()` in `options.lua:4-8`
-   - Also `ftplugin/*.lua` files set indentation
-   - Consolidate to one approach (preferably ftplugin or Lua)
+5. [x] **Duplicate indentation logic**
+   - Removed VimScript SetIndentTwo/SetIndentFour functions
+   - All indentation now handled via ftplugin/*.lua files using options.set_tabs()
 
 6. [ ] **Mixed VimScript/Lua autocmds**
    - `init.vim:24-36` uses VimScript autocmds
@@ -80,20 +77,17 @@
 
 ## Cleanup (Low Priority)
 
-17. [ ] **Dead/commented code to remove**
-    - `init.vim:21-22`: commented autocmd for JSON comments
-    - `monolithic.lua:56`: commented completeopt
-    - `monolithic.lua:288-300`: commented bash highlighting patterns
+17. [x] **Dead/commented code to remove**
+    - Already cleaned up in previous sessions
 
-18. [ ] **Unused exports to remove**
-    - `options.lua` exports `M.set_tabs` but it's not used elsewhere
-    - `lsp.lua` exports `M.on_attach` that's now empty (kept for backwards compat)
+18. [x] **Unused exports to remove**
+    - `options.set_tabs` IS used by ftplugin files
+    - Removed unused `lsp.on_attach` export
 
-19. [ ] **Resolve existing TODOs in code**
-    - `init.vim:12`: "TODO: set this in lua" (noswapfile/nobackup)
-    - `init.vim:77`: "TODO: move to lua?" (DeleteHiddenBuffers function)
-    - ~`init.vim:87`: "TODO: remove" (ViewDiff function)~ DONE
-    - `mappings.lua:4`: "TODO: refactor this file into multiple files"
+19. [x] **Resolve existing TODOs in code**
+    - `init.vim:12` noswapfile/nobackup → moved to options.lua
+    - `init.vim:77` DeleteHiddenBuffers → moved to utils.lua
+    - `mappings.lua:4`: "TODO: refactor this file" remains open
 
 20. [ ] **Migrate init.vim to init.lua**
     - Stop using init.vim entirely

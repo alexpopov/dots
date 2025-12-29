@@ -21,6 +21,10 @@ set_keymap('n', '<C-H>', '<C-W><C-H>', { noremap = true, desc = "move to split w
 set_keymap('n', '<C-K>', '<C-W><C-K>', { noremap = true, desc = "move to split north" })
 set_keymap('n', '<C-L>', '<C-W><C-L>', { noremap = true, desc = "move to split east" })
 
+-- Clear search highlighting
+set_keymap('n', '<C-x>', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
+set_keymap('n', '<Leader>r', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
+
 -- map <silent> <leader>fc /<<<<<<<\\|\|\|\|\|\|\|\|\\|=======\\|>>>>>>><CR>
 -- leader commands
 wk.add(

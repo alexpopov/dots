@@ -44,6 +44,11 @@ opt.cmdheight = 1
 opt.updatetime = 300 -- diagnostic message time
 opt.signcolumn = "no"
 
+-- Show tabs as visible characters
+opt.list = true
+opt.listchars = { tab = ">-" }
+vim.fn.matchadd("Error", "\\t") -- highlight tabs as errors
+
 if vim.fn.getenv("COLORTERM") ~= vim.NIL then
   -- Millions and millions of colors
   vim.opt.termguicolors = true
