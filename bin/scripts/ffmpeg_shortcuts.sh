@@ -31,4 +31,4 @@ echo "Converting: $INPUT"
 echo "Output: $OUTPUT"
 echo "Height: ${HEIGHT}px (width will scale proportionally)"
 
-ffmpeg -i "$INPUT" -vf "scale=-2:${HEIGHT}" -c:v libx264 -preset fast -crf 28 -c:a aac -b:a 128k -movflags +faststart "$OUTPUT"
+ffmpeg -i "$INPUT" -vf "scale=-2:${HEIGHT}" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k -movflags +faststart "$OUTPUT"
