@@ -15,13 +15,13 @@
 	<key>AITermAPI</key>
 	<integer>2</integer>
 	<key>AIVectorStore</key>
-	<integer>1</integer>
+	<integer>0</integer>
 	<key>AiMaxTokens</key>
-	<integer>1000000</integer>
+	<integer>400000</integer>
 	<key>AiModel</key>
-	<string>gpt-4.1</string>
+	<string>gpt-5.1</string>
 	<key>AiResponseMaxTokens</key>
-	<integer>32768</integer>
+	<integer>128000</integer>
 	<key>AitermURL</key>
 	<string>https://api.openai.com/v1/responses</string>
 	<key>AllowClipboardAccess</key>
@@ -37,6 +37,8 @@
 	<key>Default Bookmark Guid</key>
 	<string>C78E22FB-6C12-46B3-BBB5-3EC01C87DD58</string>
 	<key>DisableMetalWhenIdle</key>
+	<true/>
+	<key>DisableTransparencyForKeyWindow</key>
 	<true/>
 	<key>DoubleClickPerformsSmartSelection</key>
 	<true/>
@@ -291,6 +293,10 @@
 				<key>Red Component</key>
 				<real>0.0</real>
 			</dict>
+			<key>Bound Hosts</key>
+			<array>
+				<string></string>
+			</array>
 			<key>Character Encoding</key>
 			<integer>4</integer>
 			<key>Close Sessions On End</key>
