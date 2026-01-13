@@ -60,6 +60,14 @@ fi
 
 export PATH
 
+# Meta work machine support
+if [ -d /opt/facebook ]; then
+  META_SUPPORT="$HOME/.config/bash/meta_macbook_support.sh"
+  if [ -e "$META_SUPPORT" ]; then
+    source "$META_SUPPORT"
+  fi
+fi
+
 function kobo_sync_to_device {
   local destination_path=
   local local_path="/Volumes/KOBOeReader/"
