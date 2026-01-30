@@ -237,7 +237,7 @@ local specs = {
   },
 
   {
-    "ggandor/leap.nvim",
+    url = "https://codeberg.org/andyg/leap.nvim",
     config = function()
       local leap = require("leap")
       vim.keymap.set({'n', 'x', 'o'}, 's', function ()
