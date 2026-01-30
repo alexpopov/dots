@@ -119,7 +119,13 @@ local specs = {
   {
     'windwp/nvim-autopairs',
     event = "InsertEnter",
-    config = true
+    config = true,
+    init = function()
+      local Rule = require('nvim-autopairs.rule')
+      local npairs = require("nvim-autopairs")
+      npairs.remove_rule("`")
+      npairs.add_rule(Rule("```", "```", {"markdown", "conf", "text", "gitcommit"}))
+    end,
   },
 
   {
