@@ -78,6 +78,7 @@ yabai -m rule --add app="Alfred.*" manage=off
 yabai -m rule --add app="Shortcat.*" manage=off
 yabai -m rule --add app="Magic Island" manage=off
 yabai -m rule --add app="Santa" manage=off
+yabai -m rule --add app="Unity" manage=off
 
 # Apply all rules
 yabai -m rule --apply
