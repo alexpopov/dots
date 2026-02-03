@@ -51,12 +51,13 @@ else
   print("Resolved yabai path to: " .. yabai_path)
 end
 
-local stackline = require "stackline"
-stackline:init({
-  paths = {
-    yabai = yabai_path
-  },
-  appearance = {
-    radius = 3,
-  },
-})
+-- ffs stackline
+-- local stackline = require "stackline"
+-- stackline:init({
+--   paths = {
+--     yabai = yabai_path
+--   },
+--   appearance = {
+--     radius = 3,
+--   },
+-- })
