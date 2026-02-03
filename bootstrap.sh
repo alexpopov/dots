@@ -205,15 +205,28 @@ function _install_package_et {
 
 function setup_neovim_venv {
   local nvim_venv_path="$HOME/.local/virtualenvs/nvim"
+  local python_bin="python3"
+
+  # Prefer Homebrew Python on macOS (has modern deployment target)
+  if is_mac; then
+    if [[ -x "/opt/homebrew/bin/python3" ]]; then
+      python_bin="/opt/homebrew/bin/python3"
+    elif [[ -x "/usr/local/bin/python3" ]]; then
+      python_bin="/usr/local/bin/python3"
+    fi
+  fi
 
   # Create venv if it doesn't exist
   if [[ ! -d "$nvim_venv_path" ]]; then
-    _log_info "Creating neovim Python virtual environment"
+    _log_info "Creating neovim Python virtual environment using ${color_blue}$python_bin"
     mkdir -p "$HOME/.local/virtualenvs"
-    python3 -m venv "$nvim_venv_path"
+    "$python_bin" -m venv "$nvim_venv_path"
   else
     _log_btw "Already created: ${color_blue}nvim virtual env${color_reset}. Skipping!"
   fi
+
+  # Upgrade pip first (helps find pre-built wheels)
+  "$nvim_venv_path/bin/pip3" install --upgrade pip
 
   # Install/upgrade pynvim and neovim-remote
   _log_info "Installing/upgrading ${color_blue}pynvim${color_reset} and ${color_blue}neovim-remote${color_reset} in neovim venv"
