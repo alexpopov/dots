@@ -348,6 +348,8 @@ function platform_specific_packages {
 
       # selinux tools
       packages+=("setools-console")
+
+      packages+=("unrar")
     fi
   fi
   echo "${packages[@]}"
