@@ -15,6 +15,19 @@ alias ls="ls -G --color=always"
 alias lg=lazygit
 
 
+# Default prompt prefix based on platform (can be overridden before sourcing)
+if [[ -z "$PROMPT_PREFIX" ]] && ! declare -F run_prompt_prefix > /dev/null; then
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    PROMPT_PREFIX="\[\e[1;33m\]WSL\[\e[m\] "
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    PROMPT_PREFIX=""
+  elif grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
+    PROMPT_PREFIX="\[\e[1;32m\]pi\[\e[m\] "
+  else
+    PROMPT_PREFIX="\[\e[34m\]\h\[\e[m\] "
+  fi
+fi
+
 function set_ps1 {
   local last_exit_code=$?
   if declare -F run_prompt_prefix > /dev/null; then
