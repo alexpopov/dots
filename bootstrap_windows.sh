@@ -49,6 +49,7 @@ WINDOWS_APPS=(
   "EpicGames.EpicGamesLauncher"
   "GOG.Galaxy"
   "Krita.Krita"
+  "RandyRants.SharpKeys"
 )
 
 function _winget_install {
