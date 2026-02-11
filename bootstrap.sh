@@ -378,7 +378,10 @@ function ensure_shell_sources_dots {
 }
 
 function create_basic_git_config {
-  [[ -f $HOME/.gitconfig ]] && return 0
+  if [[ -f $HOME/.gitconfig ]]; then
+    _log_btw "Already exists: ${color_blue}~/.gitconfig${color_reset}. Skipping!"
+    return 0
+  fi
   _log_info "Gitconfig missing, creating a super basic one."
   echo '[user]
   name = Alex Popov
