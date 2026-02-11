@@ -126,8 +126,21 @@ function _default_install_package {
 }
 
 function _install_package_nvim {
-  local package="neovim"
-  _default_install_package "$package"
+  if is_ubuntu; then
+    # Ubuntu's apt neovim is ancient, install from GitHub
+    _log_info "Installing ${color_blue}neovim${color_reset} from GitHub releases (apt version is too old)"
+    local nvim_version=$(curl -s "https://api.github.com/repos/neovim/neovim/releases/latest" | jq -r '.tag_name | ltrimstr("v")')
+    local nvim_url="https://github.com/neovim/neovim/releases/download/v${nvim_version}/nvim-linux-x86_64.tar.gz"
+    curl -Lo /tmp/nvim.tar.gz "$nvim_url"
+    tar xf /tmp/nvim.tar.gz -C /tmp
+    sudo rm -rf /usr/local/lib/nvim
+    sudo mv /tmp/nvim-linux-x86_64/lib/nvim /usr/local/lib/nvim
+    sudo mv /tmp/nvim-linux-x86_64/share/nvim /usr/local/share/nvim
+    sudo install /tmp/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
+    rm -rf /tmp/nvim.tar.gz /tmp/nvim-linux-x86_64
+  else
+    _default_install_package "neovim"
+  fi
   # Link commands
   _log_info "Linking ${color_blue}nvim${color_reset} as ${color_blue}~/.local/bin/vim${color_reset}"
   command -v nvim >/dev/null 2>&1 && ln -sf $(which nvim) ~/.local/bin/vim
@@ -137,7 +150,7 @@ function _install_package_fzf {
   if is_ubuntu; then
     # Ubuntu's apt fzf is ancient and missing --bash, install from GitHub
     _log_info "Installing ${color_blue}fzf${color_reset} from GitHub releases (apt version is too old)"
-    local fzf_version=$(curl -s "https://api.github.com/repos/junegunn/fzf/releases/latest" | grep -Po '"tag_name": *"v?\K[^"]*')
+    local fzf_version=$(curl -s "https://api.github.com/repos/junegunn/fzf/releases/latest" | jq -r '.tag_name | ltrimstr("v")')
     local fzf_url="https://github.com/junegunn/fzf/releases/download/v${fzf_version}/fzf-${fzf_version}-linux_amd64.tar.gz"
     curl -Lo /tmp/fzf.tar.gz "$fzf_url"
     tar xf /tmp/fzf.tar.gz -C /tmp fzf
@@ -188,7 +201,7 @@ function _install_package_lazygit {
       _default_install_package "$package"
     else
       _log_info "Installing ${color_blue}lazygit${color_reset} from GitHub releases"
-      local lazygit_version=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": *"v\K[^"]*')
+      local lazygit_version=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | jq -r '.tag_name | ltrimstr("v")')
       local lazygit_url="https://github.com/jesseduffield/lazygit/releases/download/v${lazygit_version}/lazygit_${lazygit_version}_Linux_x86_64.tar.gz"
       curl -Lo /tmp/lazygit.tar.gz "$lazygit_url"
       tar xf /tmp/lazygit.tar.gz -C /tmp lazygit
@@ -247,6 +260,24 @@ function _install_package_git-prev {
   ln -sf $git_prev_path/git-prev $HOME/.local/bin/ 
 }
 
+function _install_package_python-utils {
+  # Ensure pip and venv modules are available (separate packages on Ubuntu)
+  if is_ubuntu; then
+    if ! python3 -m pip --version >/dev/null 2>&1; then
+      _log_info "Installing ${color_blue}python3-pip"
+      sudo apt-get install python3-pip -y
+    else
+      _log_btw "Already installed: ${color_blue}python3-pip${color_reset}. Skipping!"
+    fi
+    if ! python3 -c "import ensurepip" 2>/dev/null; then
+      _log_info "Installing ${color_blue}python3-venv"
+      sudo apt-get install python3-venv -y
+    else
+      _log_btw "Already installed: ${color_blue}python3-venv${color_reset}. Skipping!"
+    fi
+  fi
+}
+
 function _install_package_avahi-daemon {
   _default_install_package "avahi"
   _log_info "Enabling avahi-daemon"
@@ -263,16 +294,6 @@ function setup_neovim_venv {
       python_bin="/opt/homebrew/bin/python3"
     elif [[ -x "/usr/local/bin/python3" ]]; then
       python_bin="/usr/local/bin/python3"
-    fi
-  fi
-
-  # Check if ensurepip is available, install python3-venv if needed
-  if ! "$python_bin" -c "import ensurepip" 2>/dev/null; then
-    if is_ubuntu; then
-      _log_info "Installing ${color_blue}python3-venv${color_reset} for virtual environment support"
-      sudo apt-get install python3-venv -y
-    else
-      _fail_error "python3 ensurepip module is not available and unable to install python3-venv"
     fi
   fi
 
@@ -465,7 +486,7 @@ mkdir -p $HOME/{.local/{bin,share},.config/}
 
 # The most important packages to install for setup
 # NOTE: write the binary name, not the package name
-_BOOTSTRAP_PACKAGES_TO_INSTALL="vim nvim git et tmux fzf ag python3"
+_BOOTSTRAP_PACKAGES_TO_INSTALL="vim jq nvim git et tmux fzf ag python3"
 
 for package in $_BOOTSTRAP_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
@@ -481,7 +502,7 @@ export_fzf_bindings
 
 # Packages that may rely on some manual intervention or the existence of dots dirs or something
 # NOTE: write the binary name, not the package name
-_LATE_PACKAGES_TO_INSTALL="gum cmake jq git-prev tree lazygit delta"
+_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip"
 
 for package in $_LATE_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
