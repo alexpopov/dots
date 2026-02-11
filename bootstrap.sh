@@ -31,6 +31,21 @@ function is_centos {
   [[ -f /etc/centos-release ]]
 }
 
+function is_ubuntu {
+  [[ -f /etc/ubuntu-release ]] || [[ -f /etc/os-release ]] && grep -qi "ubuntu" /etc/os-release
+}
+
+function ubuntu_version_ge {
+  # Check if current Ubuntu version is >= the specified version (e.g., "25.10")
+  local required_version="$1"
+  local current_version=$(grep VERSION_ID /etc/os-release | cut -d= -f2 | tr -d '"')
+  [[ "$(printf '%s\n' "$required_version" "$current_version" | sort -V | head -n1)" == "$required_version" ]]
+}
+
+function is_wsl {
+  grep -qi microsoft /proc/version 2>/dev/null
+}
+
 function is_devserver {
   [[ -f /etc/fbwhoami ]] && grep -q "DEVICE_HOSTNAME_SCHEME" /etc/fbwhoami
 }
@@ -63,6 +78,15 @@ function _log_warn {
   echo -e "${color_yellow}WARN: ${color_reset}$1${color_reset}"
 }
 
+# Windows/WSL helper functions
+function pwsh {
+  powershell.exe -NoProfile -Command "$@" 2>/dev/null | tr -d '\r'
+}
+
+function win {
+  "$@" 2>/dev/null | tr -d '\r'
+}
+
 function _install_package {
   local package="$1"
   test -z "$package" && _fail_error "${color_blue}_install_package${color_blue} expects 1 argument" 
@@ -92,7 +116,7 @@ function _default_install_package {
     brew install "$package"
   elif is_fedora; then
     sudo dnf5 install "$package" -y
-  elif is_raspberry_pi; then
+  elif is_ubuntu; then
     sudo apt-get install "$package" -y
   elif is_centos; then
     sudo dnf install "$package" -y
@@ -101,7 +125,7 @@ function _default_install_package {
   fi
 }
 
-function _install_package_et {
+function _install_package_nvim {
   local package="neovim"
   _default_install_package "$package"
   # Link commands
@@ -113,18 +137,22 @@ function _install_package_et {
   local package="et"
   if is_mac; then
     package="MisterTea/et/et"
-  elif is_raspberry_pi; then
+  elif is_ubuntu; then
     _log_info "Adding ${color_blue}apt${color_reset} repository for ${color_blue}et"
     sudo add-apt-repository ppa:jgmath2000/et
     sudo apt-get update
   fi
   _default_install_package "$package"
+  if is_fedora || is_ubuntu ; then
+    _log_info "Enabling et server"
+    sudo systemctl enable --now et.service
+  fi
 }
 
 function _install_package_ag {
   # mac, fedora
   local package="the_silver_searcher"
-  if is_raspberry_pi; then
+  if is_ubuntu; then
     package="silversearcher-ag"
   fi
   _default_install_package "$package"
@@ -140,6 +168,18 @@ function _install_package_lazygit {
   if is_fedora; then
     sudo dnf copr enable dejan/lazygit
     _default_install_package "$package"
+  elif is_ubuntu; then
+    if ubuntu_version_ge "25.10"; then
+      _default_install_package "$package"
+    else
+      _log_info "Installing ${color_blue}lazygit${color_reset} from GitHub releases"
+      local lazygit_version=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": *"v\K[^"]*')
+      local lazygit_url="https://github.com/jesseduffield/lazygit/releases/download/v${lazygit_version}/lazygit_${lazygit_version}_Linux_x86_64.tar.gz"
+      curl -Lo /tmp/lazygit.tar.gz "$lazygit_url"
+      tar xf /tmp/lazygit.tar.gz -C /tmp lazygit
+      sudo install /tmp/lazygit -D -t /usr/local/bin/
+      rm /tmp/lazygit /tmp/lazygit.tar.gz
+    fi
   elif is_centos; then
     _log_warn "Lazygit requires manual installation on CentOS/devservers"
     _log_info "Follow these steps:"
@@ -170,7 +210,7 @@ enabled=1
 gpgcheck=1
 gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
     sudo rpm --import https://repo.charm.sh/yum/gpg.key
-  elif is_raspberry_pi; then 
+  elif is_ubuntu; then
     _log_info "Adding ${color_blue}charm/gum${color_blue} repo"
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
@@ -195,14 +235,6 @@ function _install_package_avahi-daemon {
   sudo systemctl enable --now avahi-daemon
 }
 
-function _install_package_et {
-  _default_install_package "et"
-  if is_fedora || is_raspberry_pi ; then
-    _log_info "Enabling et server"
-    sudo systemctl enable --now et.service
-  fi
-}
-
 function setup_neovim_venv {
   local nvim_venv_path="$HOME/.local/virtualenvs/nvim"
   local python_bin="python3"
@@ -213,6 +245,16 @@ function setup_neovim_venv {
       python_bin="/opt/homebrew/bin/python3"
     elif [[ -x "/usr/local/bin/python3" ]]; then
       python_bin="/usr/local/bin/python3"
+    fi
+  fi
+
+  # Check if ensurepip is available, install python3-venv if needed
+  if ! "$python_bin" -c "import ensurepip" 2>/dev/null; then
+    if is_ubuntu; then
+      _log_info "Installing ${color_blue}python3-venv${color_reset} for virtual environment support"
+      sudo apt-get install python3-venv -y
+    else
+      _fail_error "python3 ensurepip module is not available and unable to install python3-venv"
     fi
   fi
 
@@ -293,6 +335,31 @@ function create_links {
 
   ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc"
   ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc"
+}
+
+function ensure_shell_sources_dots {
+  local source_line='. "$HOME/.config/bash/bash_profile.sh"'
+
+  # Check if either file already sources our config
+  for rc in "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [[ -f "$rc" ]] && grep -qF '.config/bash/bash_profile.sh' "$rc"; then
+      _log_btw "Already sourcing dots config from ${color_blue}$rc${color_reset}. Skipping!"
+      return 0
+    fi
+  done
+
+  # Append to ~/.bashrc
+  _log_info "Adding dots source line to ${color_blue}~/.bashrc"
+  echo "" >> "$HOME/.bashrc"
+  echo "# Added by dots bootstrap" >> "$HOME/.bashrc"
+  echo "$source_line" >> "$HOME/.bashrc"
+
+  # Ensure ~/.bash_profile forwards to ~/.bashrc (for login shells)
+  if [[ ! -f "$HOME/.bash_profile" ]]; then
+    _log_info "Creating ${color_blue}~/.bash_profile${color_reset} to forward to ${color_blue}~/.bashrc"
+    echo '# Forward to ~/.bashrc so everything lives in one place' > "$HOME/.bash_profile"
+    echo '[ -f ~/.bashrc ] && . ~/.bashrc' >> "$HOME/.bash_profile"
+  fi
 }
 
 function create_basic_git_config {
@@ -407,6 +474,7 @@ for package in $(platform_specific_packages) ; do
 done
 
 create_links
+ensure_shell_sources_dots
 
 setup_neovim_venv
 
