@@ -15,17 +15,9 @@ return {
     "nvim-treesitter/nvim-treesitter",
     -- lazy = true,
     config = function()
-      require("nvim-treesitter.configs").setup({
+      require("nvim-treesitter").setup({
         ensure_installed = ensure_installed,
         auto_install = false,
-        highlight = {
-          enable = true,
-          disable = { "latex" },
-        },
-        indent = {
-          enable = true,
-          disable = { "python", "latex" },
-        },
       })
     end,
   },
