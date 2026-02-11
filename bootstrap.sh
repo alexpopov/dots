@@ -339,6 +339,7 @@ function create_links {
   ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR"
+  ln -sf "$DOTS_CONFIG_DIR/opencode" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR"
   ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR"
