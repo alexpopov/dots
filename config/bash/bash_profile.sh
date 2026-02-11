@@ -115,3 +115,17 @@ alias dv="pushd \$(jk_choose_dirs_v)"
 bind -r '\C-l'
 
 [ -f ~/.config/fzf/fzf.bash ] && source ~/.config/fzf/fzf.bash
+
+# Platform-specific support
+BASH_CONFIG_DIR="$HOME/.config/bash"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  [ -f "$BASH_CONFIG_DIR/mac_support.sh" ] && . "$BASH_CONFIG_DIR/mac_support.sh"
+elif grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
+  [ -f "$BASH_CONFIG_DIR/pi_support.sh" ] && . "$BASH_CONFIG_DIR/pi_support.sh"
+fi
+
+# Mercurial support (only if hg is installed)
+command -v hg >/dev/null 2>&1 && [ -f "$BASH_CONFIG_DIR/hg_support.sh" ] && . "$BASH_CONFIG_DIR/hg_support.sh"
+
+# Sanity check (always last)
+[ -f "$BASH_CONFIG_DIR/sanity_check.sh" ] && . "$BASH_CONFIG_DIR/sanity_check.sh"
