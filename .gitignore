@@ -10,6 +10,8 @@ config/lazygit/state.yml
 # Systemd created files
 default.target.wants/
 sockets.target.wants/
+# OpenClaw systemd 
+config/systemd/user/openclaw-gateway.service
 
 # Lock-file for lazy-git
 config/nvim/lazy-lock.json
