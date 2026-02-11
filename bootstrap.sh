@@ -237,7 +237,10 @@ gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
 
 function _install_package_git-prev {
   local git_prev_path="$HOME/.local/share/git-prev-next"
-  [[ -d $git_prev_path ]] && return 0
+  if [[ -d $git_prev_path ]]; then
+    _log_btw "Already cloned: ${color_blue}git-prev-next${color_reset}. Skipping!"
+    return 0
+  fi
   git clone https://github.com/ridiculousfish/git-prev-next $git_prev_path
   _log_info "Linking ${color_blue}git-prev${color_reset} and ${color_blue}git-next${color_reset} into ${color_blue}~/.local/bin/"
   ln -sf $git_prev_path/git-next $HOME/.local/bin/ 
