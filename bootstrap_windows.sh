@@ -107,46 +107,65 @@ for pattern in "${BLOATWARE_PATTERNS[@]}"; do
   pwsh "Get-AppxPackage *${pattern}* | Remove-AppxPackage"
 done
 
-# Port forwarding from Windows to WSL — runs now and on every boot via Scheduled Task
-_log_info "Setting up ${color_blue}WSL port forwarding"
-WSL_PORTS="5000, 8000, 11434"
+# Forward ports from Windows to WSL so that services running in WSL
+# (e.g. ollama on 11434/11435, dev servers on 5000/8000) are reachable
+# from the Windows host and LAN. WSL's IP changes on each boot, so this:
+#   1. Writes a PowerShell script to %USERPROFILE%\scripts\ that resolves
+#      the current WSL IP and runs netsh portproxy for each port
+#   2. Runs it immediately
+#   3. Registers a Windows Scheduled Task to re-run it at every logon
+#   4. Opens the ports in Windows Firewall
+function setup_wsl_port_forwarding {
+  local ports="5000, 8000, 11434, 11435"
 
-# Write the forwarding script to the Windows filesystem
-WIN_USERPROFILE=$(win cmd.exe /C "echo %USERPROFILE%")
-WIN_SCRIPT_DIR="${WIN_USERPROFILE}\\scripts"
-WIN_SCRIPT_PATH="${WIN_SCRIPT_DIR}\\wsl-port-forward.ps1"
-LINUX_SCRIPT_DIR=$(wslpath "$WIN_USERPROFILE")/scripts
-mkdir -p "$LINUX_SCRIPT_DIR"
+  _log_info "Setting up ${color_blue}WSL port forwarding"
 
-cat > "$LINUX_SCRIPT_DIR/wsl-port-forward.ps1" << 'PSEOF'
-$wslIp = (wsl.exe hostname -I).Trim().Split(' ')[0]
-if (-not $wslIp) { Write-Error "WSL not running"; exit 1 }
+  # Write the forwarding script to the Windows filesystem
+  local win_userprofile=$(win cmd.exe /C "echo %USERPROFILE%")
+  local win_script_dir="${win_userprofile}\\scripts"
+  local win_script_path="${win_script_dir}\\wsl-port-forward.ps1"
+  local linux_script_dir=$(wslpath "$win_userprofile")/scripts
+  mkdir -p "$linux_script_dir"
 
-$ports = @(5000, 8000, 11434)
+  cat > "$linux_script_dir/wsl-port-forward.ps1" << PSEOF
+\$wslIp = (wsl.exe hostname -I).Trim().Split(' ')[0]
+if (-not \$wslIp) { Write-Error "WSL not running"; exit 1 }
 
-foreach ($p in $ports) {
-    netsh interface portproxy delete v4tov4 listenport=$p listenaddress=0.0.0.0 2>$null
-    netsh interface portproxy add v4tov4 listenport=$p listenaddress=0.0.0.0 connectport=$p connectaddress=$wslIp
+\$ports = @(${ports})
+
+foreach (\$p in \$ports) {
+    netsh interface portproxy delete v4tov4 listenport=\$p listenaddress=0.0.0.0 2>\$null
+    netsh interface portproxy add v4tov4 listenport=\$p listenaddress=0.0.0.0 connectport=\$p connectaddress=\$wslIp
 }
-Write-Host "Forwarding ports: $ports -> $wslIp"
+
+# Ensure firewall rules exist
+foreach (\$p in \$ports) {
+    if (-not (Get-NetFirewallRule -DisplayName "WSL Port \$p" -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -DisplayName "WSL Port \$p" -Direction Inbound -Protocol TCP -LocalPort \$p -Action Allow
+    }
+}
+
+Write-Host "Forwarding ports: \$ports -> \$wslIp"
 PSEOF
 
-_log_info "Wrote port-forward script to ${color_blue}${WIN_SCRIPT_PATH}"
+  _log_info "Wrote port-forward script to ${color_blue}${win_script_path}"
 
-# Run it now
-_log_info "Running port forwarding now"
-pwsh "& '${WIN_SCRIPT_PATH}'"
+  # Run it now
+  _log_info "Running port forwarding now"
+  pwsh "& '${win_script_path}'"
 
-# Register as a Scheduled Task that runs at logon with highest privileges
-_log_info "Registering ${color_blue}WSL Port Forward${color_reset} scheduled task"
-pwsh "
-\$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File \"${WIN_SCRIPT_PATH}\"'
+  # Register as a Scheduled Task that runs at logon with highest privileges
+  _log_info "Registering ${color_blue}WSL Port Forward${color_reset} scheduled task"
+  pwsh "
+\$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File \"${win_script_path}\"'
 \$trigger = New-ScheduledTaskTrigger -AtLogon
 \$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 \$principal = New-ScheduledTaskPrincipal -UserId (whoami) -RunLevel Highest
 Unregister-ScheduledTask -TaskName 'WSL Port Forward' -Confirm:\$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName 'WSL Port Forward' -Action \$action -Trigger \$trigger -Settings \$settings -Principal \$principal -Description 'Forward ports from Windows to WSL on login'
 "
+}
+setup_wsl_port_forwarding
 
 #    _   ___      ___  _____
 #   / | / / | /| / / |/ /   |
