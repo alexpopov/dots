@@ -133,6 +133,21 @@ function _install_package_nvim {
   command -v nvim >/dev/null 2>&1 && ln -sf $(which nvim) ~/.local/bin/vim
 }
 
+function _install_package_fzf {
+  if is_ubuntu; then
+    # Ubuntu's apt fzf is ancient and missing --bash, install from GitHub
+    _log_info "Installing ${color_blue}fzf${color_reset} from GitHub releases (apt version is too old)"
+    local fzf_version=$(curl -s "https://api.github.com/repos/junegunn/fzf/releases/latest" | grep -Po '"tag_name": *"v?\K[^"]*')
+    local fzf_url="https://github.com/junegunn/fzf/releases/download/v${fzf_version}/fzf-${fzf_version}-linux_amd64.tar.gz"
+    curl -Lo /tmp/fzf.tar.gz "$fzf_url"
+    tar xf /tmp/fzf.tar.gz -C /tmp fzf
+    sudo install /tmp/fzf -D -t /usr/local/bin/
+    rm /tmp/fzf /tmp/fzf.tar.gz
+  else
+    _default_install_package "fzf"
+  fi
+}
+
 function _install_package_et {
   local package="et"
   if is_mac; then
