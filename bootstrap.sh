@@ -348,9 +348,13 @@ function create_links {
   ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
   ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
 
-  # input also refuses to use XDF
+  # input also refuses to use XDG
   ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
   ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
+
+  # ollama also refuses to use XDG
+  mkdir -p "$HOME/.ollama"
+  ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml"
 
   # binary stuff
   ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"

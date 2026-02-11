@@ -166,12 +166,19 @@ sudo apt-get install nvidia-cuda-toolkit -y
 #  |__/|__//____/_____//_/  |_/ .___/ .___/____/
 #                             /_/   /_/
 
-if ! command -v ollama >/dev/null 2>&1; then
-  _log_info "Installing ${color_blue}ollama"
-  curl -fsSL https://ollama.com/install.sh | sh
-else
-  _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
-fi
+function setup_ollama {
+  if ! command -v ollama >/dev/null 2>&1; then
+    _log_info "Installing ${color_blue}ollama"
+    curl -fsSL https://ollama.com/install.sh | sh
+  else
+    _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
+  fi
+
+  # Allow ollama port through firewall (port is already forwarded from Windows via scheduled task)
+  _log_btw "Ensuring UFW allows ollama port ${color_blue}11434"
+  sudo ufw allow 11434
+}
+setup_ollama
 
 nanoclaw_path="$HOME/nanoclaw"
 if [[ -d "$nanoclaw_path" ]]; then
