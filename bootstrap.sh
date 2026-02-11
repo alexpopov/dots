@@ -78,15 +78,6 @@ function _log_warn {
   echo -e "${color_yellow}WARN: ${color_reset}$1${color_reset}"
 }
 
-# Windows/WSL helper functions
-function pwsh {
-  powershell.exe -NoProfile -Command "$@" 2>/dev/null | tr -d '\r'
-}
-
-function win {
-  "$@" 2>/dev/null | tr -d '\r'
-}
-
 function _install_package {
   local package="$1"
   test -z "$package" && _fail_error "${color_blue}_install_package${color_blue} expects 1 argument" 

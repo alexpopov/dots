@@ -14,6 +14,15 @@ if ! is_wsl; then
   _fail_error "This script must be run from inside WSL"
 fi
 
+# Windows/WSL helper functions
+function pwsh {
+  powershell.exe -NoProfile -Command "$@" 2>/dev/null | tr -d '\r'
+}
+
+function win {
+  "$@" 2>/dev/null | tr -d '\r'
+}
+
 #    _       ___         __                   ___
 #   | |     / (_)___    / /___ _      _______/   |  ____  ____  _____
 #   | | /| / / / __ \  / / __ \ | /| / / ___/ /| | / __ \/ __ \/ ___/
