@@ -17,9 +17,7 @@ alias lg=lazygit
 
 # Default prompt prefix based on platform (can be overridden before sourcing)
 if [[ -z "$PROMPT_PREFIX" ]] && ! declare -F run_prompt_prefix > /dev/null; then
-  if grep -qi microsoft /proc/version 2>/dev/null; then
-    PROMPT_PREFIX="\[\e[1;33m\]WSL\[\e[m\] "
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+  if [[ "$OSTYPE" == "darwin"* ]]; then
     PROMPT_PREFIX=""
   elif grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
     PROMPT_PREFIX="\[\e[1;32m\]pi\[\e[m\] "
@@ -131,7 +129,9 @@ bind -r '\C-l'
 
 # Platform-specific support
 BASH_CONFIG_DIR="$HOME/.config/bash"
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  [ -f "$BASH_CONFIG_DIR/wsl_support.sh" ] && . "$BASH_CONFIG_DIR/wsl_support.sh"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
   [ -f "$BASH_CONFIG_DIR/mac_support.sh" ] && . "$BASH_CONFIG_DIR/mac_support.sh"
 elif grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
   [ -f "$BASH_CONFIG_DIR/pi_support.sh" ] && . "$BASH_CONFIG_DIR/pi_support.sh"
