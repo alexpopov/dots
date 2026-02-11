@@ -80,6 +80,13 @@ yabai -m rule --add app="Magic Island" manage=off
 yabai -m rule --add app="Santa" manage=off
 yabai -m rule --add app="Unity" manage=off
 
+# Stop new tabs from creating new windows in yabai?
+yabai -m signal --add app='^Ghostty$' event=window_created action='yabai -m space --layout bsp'
+yabai -m signal --add app='^Ghostty$' event=window_destroyed action='yabai -m space --layout bsp'
+yabai -m signal --add app='^Finder$' event=window_created action='yabai -m space --layout bsp'
+yabai -m signal --add app='^Finder$' event=window_destroyed action='yabai -m space --layout bsp'
+
+
 # Apply all rules
 yabai -m rule --apply
 
