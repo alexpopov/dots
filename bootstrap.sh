@@ -497,3 +497,7 @@ ensure_shell_sources_dots
 setup_neovim_venv
 
 _log_info "Bootstrapping complete! 🎉 "
+
+if is_wsl; then
+  _log_warn "You're running in WSL! Run ${color_blue}~/dots/bootstrap_windows.sh${color_reset} to set up Windows apps and WSL extras."
+fi
