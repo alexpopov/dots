@@ -493,7 +493,7 @@ export_fzf_bindings
 
 # Packages that may rely on some manual intervention or the existence of dots dirs or something
 # NOTE: write the binary name, not the package name
-_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip"
+_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip zstd"
 
 for package in $_LATE_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
