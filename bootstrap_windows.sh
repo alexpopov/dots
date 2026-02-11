@@ -42,10 +42,18 @@ WINDOWS_APPS=(
   "Krita.Krita"
 )
 
-_log_info "Installing Windows apps via ${color_blue}winget"
+function _winget_install {
+  local id="$1"
+  if win winget.exe list --exact --id "$id" >/dev/null 2>&1; then
+    _log_btw "Already installed: ${color_blue}$id${color_reset}. Skipping!"
+  else
+    _log_info "Installing ${color_blue}$id"
+    win winget.exe install --id "$id" --silent --accept-package-agreements --accept-source-agreements
+  fi
+}
+
 for app in "${WINDOWS_APPS[@]}"; do
-  _log_info "Installing ${color_blue}$app"
-  win winget.exe install --id "$app" --silent --accept-package-agreements --accept-source-agreements
+  _winget_install "$app"
 done
 
 #   _       ___           __                  _____      __  __  _
@@ -78,7 +86,8 @@ pwsh 'reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v NoA
 
 # Disable OneDrive autostart
 _log_info "Disabling ${color_blue}OneDrive${color_reset} autostart"
-pwsh 'reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v OneDrive /t REG_SZ /d "" /f'
+pwsh 'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v OneDrive /f'
+
 
 # Remove bloatware
 _log_info "Removing ${color_blue}Windows bloatware"
@@ -135,8 +144,7 @@ Register-ScheduledTask -TaskName 'WSL Port Forward' -Action \$action -Trigger \$
 # / /|  / |__/|__//   / ___ |
 #/_/ |_/         /_/|_/_/  |_|
 
-_log_info "Installing ${color_blue}Nvidia GeForce Experience${color_reset} on Windows"
-win winget.exe install --id "Nvidia.GeForceExperience" --silent --accept-package-agreements --accept-source-agreements
+_winget_install "Nvidia.GeForceExperience"
 
 _log_info "Installing ${color_blue}nvidia-cuda-toolkit${color_reset} in WSL"
 sudo apt-get install nvidia-cuda-toolkit -y
@@ -148,13 +156,6 @@ sudo apt-get install nvidia-cuda-toolkit -y
 #  |__/|__//____/_____//_/  |_/ .___/ .___/____/
 #                             /_/   /_/
 
-if ! command -v brew >/dev/null 2>&1; then
-  _log_info "Installing ${color_blue}Homebrew"
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-else
-  _log_btw "Already installed: ${color_blue}brew${color_reset}. Skipping!"
-fi
-
 if ! command -v ollama >/dev/null 2>&1; then
   _log_info "Installing ${color_blue}ollama"
   curl -fsSL https://ollama.com/install.sh | sh
@@ -162,12 +163,14 @@ else
   _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
 fi
 
-if ! command -v openclaw >/dev/null 2>&1; then
-  _log_info "Installing ${color_blue}Open Claw"
-  curl -fsSL https://openclaw.ai/install.sh | bash
+local nanoclaw_path="$HOME/nanoclaw"
+if [[ -d "$nanoclaw_path" ]]; then
+  _log_btw "Already cloned: ${color_blue}nanoclaw${color_reset}. Skipping!"
 else
-  _log_btw "Already installed: ${color_blue}openclaw${color_reset}. Skipping!"
+  _log_info "Cloning ${color_blue}NanoClaw"
+  git clone https://github.com/gavrielc/nanoclaw.git "$nanoclaw_path"
 fi
+_log_warn "To set up NanoClaw, run: ${color_blue}cd ~/nanoclaw && claude"
 
 if ! command -v gh >/dev/null 2>&1; then
   _log_info "Installing ${color_blue}GitHub CLI"
