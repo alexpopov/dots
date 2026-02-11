@@ -312,7 +312,7 @@ function export_fzf_bindings {
     log_func="_log_info"
   fi
   mkdir -p "$fzf_config_path"
-  fzf --bash > "$fzf_config_path"/fzf.bash
+  fzf --bash > "$fzf_config_path"/fzf.bash || _fail_error "fzf --bash failed; is fzf too old?"
   "$log_func" "Exporting latest ${color_blue}fzf${color_reset} bash bindings:"
   "$log_func" "${color_blue}source $fzf_config_path${color_reset} for bindings"
 }
