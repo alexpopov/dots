@@ -173,7 +173,7 @@ else
   _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
 fi
 
-local nanoclaw_path="$HOME/nanoclaw"
+nanoclaw_path="$HOME/nanoclaw"
 if [[ -d "$nanoclaw_path" ]]; then
   _log_btw "Already cloned: ${color_blue}nanoclaw${color_reset}. Skipping!"
 else
@@ -194,21 +194,22 @@ else
   _log_btw "Already installed: ${color_blue}gh${color_reset}. Skipping!"
 fi
 
+if ! command -v nvm >/dev/null 2>&1; then
+  _log_info "Installing ${color_blue}nvm"
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+  source ~/.nvm/nvm.sh
+else
+  _log_btw "Already installed: ${color_blue}nvm${color_reset}. Skipping!"
+fi
+
 if ! command -v node >/dev/null 2>&1; then
-  _log_info "Installing ${color_blue}Node.js${color_reset} via nodesource"
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-  sudo apt-get install nodejs -y
+  _log_info "Installing ${color_blue}Node.js${color_reset} LTS via nvm"
+  nvm install --lts
 else
   _log_btw "Already installed: ${color_blue}node${color_reset}. Skipping!"
 fi
 
-if ! command -v pnpm >/dev/null 2>&1; then
-  _log_info "Installing ${color_blue}pnpm"
-  curl -fsSL https://get.pnpm.io/install.sh | sh -
-else
-  _log_btw "Already installed: ${color_blue}pnpm${color_reset}. Skipping!"
-fi
-_log_info "Enabling ${color_blue}corepack${color_reset} and activating pnpm"
+_log_btw "Enabling ${color_blue}corepack${color_reset} and activating ${color_blue}pnpm"
 corepack enable
 corepack prepare pnpm@latest --activate
 
