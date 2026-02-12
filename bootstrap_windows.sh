@@ -75,9 +75,6 @@ done
 
 # Power: high performance, no sleep, no hibernate
 _log_info "Setting ${color_blue}High Performance${color_reset} power plan"
-if ! pwsh "powercfg /list" | grep -qi "High performance"; then
-  _fail_error "Could not find High Performance power scheme"
-fi
 pwsh "powercfg /setactive SCHEME_MIN"
 pwsh "powercfg /change standby-timeout-ac 0"
 pwsh "powercfg /hibernate off"
@@ -116,7 +113,7 @@ done
 #   3. Registers a Windows Scheduled Task to re-run it at every logon
 #   4. Opens the ports in Windows Firewall
 function setup_wsl_port_forwarding {
-  local ports="5000, 8000, 11434, 11435"
+  local ports="22, 2022, 5000, 8000, 11434, 11435, 25000, 25001, 25002, 25003, 25004, 25005, 25006, 25007, 25008, 25009, 25010"
 
   _log_info "Setting up ${color_blue}WSL port forwarding"
 
@@ -150,19 +147,19 @@ PSEOF
 
   _log_info "Wrote port-forward script to ${color_blue}${win_script_path}"
 
-  # Run it now
+  # Run it now (needs admin for netsh, so self-elevate)
   _log_info "Running port forwarding now"
-  pwsh "& '${win_script_path}'"
+  pwsh "Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"${win_script_path}\"'"
 
-  # Register as a Scheduled Task that runs at logon with highest privileges
+  # Register as a Scheduled Task that runs at startup with highest privileges
   _log_info "Registering ${color_blue}WSL Port Forward${color_reset} scheduled task"
   pwsh "
 \$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File \"${win_script_path}\"'
-\$trigger = New-ScheduledTaskTrigger -AtLogon
+\$trigger = New-ScheduledTaskTrigger -AtStartup
 \$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-\$principal = New-ScheduledTaskPrincipal -UserId (whoami) -RunLevel Highest
+\$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
 Unregister-ScheduledTask -TaskName 'WSL Port Forward' -Confirm:\$false -ErrorAction SilentlyContinue
-Register-ScheduledTask -TaskName 'WSL Port Forward' -Action \$action -Trigger \$trigger -Settings \$settings -Principal \$principal -Description 'Forward ports from Windows to WSL on login'
+Register-ScheduledTask -TaskName 'WSL Port Forward' -Action \$action -Trigger \$trigger -Settings \$settings -Principal \$principal -Description 'Forward ports from Windows to WSL at startup'
 "
 }
 setup_wsl_port_forwarding
@@ -175,8 +172,12 @@ setup_wsl_port_forwarding
 
 _winget_install "Nvidia.GeForceExperience"
 
-_log_info "Installing ${color_blue}nvidia-cuda-toolkit${color_reset} in WSL"
-sudo apt-get install nvidia-cuda-toolkit -y
+if dpkg -s nvidia-cuda-toolkit >/dev/null 2>&1; then
+  _log_btw "Already installed: ${color_blue}nvidia-cuda-toolkit${color_reset}. Skipping!"
+else
+  _log_info "Installing ${color_blue}nvidia-cuda-toolkit${color_reset} in WSL"
+  sudo apt-get install nvidia-cuda-toolkit -y
+fi
 
 #   _       _______ __     ___
 #  | |     / / ___// /    /   |  ____  ____  _____
@@ -185,6 +186,26 @@ sudo apt-get install nvidia-cuda-toolkit -y
 #  |__/|__//____/_____//_/  |_/ .___/ .___/____/
 #                             /_/   /_/
 
+if ! command -v sshd >/dev/null 2>&1; then
+  _log_info "Installing ${color_blue}openssh-server"
+  sudo apt-get update
+  sudo apt-get install openssh-server -y
+else
+  _log_btw "Already installed: ${color_blue}openssh-server${color_reset}. Skipping!"
+fi
+if ! systemctl is-active --quiet ssh; then
+  _log_info "Enabling ${color_blue}sshd"
+  sudo systemctl enable ssh
+  sudo systemctl start ssh
+else
+  _log_btw "Already running: ${color_blue}sshd${color_reset}. Skipping!"
+fi
+
+# Ollama runs as a systemd service; its service config lives at
+# /etc/systemd/system/ollama.service and app config at ~/.ollama/
+# After editing the service file, run:
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart ollama
 function setup_ollama {
   if ! command -v ollama >/dev/null 2>&1; then
     _log_info "Installing ${color_blue}ollama"
@@ -193,9 +214,6 @@ function setup_ollama {
     _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
   fi
 
-  # Allow ollama port through firewall (port is already forwarded from Windows via scheduled task)
-  _log_btw "Ensuring UFW allows ollama port ${color_blue}11434"
-  sudo ufw allow 11434
 }
 setup_ollama
 
@@ -220,12 +238,13 @@ else
   _log_btw "Already installed: ${color_blue}gh${color_reset}. Skipping!"
 fi
 
-if ! command -v nvm >/dev/null 2>&1; then
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  _log_btw "Already installed: ${color_blue}nvm${color_reset}. Skipping!"
+  source ~/.nvm/nvm.sh
+else
   _log_info "Installing ${color_blue}nvm"
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
   source ~/.nvm/nvm.sh
-else
-  _log_btw "Already installed: ${color_blue}nvm${color_reset}. Skipping!"
 fi
 
 if ! command -v node >/dev/null 2>&1; then
