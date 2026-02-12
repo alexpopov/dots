@@ -334,39 +334,39 @@ function create_links {
   # Make all necessary directories
   mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR" 
 
-  ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/opencode" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR"
-  ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR"
+  ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR" || _fail_error "Failed to symlink bash config"
+  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR" || _fail_error "Failed to symlink input config"
+  ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR" || _fail_error "Failed to symlink lazygit config"
+  ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR" || _fail_error "Failed to symlink karabiner config"
+  ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR" || _fail_error "Failed to symlink nvim config"
+  ln -sf "$DOTS_CONFIG_DIR/opencode" "$CONFIG_DIR" || _fail_error "Failed to symlink opencode config"
+  ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
+  ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR" || _fail_error "Failed to symlink systemd config"
+  ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR" || _fail_error "Failed to symlink selinux config"
 
   # tmux refuses to use XDG, this is for us to have tmux.conf
-  ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR"  
-  ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux"  # tmux folder for tmux's sake
-  ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" # this one just forwards config
+  ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR" || _fail_error "Failed to symlink tmux config dir"
+  ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux" || _fail_error "Failed to symlink ~/.tmux"
+  ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" || _fail_error "Failed to symlink ~/.tmux.conf"
 
   # input also refuses to use XDG
-  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR"   # forwards config
-  ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc"   # forwards config
+  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR" || _fail_error "Failed to symlink input config dir"
+  ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc" || _fail_error "Failed to symlink ~/.inputrc"
 
   # ollama also refuses to use XDG
   mkdir -p "$HOME/.ollama"
-  ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml"
+  ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml" || _fail_error "Failed to symlink ollama config"
 
   # binary stuff
-  ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts"
+  ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts" || _fail_error "Failed to symlink scripts"
 
   # macOS specific but doesn't hurt
   mkdir -p "$HOME/.hammerspoon/"
-  ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/"
-  ln -sf "$DOTS_CONFIG_DIR/hammerspoon" "$CONFIG_DIR"
+  ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/" || _fail_error "Failed to symlink hammerspoon init.lua"
+  ln -sf "$DOTS_CONFIG_DIR/hammerspoon" "$CONFIG_DIR" || _fail_error "Failed to symlink hammerspoon config"
 
-  ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc"
-  ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc"
+  ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc" || _fail_error "Failed to symlink skhdrc"
+  ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc" || _fail_error "Failed to symlink yabairc"
 }
 
 function ensure_shell_sources_dots {
