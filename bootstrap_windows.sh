@@ -145,7 +145,7 @@ foreach (\$p in \$ports) {
 Write-Host "Forwarding ports: \$ports -> \$wslIp"
 PSEOF
 
-  _log_info "Wrote port-forward script to ${color_blue}${win_script_path}"
+  _log_info "Wrote port-forward script to ${color_blue}%USERPROFILE%\\scripts\\wsl-port-forward.ps1"
 
   # Run it now (needs admin for netsh, so self-elevate)
   _log_info "Running port forwarding now"
@@ -214,6 +214,22 @@ function setup_ollama {
     _log_btw "Already installed: ${color_blue}ollama${color_reset}. Skipping!"
   fi
 
+  # Verify ollama service config has the required environment variables
+  local ollama_service="/etc/systemd/system/ollama.service"
+  local missing=false
+  if ! grep -q 'Environment="OLLAMA_HOST=0.0.0.0:11434"' "$ollama_service" 2>/dev/null; then
+    _log_warn "Missing in ${ollama_service}: Environment=\"OLLAMA_HOST=0.0.0.0:11434\""
+    missing=true
+  fi
+  if ! grep -q 'Environment="OLLAMA_CONTEXT_LENGTH=64000"' "$ollama_service" 2>/dev/null; then
+    _log_warn "Missing in ${ollama_service}: Environment=\"OLLAMA_CONTEXT_LENGTH=64000\""
+    missing=true
+  fi
+  if [[ "$missing" == true ]]; then
+    _fail_error "Fix the ollama service config above, then: sudo systemctl daemon-reload && sudo systemctl restart ollama"
+  else
+    _log_btw "Ollama service config ${color_blue}OK"
+  fi
 }
 setup_ollama
 
