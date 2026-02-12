@@ -9,9 +9,44 @@
             },
             "models": {
                 "qwen2.5:7b": {
+                    "tools": true,
                     "name": "Alex's Qwen 2.5"
                 }
             }
+        }
+    },
+    "permission": {
+        // These are built-in tools, basically like MCPs
+        // Without this your LLM is brutally dumb
+        "edit": "ask",
+        "bash": "ask",
+        "webfetch": "ask",
+        "read": "ask",
+        "grep": "ask",
+        "glob": "allow",
+        "list": "allow",
+        "skill": "allow",
+        "todowrite": "ask",
+        "todoread": "allow",
+        "question": "allow"
+
+        // See the docs about this, it's experimental
+        // "lsp": "deny" 
+    },
+    "mcp": {
+        "filesystem": {
+            "type": "local",
+            "command": [
+                "npx",
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                // $HOME does not work. Sad.
+                // Maybe the solution is to use a docker and map everything you
+                // want under / or something and then just pass that
+                "/Users/alp/" 
+              
+            ],
+            "enabled": true
         }
     }
 }
