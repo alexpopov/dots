@@ -5,12 +5,16 @@
             // "npm": "@ai-sdk/openai-compatible",
             "name": "Ollama Remote",
             "options": {
-                "baseURL": "http://192.168.1.24:11435/v1/"
+                "baseURL": "http://192.168.1.24:11434/v1/"
             },
             "models": {
                 "qwen2.5:7b": {
                     "tools": true,
                     "name": "Alex's Qwen 2.5"
+                },
+                "power-model:latest": {
+                    "tools": true,
+                    "name": "Main Model"
                 }
             }
         }
