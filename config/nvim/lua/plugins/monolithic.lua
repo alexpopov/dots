@@ -115,7 +115,6 @@ local specs = {
 
   { "hrsh7th/cmp-path" },
   { "hrsh7th/cmp-nvim-lua" },
-  { "hrsh7th/cmp-cmdline" },
 
   {
     "saadparwaiz1/cmp_luasnip",
@@ -265,13 +264,6 @@ local specs = {
     config = function() require("flit").setup() end
   },
 
-  -- Possibly of limited usefulness...
-  {
-    "andrewferrier/debugprint.nvim",
-    opts = {},
-    lazy = false,
-    version = '*',
-  },
   { "mechatroner/rainbow_csv" },
 
   {
