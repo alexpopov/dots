@@ -4,7 +4,13 @@ local specs = {
   { "Vimjas/vim-python-pep8-indent" }, -- sane indentation for python
   {
     "voldikss/vim-floaterm",
-    lazy = true,
+    keys = {
+      { "<F5>", desc = "Toggle floaterm" },
+      { "<F7>", desc = "New floaterm" },
+      { "<F8>", desc = "Prev floaterm" },
+      { "<F9>", desc = "Next floaterm" },
+    },
+    cmd = { "FloatermNew", "FloatermToggle" },
     config = function()
       vim.g.floaterm_keymap_new = '<F7>'
       vim.g.floaterm_keymap_prev = '<F8>'
@@ -15,11 +21,11 @@ local specs = {
     end,
   },
 
-  { "dylon/vim-antlr",      lazy = true, },
-  { "solarnz/thrift.vim",   lazy = true, },
-  { "qpkorr/vim-bufkill",   lazy = true, },
-  { "wesQ3/vim-windowswap", lazy = true, },
-  { "gburca/vim-logcat",    lazy = true, },
+  { "dylon/vim-antlr",      ft = "antlr", },
+  { "solarnz/thrift.vim",   ft = "thrift", },
+  { "qpkorr/vim-bufkill",   cmd = { "BD", "BUN", "BW", "BB", "BF" }, },
+  { "wesQ3/vim-windowswap", keys = { "<Leader>ww" }, },
+  { "gburca/vim-logcat",    ft = "logcat", },
 
   {
     "nvimtools/none-ls.nvim",
@@ -135,7 +141,6 @@ local specs = {
   },
 
   {
-    -- Doesn't work: I get errors. maybe try again later
     "folke/trouble.nvim",
     cmd = "Trouble",
     opts = {},
