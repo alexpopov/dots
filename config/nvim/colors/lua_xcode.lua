@@ -16,7 +16,7 @@ local c = {
   status_line_grey = {fg = 249, gui = "#b2b2b2"},
   unset = {cterm = "NONE", gui = "NONE"},
   skip = {cterm = nil, gui = nil},
-  orange = {cterm = 226, gui="#ffff00"},
+  highlight_yellow = {cterm = 226, gui="#ffff00"},
   text_black = {cterm = 234, gui = "#1c1c1c"},
   primary_blue = {cterm = 20, gui = "#0000df"},
   selection_blue = {cterm = 153, gui = "#afdfff"},
@@ -57,7 +57,7 @@ local group_colors = {
   -- Vim 7.0 colors
   CursorLine = {c.unset, c.unset, {}}, -- used to have cterm=NONE
   CursorColumn = {c.skip, c.dark_grey},
-  MatchParen = {c.black, c.orange, {}}, -- used to have cterm=NONE
+  MatchParen = {c.black, c.highlight_yellow, {}}, -- used to have cterm=NONE
   Pmenu = {c.black, c.light_grey},
   PmenuSel = {c.black, c.middle_grey},
 
@@ -69,7 +69,7 @@ local group_colors = {
   -- General Section
   Cursor = {c.primary_blue, c.white},
   Normal = {c.black, c.white},
-  NonText = {c.orange, c.white},
+  NonText = {c.highlight_yellow, c.white},
   LineNr = {{cterm = 239, gui = "#4e4e4e"}, c.unset}, -- attractive grey
   CursorLineNr = {c.black, c.unset, {bold = true}}, -- current line number stands out
   StatusLine = {c.status_line_grey, {cterm = 238, gui = "#444444"}},
@@ -301,5 +301,5 @@ end
 --
 --
 -- xcode.syntax.url
--- 0.055 0.055 1 1</string       -- don't care about URLs
+-- 0.055 0.055 1 1               -- don't care about URLs
 
