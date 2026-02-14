@@ -104,6 +104,9 @@ local links = {
   Title = "Normal",
   SpecialKey = "Error",
 
+  DiagnosticError = "XcodeRed",
+  DiagnosticWarn = "XcodeBrown",
+  DiagnosticInfo = "XcodeBlue",
   DiagnosticHint = "XcodeGrey",
   ["@keyword"] = "XcodePink",
   ["@variable.builtin"] = "XcodePink",
