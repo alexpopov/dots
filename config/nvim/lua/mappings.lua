@@ -1,27 +1,25 @@
-local cmd = vim.cmd
 local wk = require("which-key")
+local map = vim.keymap.set
 
---  write/quit typos
-cmd("command! WQ wq")
-cmd("command! Wq wq")
-cmd("command! W w")
-cmd("command! Q q")
+-- Write/quit typo commands
+vim.api.nvim_create_user_command("WQ", "wq", {})
+vim.api.nvim_create_user_command("Wq", "wq", {})
+vim.api.nvim_create_user_command("W", "w", {})
+vim.api.nvim_create_user_command("Q", "q", {})
 
 vim.g.mapleader = ","
 vim.g.maplocalleader = "\\"
 
-local set_keymap = vim.api.nvim_set_keymap
-
 -- Window Movement
 -- TODO: do I still use C-K for window movement? It conflicts with LSP signature_help
-set_keymap('n', '<C-J>', '<C-W><C-J>', { noremap = true, desc = "move to split south" })
-set_keymap('n', '<C-H>', '<C-W><C-H>', { noremap = true, desc = "move to split west" })
-set_keymap('n', '<C-K>', '<C-W><C-K>', { noremap = true, desc = "move to split north" })
-set_keymap('n', '<C-L>', '<C-W><C-L>', { noremap = true, desc = "move to split east" })
+map('n', '<C-J>', '<C-W><C-J>', { desc = "move to split south" })
+map('n', '<C-H>', '<C-W><C-H>', { desc = "move to split west" })
+map('n', '<C-K>', '<C-W><C-K>', { desc = "move to split north" })
+map('n', '<C-L>', '<C-W><C-L>', { desc = "move to split east" })
 
 -- Clear search highlighting
-set_keymap('n', '<C-x>', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
-set_keymap('n', '<Leader>r', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
+map('n', '<C-x>', ':nohl<CR>', { silent = true, desc = "clear search" })
+map('n', '<Leader>r', ':nohl<CR>', { silent = true, desc = "clear search" })
 
 -- All which-key registrations
 wk.add({

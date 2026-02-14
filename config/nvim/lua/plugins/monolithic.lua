@@ -56,7 +56,13 @@ local specs = {
 
   {
     "hrsh7th/nvim-cmp",
-    dependencies = { "hrsh7th/cmp-nvim-lsp", "hrsh7th/cmp-buffer", "L3MON4D3/LuaSnip", },
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/cmp-path",
+      "hrsh7th/cmp-nvim-lua",
+      "L3MON4D3/LuaSnip",
+    },
     config = function()
       local luasnip = require("luasnip")
       local cmp = require("cmp")
@@ -113,8 +119,6 @@ local specs = {
     end,
   },
 
-  { "hrsh7th/cmp-path" },
-  { "hrsh7th/cmp-nvim-lua" },
 
   {
     "saadparwaiz1/cmp_luasnip",

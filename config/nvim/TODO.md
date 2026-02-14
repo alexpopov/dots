@@ -40,12 +40,11 @@
 9. [x] **tree-climber mappings reference non-existent plugin**
    - Dead reference, never used
 
-10. [ ] **Old `nvim_set_keymap` API** - `mappings.lua:16-22`
-    - Prefer `vim.keymap.set()` which is more ergonomic
+10. [x] **Old `nvim_set_keymap` API** - `mappings.lua`
+    - Migrated to `vim.keymap.set()` (noremap is default, cleaner syntax)
 
-11. [ ] **VimScript commands that have Lua equivalents** - `mappings.lua:8-11`
-    - `cmd("command! WQ wq")` etc.
-    - Use `vim.api.nvim_create_user_command` instead
+11. [x] **VimScript commands that have Lua equivalents** - `mappings.lua`
+    - Converted `cmd("command! WQ wq")` etc. to `vim.api.nvim_create_user_command`
 
 ## Plugin Issues
 
@@ -55,17 +54,14 @@
 13. [x] **Lazy-loaded plugins with no load trigger** - `monolithic.lua`
     - Added proper triggers: keys/cmd for floaterm, ft for language plugins, cmd for bufkill
 
-14. [ ] **cmp sources missing explicit dependencies** - `monolithic.lua:100-106`
-    - `nvim_lua` and `path` sources listed
-    - `cmp-nvim-lua` and `cmp-path` exist as plugins but not in nvim-cmp's dependencies list
+14. [x] **cmp sources missing explicit dependencies**
+    - Moved cmp-path and cmp-nvim-lua into nvim-cmp's dependencies list
 
 15. [x] **`cmp-cmdline` never configured**
     - Removed, was dead code
 
-16. [ ] **Yanky `<c-p>` potential conflict** - `monolithic.lua:331`
-    - Yanky maps `<C-p>` in normal mode
-    - cmp maps `<C-p>` in insert mode
-    - Should be fine but worth noting
+16. [x] **Yanky `<c-p>` potential conflict**
+    - Not a real conflict: Yanky is normal mode, cmp is insert mode
 
 ## Cleanup (Low Priority)
 
