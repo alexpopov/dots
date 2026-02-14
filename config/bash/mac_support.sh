@@ -19,15 +19,16 @@ fi
 # Bash completion
 [[ -r "/usr/local/etc/bash_completion" ]] && . "/usr/local/etc/bash_completion"
 
-# Load Git completion
-# Get it with: 
-# curl -o ~/.local/bin/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash
-if [ -f ~/.local/bin/.git-completion.bash ]; then
-  . ~/.local/bin/.git-completion.bash
-else
-  echo "Error: git-completion not installed. Check out mac_support.sh"
-  echo "TODO: bootstrap this part"
+# Load Git completion (auto-download if missing)
+_git_completion="$HOME/.local/bin/.git-completion.bash"
+if [ ! -f "$_git_completion" ]; then
+  mkdir -p "$(dirname "$_git_completion")"
+  curl -so "$_git_completion" \
+    https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash \
+    && echo "Downloaded git-completion.bash" \
+    || echo "Warning: failed to download git-completion.bash"
 fi
+[ -f "$_git_completion" ] && . "$_git_completion"
 
 
 # May want to gate this in the future:
