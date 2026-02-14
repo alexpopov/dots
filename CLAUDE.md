@@ -22,13 +22,14 @@ config/
     ftplugin/             # Per-filetype settings (lua/cpp=2 spaces)
     ftdetect/             # Custom filetype detection (shader, soong, hgcommit)
   bash/bash_profile.sh    # Shell config (aliases, prompt, PATH, functions)
-  tmux/tmux.conf          # tmux config (prefix=C-s, vi mode, 500k history)
+  tmux/tmux.conf          # Actual tmux config (prefix=C-s, vi mode, 500k history)
   git/                    # Git aliases and gitignore
   skhd/                   # macOS hotkey daemon config
   yabai/                  # macOS tiling window manager config
   hammerspoon/            # macOS automation
   karabiner/              # macOS key remapping
-bin/scripts/              # Utility scripts (yabai_utils, tmux_claude, git helpers)
+tmux.conf                 # Root-level shim that sources config/tmux/tmux.conf (symlinked to ~/.tmux.conf)
+bin/scripts/              # Utility scripts (yabai_utils, tmux_claude, git helpers) -> ~/.local/bin/scripts
 ```
 
 ## Conventions
