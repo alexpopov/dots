@@ -5,7 +5,7 @@ local specs = {
       vim.notify = require("notify")
     end,
     opts = {
-      timeout = 2,
+      timeout = 2000,
       render = "simple",
     }
   }
