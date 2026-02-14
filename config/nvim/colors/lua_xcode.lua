@@ -103,6 +103,7 @@ local group_colors = {
   FloatTitle = {c.xcode_pink, c.light_grey, {bold = true}},
 
   -- Diff highlights (background colors for visibility on light theme)
+  -- TODO: review these pastel colors and decide if they match the xcode vibe
   DiffAdd = {c.skip, {cterm = 194, gui = "#d7ffd7"}},
   DiffDelete = {c.skip, {cterm = 224, gui = "#ffd7d7"}},
   DiffChange = {c.skip, {cterm = 189, gui = "#d7d7ff"}},

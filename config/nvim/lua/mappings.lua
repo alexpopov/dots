@@ -13,6 +13,7 @@ vim.g.maplocalleader = "\\"
 local set_keymap = vim.api.nvim_set_keymap
 
 -- Window Movement
+-- TODO: do I still use C-K for window movement? It conflicts with LSP signature_help
 set_keymap('n', '<C-J>', '<C-W><C-J>', { noremap = true, desc = "move to split south" })
 set_keymap('n', '<C-H>', '<C-W><C-H>', { noremap = true, desc = "move to split west" })
 set_keymap('n', '<C-K>', '<C-W><C-K>', { noremap = true, desc = "move to split north" })
