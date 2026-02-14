@@ -7,9 +7,9 @@ opt.backup = false
 opt.writebackup = false
 
 local set_tabs = function(count)
-    opt.tabstop = count     -- 2 space tabs
-    opt.softtabstop = count -- number of spaces in a tab when editing
-    opt.shiftwidth = count  -- how much to shift by
+    opt.tabstop = count
+    opt.softtabstop = count
+    opt.shiftwidth = count
 end
 
 M.set_tabs = set_tabs
