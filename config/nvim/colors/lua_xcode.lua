@@ -126,11 +126,15 @@ local links = {
   Parens = {link = "Normal"},
 
   -- Diff Colors
-  DiffAdded = "Comment",
-  DiffChange = "pythonCustomFunc",
-  diffRemoved = "String", -- TODO: typo in case?
-  diffLine = "pythonStatement", -- TODO: typo in case?
-  diffFile = "Identifier", -- TODO: typo in case?
+  DiffAdd = "XcodeGreen",
+  DiffChange = "XcodeBlue",
+  DiffDelete = "XcodeRed",
+  DiffText = "XcodeBrown",
+  diffAdded = "DiffAdd",
+  diffChanged = "DiffChange",
+  diffRemoved = "DiffDelete",
+  diffLine = "XcodePurple",
+  diffFile = "Identifier",
 
   NvimInternalerror = "Error",
 
