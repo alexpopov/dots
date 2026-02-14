@@ -181,6 +181,16 @@ function _install_package_delta {
   _default_install_package "git-delta"
 }
 
+function _install_package_fd {
+  if is_ubuntu; then
+    _default_install_package "fd-find"
+    # Ubuntu names the binary fdfind to avoid conflict with fdclone
+    ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
+  else
+    _default_install_package "fd"
+  fi
+}
+
 function _install_package_lazygit {
   local package="lazygit"
 
@@ -497,7 +507,7 @@ export_fzf_bindings
 
 # Packages that may rely on some manual intervention or the existence of dots dirs or something
 # NOTE: write the binary name, not the package name
-_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip zstd"
+_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip zstd fd"
 
 for package in $_LATE_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
