@@ -102,6 +102,12 @@ local group_colors = {
   FloatBorder = {{cterm = 241, gui = "#606060"}, c.light_grey},
   FloatTitle = {c.xcode_pink, c.light_grey, {bold = true}},
 
+  -- Diff highlights (background colors for visibility on light theme)
+  DiffAdd = {c.skip, {cterm = 194, gui = "#d7ffd7"}},
+  DiffDelete = {c.skip, {cterm = 224, gui = "#ffd7d7"}},
+  DiffChange = {c.skip, {cterm = 189, gui = "#d7d7ff"}},
+  DiffText = {c.skip, {cterm = 229, gui = "#ffffaf"}, {bold = true}},
+
   -- For My Stuff
   AiRecommendation = {c.skip, c.selection_pink},
 }
@@ -175,11 +181,7 @@ local links = {
   Special = "Keyword",
   Parens = {link = "Normal"},
 
-  -- Diff Colors
-  DiffAdd = "XcodeGreen",
-  DiffChange = "XcodeBlue",
-  DiffDelete = "XcodeRed",
-  DiffText = "XcodeBrown",
+  -- Diff Colors (DiffAdd/Change/Delete/Text defined in group_colors with backgrounds)
   diffAdded = "DiffAdd",
   diffChanged = "DiffChange",
   diffRemoved = "DiffDelete",
