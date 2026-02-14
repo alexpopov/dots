@@ -50,14 +50,11 @@
 
 ## Plugin Issues
 
-12. [ ] **trouble.nvim marked as not working** - `monolithic.lua:136`
-    - Comment says "Doesn't work: I get errors. maybe try again later"
-    - Either fix it or remove it
+12. [x] **trouble.nvim marked as not working** - `monolithic.lua:136`
+    - Removed stale "doesn't work" comment, config is fine for trouble v3
 
-13. [ ] **Lazy-loaded plugins with no load trigger** - `monolithic.lua`
-    - `vim-floaterm` is `lazy = true` but keymaps set in config (won't work until loaded)
-    - `vim-antlr`, `thrift.vim`, `vim-bufkill`, `vim-windowswap`, `vim-logcat` marked lazy with no trigger
-    - Add `keys`, `ft`, or `cmd` triggers, or remove `lazy = true`
+13. [x] **Lazy-loaded plugins with no load trigger** - `monolithic.lua`
+    - Added proper triggers: keys/cmd for floaterm, ft for language plugins, cmd for bufkill
 
 14. [ ] **cmp sources missing explicit dependencies** - `monolithic.lua:100-106`
     - `nvim_lua` and `path` sources listed
@@ -94,9 +91,8 @@
     - Single binding that opens Telescope picker with available config modules
     - Select module to reload with `R()`
 
-22. [ ] **Install `fd` for Telescope**
-    - Telescope recommends `sharkdp/fd` for faster file finding
-    - Add to bootstrap.sh or document as a dependency
+22. [x] **Install `fd` for Telescope**
+    - Added to bootstrap.sh late packages with custom Ubuntu installer
 
 23. [ ] **debugprint.nvim uses deprecated `vim.validate` API**
     - Will break in Neovim 1.0
