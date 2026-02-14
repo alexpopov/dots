@@ -1,9 +1,6 @@
 local cmd = vim.cmd
 local wk = require("which-key")
 
--- TODO: refactor this file into multiple files and have a top-level init.lua
--- file in the folder
-
 --  write/quit typos
 cmd("command! WQ wq")
 cmd("command! Wq wq")
@@ -25,46 +22,46 @@ set_keymap('n', '<C-L>', '<C-W><C-L>', { noremap = true, desc = "move to split e
 set_keymap('n', '<C-x>', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
 set_keymap('n', '<Leader>r', ':nohl<CR>', { noremap = true, silent = true, desc = "clear search" })
 
--- map <silent> <leader>fc /<<<<<<<\\|\|\|\|\|\|\|\|\\|=======\\|>>>>>>><CR>
--- leader commands
-wk.add(
-  {
-    {
-      "<Leader>fc", "/<<<<<<<\\||||||||\\|=======\\|>>>>>>><CR>",
-      desc = "Find Conflicts"
-    },
-    { "<Leader>f",  group = " Find" },
-  })
+-- All which-key registrations
+wk.add({
+  -- Leader: find
+  { "<Leader>f",  group = "find" },
+  { "<Leader>fc", "/<<<<<<<\\||||||||\\|=======\\|>>>>>>><CR>", desc = "find conflicts" },
 
--- leader commands that are recursive for normal and visual
-wk.add(
-  {
-    { "<Leader>c",        group = " Comment", remap = true },
-    { "<Leader>c<space>", ":Commentary<CR>",  desc = "Toggle", mode = { "v", "n" }, remap = true },
-  }
-)
+  -- Leader: comment (recursive for normal and visual)
+  { "<Leader>c",        group = "comment", remap = true },
+  { "<Leader>c<space>", ":Commentary<CR>",  desc = "toggle", mode = { "v", "n" }, remap = true },
 
--- edit files fast
-wk.add(
-{
-  { "<localleader>e", group = " edit" },
-  { "<localleader>ed", ":FZF ~/dots/<CR>", desc = " dots config files" },
-  { "<localleader>ev", ":FZF ~/.config/nvim/<CR>", desc = " vim files" },
-  { "<localleader>es", ":FZF ~/fbsource/fbcode/scripts/alexpopov/<CR>", desc = " fbcode scripts" },
-}
-)
+  -- Leader: LSP (group only, keymaps set in lsp.lua on LspAttach)
+  { "<Leader>a",  group = "LSP" },
+  { "<Leader>aw", group = "workspace" },
+  { "<Leader>ac", group = "code" },
 
--- local-leader commands
-wk.add(
-  {
-    { "<localleader>b",   group = " buffers" },
-    { "<localleader>bd",  function() require("utils").delete_hidden_buffers() end,            desc = "Delete Hidden Buffers" },
-    { "<localleader>u",   function() require("telescope.pick_function")() end,               desc = "Run function picker" },
-    { "<localleader>q",   group = " config" },
-    { "<localleader>qn",  ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
-    { "<localleader>r",   group = " reload" },
-    { "<localleader>rv",  function() require("telescope.reload_module")() end,              desc = "reload vim module (picker)" },
-    { "<localleader>t",   group = " tabs" },
-    { "<localleader>tn",  ":tabnew<CR>",                                                   desc = "New Tab" },
-  }
-)
+  -- Leader: trouble
+  { "<Leader>t",  group = "trouble" },
+
+  -- Localleader: edit files fast
+  { "<localleader>e",  group = "edit" },
+  { "<localleader>ed", ":FZF ~/dots/<CR>",                                desc = "dots config files" },
+  { "<localleader>ev", ":FZF ~/.config/nvim/<CR>",                        desc = "vim files" },
+  { "<localleader>es", ":FZF ~/fbsource/fbcode/scripts/alexpopov/<CR>",   desc = "fbcode scripts" },
+
+  -- Localleader: buffers
+  { "<localleader>b",  group = "buffers" },
+  { "<localleader>bd", function() require("utils").delete_hidden_buffers() end, desc = "delete hidden buffers" },
+
+  -- Localleader: utilities
+  { "<localleader>u", function() require("telescope.pick_function")() end, desc = "function picker" },
+
+  -- Localleader: config
+  { "<localleader>q",  group = "config" },
+  { "<localleader>qn", ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
+
+  -- Localleader: reload
+  { "<localleader>r",  group = "reload" },
+  { "<localleader>rv", function() require("telescope.reload_module")() end, desc = "reload vim module" },
+
+  -- Localleader: tabs
+  { "<localleader>t",  group = "tabs" },
+  { "<localleader>tn", ":tabnew<CR>", desc = "new tab" },
+})

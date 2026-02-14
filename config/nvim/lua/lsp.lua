@@ -60,30 +60,40 @@ vim.api.nvim_create_autocmd("LspAttach", {
     -- Enable completion triggered by <c-x><c-o>
     vim.bo[bufnr].omnifunc = "v:lua.vim.lsp.omnifunc"
 
-    -- Mappings
-    local opts = { buffer = bufnr, noremap = true, silent = true }
+    -- Mappings (desc fields populate which-key)
+    local function buf_opts(desc)
+      return { buffer = bufnr, noremap = true, silent = true, desc = desc }
+    end
 
-    -- See `:help vim.lsp.*` for documentation on any of the below functions
-    vim.keymap.set("n", "<Leader>aD", vim.lsp.buf.declaration, opts)
-    vim.keymap.set("n", "<Leader>ad", vim.lsp.buf.definition, opts)
-    vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
-    vim.keymap.set("n", "<Leader>ai", vim.lsp.buf.implementation, opts)
-    vim.keymap.set("n", "<C-k>", vim.lsp.buf.signature_help, opts)
-    vim.keymap.set("n", "<Leader>awa", vim.lsp.buf.add_workspace_folder, opts)
-    vim.keymap.set("n", "<Leader>awr", vim.lsp.buf.remove_workspace_folder, opts)
+    -- Navigation
+    vim.keymap.set("n", "<Leader>aD", vim.lsp.buf.declaration, buf_opts("declaration"))
+    vim.keymap.set("n", "<Leader>ad", vim.lsp.buf.definition, buf_opts("definition"))
+    vim.keymap.set("n", "<Leader>ai", vim.lsp.buf.implementation, buf_opts("implementation"))
+    vim.keymap.set("n", "gr", vim.lsp.buf.references, buf_opts("references"))
+    vim.keymap.set("n", "K", vim.lsp.buf.hover, buf_opts("hover"))
+    vim.keymap.set("n", "<C-k>", vim.lsp.buf.signature_help, buf_opts("signature help"))
+
+    -- Workspace
+    vim.keymap.set("n", "<Leader>awa", vim.lsp.buf.add_workspace_folder, buf_opts("add folder"))
+    vim.keymap.set("n", "<Leader>awr", vim.lsp.buf.remove_workspace_folder, buf_opts("remove folder"))
     vim.keymap.set("n", "<Leader>awl", function()
       print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-    end, opts)
-    vim.keymap.set("n", "<Leader>ar", vim.lsp.buf.rename, opts)
-    vim.keymap.set("n", "<Leader>aca", vim.lsp.buf.code_action, opts)
-    vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
-    vim.keymap.set("n", "<Leader>ae", vim.diagnostic.open_float, opts)
-    vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-    vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-    vim.keymap.set("n", "<Leader>aq", vim.diagnostic.setloclist, opts)
+    end, buf_opts("list folders"))
+
+    -- Refactoring
+    vim.keymap.set("n", "<Leader>ar", vim.lsp.buf.rename, buf_opts("rename"))
+    vim.keymap.set("n", "<Leader>aca", vim.lsp.buf.code_action, buf_opts("code action"))
+
+    -- Diagnostics
+    vim.keymap.set("n", "<Leader>ae", vim.diagnostic.open_float, buf_opts("show diagnostic"))
+    vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, buf_opts("prev diagnostic"))
+    vim.keymap.set("n", "]d", vim.diagnostic.goto_next, buf_opts("next diagnostic"))
+    vim.keymap.set("n", "<Leader>aq", vim.diagnostic.setloclist, buf_opts("diagnostics to loclist"))
+
+    -- Formatting
     vim.keymap.set("n", "<Leader>aff", function()
       vim.lsp.buf.format({ timeout_ms = 5000 })
-    end, opts)
+    end, buf_opts("format file"))
     vim.keymap.set("v", "<Leader>aff", function()
       vim.lsp.buf.format({
         timeout_ms = 5000,
@@ -92,7 +102,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
           ["end"] = vim.api.nvim_buf_get_mark(0, ">"),
         },
       })
-    end, opts)
+    end, buf_opts("format selection"))
 
     vim.diagnostic.config({
       virtual_text = {
