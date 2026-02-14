@@ -349,8 +349,7 @@ function create_links {
   ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux" || _fail_error "Failed to symlink ~/.tmux"
   ln -sf "$DOTS_DIR/tmux.conf" "$HOME/.tmux.conf" || _fail_error "Failed to symlink ~/.tmux.conf"
 
-  # input also refuses to use XDG
-  ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR" || _fail_error "Failed to symlink input config dir"
+  # inputrc refuses to use XDG
   ln -sf "$DOTS_DIR/inputrc" "$HOME/.inputrc" || _fail_error "Failed to symlink ~/.inputrc"
 
   # ollama also refuses to use XDG
