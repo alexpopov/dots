@@ -9,7 +9,7 @@ IGNOREEOF=10
 
 # Set up personal aliases, functions, etc.  See https://fburl.com/bash.
 alias notify='echo SEND_TERMINAL_NOTIFICATION'
-alias vimdiff='/home/alexpopov/bin/vim -d'
+alias vimdiff='nvim -d'
 # Add colors to `ls`
 alias ls="ls -G --color=always"
 alias lg=lazygit
