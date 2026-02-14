@@ -95,6 +95,11 @@ local group_colors = {
   Search = {c.dark_grey, c.selection_blue, {underline = true}},
   Delimiter = {c.bright_purple, c.skip, {bold = true}},
 
+  -- Floating windows (telescope, hover docs, etc.)
+  NormalFloat = {c.black, c.light_grey},
+  FloatBorder = {{cterm = 241, gui = "#606060"}, c.light_grey},
+  FloatTitle = {c.xcode_pink, c.light_grey, {bold = true}},
+
   -- For My Stuff
   AiRecommendation = {c.skip, c.selection_pink},
 }
