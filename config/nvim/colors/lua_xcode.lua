@@ -71,9 +71,11 @@ local group_colors = {
   Normal = {c.black, c.white},
   NonText = {c.orange, c.white},
   LineNr = {{cterm = 239, gui = "#4e4e4e"}, c.unset}, -- attractive grey
+  CursorLineNr = {c.black, c.unset, {bold = true}}, -- current line number stands out
   StatusLine = {c.status_line_grey, {cterm = 238, gui = "#444444"}},
   StatusLineNC = {{cterm = 241, gui = "#606060"}, c.status_line_grey}, -- Non-current window status line. It's a dimmer grey
   VertSplit = {c.white, c.white},
+  WinSeparator = {{cterm = 253, gui = "#dadada"}, c.white}, -- modern nvim replacement for VertSplit
   Folded = {c.middle_grey, c.text_black},
   FoldColumn = {c.unset, c.unset},
   Visual = {c.skip, c.selection_blue},
