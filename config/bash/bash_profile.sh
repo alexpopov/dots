@@ -11,7 +11,11 @@ IGNOREEOF=10
 alias notify='echo SEND_TERMINAL_NOTIFICATION'
 alias vimdiff='nvim -d'
 # Add colors to `ls`
-alias ls="ls -G --color=always"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  alias ls="ls -G"
+else
+  alias ls="ls --color=always"
+fi
 alias lg=lazygit
 
 
