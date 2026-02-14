@@ -13,7 +13,7 @@ local c = {
   light_grey = {cterm = 255, gui = "#eeeeee"},
   middle_grey = {cterm = 253, gui = "#dadada"},
   dark_grey = {cterm = 236, gui = "#303030"},
-  status_line_grey = {fg = 249, gui = "#b2b2b2"},
+  status_line_grey = {cterm = 249, gui = "#b2b2b2"},
   unset = {cterm = "NONE", gui = "NONE"},
   skip = {cterm = nil, gui = nil},
   highlight_yellow = {cterm = 226, gui="#ffff00"},
