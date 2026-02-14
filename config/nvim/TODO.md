@@ -32,14 +32,13 @@
    - Standardized on `kyazdani42/nvim-web-devicons`
    - Changed oil.nvim from mini.icons to nvim-web-devicons
 
-8. [ ] **`<C-k>` mapping conflict** - `lsp.lua:63` vs `mappings.lua:21`
+8. [ ] **`<C-k>` mapping conflict** - `lsp.lua` vs `mappings.lua`
    - LSP maps `<C-k>` to `signature_help`
-   - Mappings maps `<C-K>` to window movement
-   - Potential conflict depending on terminal
+   - Mappings maps `<C-K>` to window movement (keeping for now)
+   - TODO in mappings.lua to revisit
 
-9. [ ] **tree-climber mappings reference non-existent plugin** - `mappings.lua:107-110`
-   - `tree-climber` is not in the plugin list
-   - Either add the plugin or remove the mappings
+9. [x] **tree-climber mappings reference non-existent plugin**
+   - Dead reference, never used
 
 10. [ ] **Old `nvim_set_keymap` API** - `mappings.lua:16-22`
     - Prefer `vim.keymap.set()` which is more ergonomic
@@ -60,8 +59,8 @@
     - `nvim_lua` and `path` sources listed
     - `cmp-nvim-lua` and `cmp-path` exist as plugins but not in nvim-cmp's dependencies list
 
-15. [ ] **`cmp-cmdline` never configured** - `monolithic.lua:116`
-    - Plugin is declared but `cmp.setup.cmdline()` is never called
+15. [x] **`cmp-cmdline` never configured**
+    - Removed, was dead code
 
 16. [ ] **Yanky `<c-p>` potential conflict** - `monolithic.lua:331`
     - Yanky maps `<C-p>` in normal mode
@@ -94,12 +93,8 @@
 22. [x] **Install `fd` for Telescope**
     - Added to bootstrap.sh late packages with custom Ubuntu installer
 
-23. [ ] **debugprint.nvim uses deprecated `vim.validate` API**
-    - Will break in Neovim 1.0
-    - Check for plugin updates or report issue upstream
-    - Consider removing if not actively used
+23. [x] **debugprint.nvim uses deprecated `vim.validate` API**
+    - Removed the plugin entirely (not used)
 
-24. [ ] **Keybinding conflict: `<Leader>r` overlaps with `<Leader>rwp`**
-    - `<Leader>r` clears search highlighting (init.vim:65)
-    - `<Leader>rwp` is from debugprint.nvim
-    - Remap one of them to avoid delay
+24. [x] **Keybinding conflict: `<Leader>r` overlaps with `<Leader>rwp`**
+    - Resolved by removing debugprint.nvim
