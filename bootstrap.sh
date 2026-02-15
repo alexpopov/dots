@@ -285,6 +285,11 @@ function _install_package_avahi-daemon {
   sudo systemctl enable --now avahi-daemon
 }
 
+function _install_package_uv {
+  _log_info "Installing ${color_blue}uv${color_reset} via official installer"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+}
+
 function setup_neovim_venv {
   local nvim_venv_path="$HOME/.local/virtualenvs/nvim"
   local python_bin="python3"
@@ -376,6 +381,11 @@ function create_links {
 
   ln -sf "$DOTS_CONFIG_DIR/skhd/skhdrc" "$HOME/.skhdrc" || _fail_error "Failed to symlink skhdrc"
   ln -sf "$DOTS_CONFIG_DIR/yabai/yabairc" "$HOME/.yabairc" || _fail_error "Failed to symlink yabairc"
+
+  if is_mac; then
+    mkdir -p "$HOME/.docker"
+    ln -sf "$DOTS_CONFIG_DIR/docker/config_macos.json" "$HOME/.docker/config.json" || _fail_error "Failed to symlink docker config"
+  fi
 }
 
 function ensure_shell_sources_dots {
@@ -446,11 +456,15 @@ Host github.com
   _log_warn "${color_blue}git remote set-url origin git@github.com:alexpopov/dots.git"
 }
 
-# print packages as words 
+# print packages as words
 function platform_specific_packages {
   local packages=()
-  if is_fedora; then 
-    if ! is_work_computer; then 
+  if is_mac; then
+    if ! is_work_computer; then
+      packages+=("docker" "docker-buildx")
+    fi
+  elif is_fedora; then
+    if ! is_work_computer; then
       # for bonjour-style local mDNS resolution
       packages+="avahi-daemon"
 
@@ -491,7 +505,7 @@ mkdir -p $HOME/{.local/{bin,share},.config/}
 
 # The most important packages to install for setup
 # NOTE: write the binary name, not the package name
-_BOOTSTRAP_PACKAGES_TO_INSTALL="vim jq nvim git et tmux fzf ag python3"
+_BOOTSTRAP_PACKAGES_TO_INSTALL="vim jq nvim git et tmux fzf ag python3 uv"
 
 for package in $_BOOTSTRAP_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
