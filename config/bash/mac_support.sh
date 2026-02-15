@@ -1,5 +1,9 @@
 # Don't forget to export PATH at the end
 
+# Add Homebrew to PATH (Apple Silicon location, Intel uses /usr/local)
+PATH="/opt/homebrew/bin:$PATH"
+PATH="/opt/homebrew/sbin:$PATH"
+
 function jk_mac_fix_brew {
     echo "running sudo chown..."
     sudo chown -R $(whoami) /usr/local/bin /usr/local/lib /usr/local/sbin

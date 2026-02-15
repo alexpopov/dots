@@ -44,8 +44,6 @@ PROMPT_COMMAND=set_ps1
 
 PATH="$HOME/.local/bin:$PATH"
 PATH="$PATH:$HOME/.local/bin/scripts"
-PATH="$PATH:/opt/homebrew/opt/bin/"
-PATH="$PATH:/opt/homebrew/bin/"
 export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
 export NVIM_PYTHON="$HOME/.local/virtualenvs/nvim/bin/python3"
