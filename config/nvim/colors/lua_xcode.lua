@@ -193,6 +193,9 @@ local links = {
 
   EndOfBuffer = "LineNr",
 
+  -- Telescope
+  TelescopePromptCounter = "LineNr",
+
   -- Lua-specific (table constructors {} should be normal, not purple)
   ["@constructor.lua"] = "Normal",
 
