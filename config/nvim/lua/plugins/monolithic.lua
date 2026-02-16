@@ -33,45 +33,16 @@ local specs = {
   },
 
   {
-    "honza/vim-snippets",
-    lazy = true,
-  },
-  {
-    "L3MON4D3/LuaSnip",
-    lazy = true,
-    version = "v2.*",
-    enabled = true,
-    build = "make install_jsregexp",
-    config = function()
-      local ls = require("luasnip")
-      ls.config.set_config({
-        region_check_events = "InsertEnter",
-        delete_check_events = "TextChanged,InsertLeave",
-      })
-      require("luasnip.loaders.from_snipmate").lazy_load({ paths = "./snippets" })
-      require("luasnip.loaders.from_snipmate").load({ paths = "./private/snippets" })
-      require("luasnip.loaders.from_lua").load({ paths = "./snippets" })
-    end,
-  },
-
-  {
     "hrsh7th/nvim-cmp",
     dependencies = {
       "hrsh7th/cmp-nvim-lsp",
       "hrsh7th/cmp-buffer",
       "hrsh7th/cmp-path",
       "hrsh7th/cmp-nvim-lua",
-      "L3MON4D3/LuaSnip",
     },
     config = function()
-      local luasnip = require("luasnip")
       local cmp = require("cmp")
       cmp.setup({
-        snippet = {
-          expand = function(args)
-            luasnip.lsp_expand(args.body)
-          end,
-        },
         mapping = {
           ["<C-p>"] = cmp.mapping.select_prev_item(),
           ["<C-n>"] = cmp.mapping.select_next_item(),
@@ -89,8 +60,6 @@ local specs = {
           ["<Tab>"] = function(fallback)
             if cmp.visible() then
               cmp.confirm()
-            elseif luasnip.expand_or_jumpable() then
-              luasnip.expand_or_jump()
             else
               fallback()
             end
@@ -98,15 +67,12 @@ local specs = {
           ["<S-Tab>"] = function(fallback)
             if cmp.visible() then
               cmp.select_prev_item()
-            elseif luasnip.jumpable(-1) then
-              luasnip.jump(-1)
             else
               fallback()
             end
           end,
         },
         sources = {
-          { name = "luasnip", priority = 8 },
           { name = "nvim_lsp" },
           { name = "nvim_lua" },
           { name = "path" },
@@ -119,11 +85,6 @@ local specs = {
     end,
   },
 
-
-  {
-    "saadparwaiz1/cmp_luasnip",
-    dependencies = "nvim-cmp",
-  },
 
   {
     'windwp/nvim-autopairs',
