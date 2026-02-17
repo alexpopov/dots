@@ -3,7 +3,8 @@
 #
 # Usage:
 #   tmux-broadcast [description]   - start piping this pane (re-run to update description)
-#   tmux-watch                     - pick a broadcast to tail with a sticky header
+#   tmux-stop-broadcast            - stop piping and clean up
+#   tmux-watch                     - pick a broadcast to tail with a sticky footer
 
 TMUX_OBSERVATORY_DIR="$HOME/.local/share/tmux/observatory"
 
@@ -36,6 +37,24 @@ function tmux-broadcast {
   echo "Broadcasting to observatory: ${win_name}-${pane_idx}.pipe"
 }
 
+function tmux-stop-broadcast {
+  if [[ -z "$TMUX" ]]; then
+    echo "Not in a tmux session" >&2
+    return 1
+  fi
+  local win_name pane_idx pipe_file
+  win_name=$(tmux display-message -p '#{window_name}')
+  pane_idx=$(tmux display-message -p '#{pane_index}')
+  pipe_file="$TMUX_OBSERVATORY_DIR/${win_name}-${pane_idx}.pipe"
+  if [[ ! -f "$pipe_file" ]]; then
+    echo "This pane is not broadcasting" >&2
+    return 1
+  fi
+  tmux pipe-pane
+  rm -f "$pipe_file" "${pipe_file%.pipe}.desc"
+  echo "Stopped broadcasting: ${win_name}-${pane_idx}"
+}
+
 function tmux-watch {
   local pipe_file
   local files=()
@@ -47,30 +66,38 @@ function tmux-watch {
     return 1
   fi
   pipe_file=$(printf '%s\n' "${files[@]}" | xargs -n1 basename | \
-    fzf --preview "tail -5 '$TMUX_OBSERVATORY_DIR/{}'")
-  [[ -z "$pipe_file" ]] && return 0
+    fzf --preview "f='$TMUX_OBSERVATORY_DIR/{}'; d=\"\${f%.pipe}.desc\"; [ -f \"\$d\" ] && echo \"[\$(cat \"\$d\")]\" && echo; tail -5 \"\$f\"")  [[ -z "$pipe_file" ]] && return 0
   local full_path="$TMUX_OBSERVATORY_DIR/$pipe_file"
   local label="${pipe_file%.pipe}"
   local desc_file="$TMUX_OBSERVATORY_DIR/${label}.desc"
   [[ -f "$desc_file" ]] && label="$label — $(cat "$desc_file")"
-  # Draw a sticky footer and tail the pipe above it
-  local lines cols last_line
+  # Helper to draw the footer and set scroll region
+  function _observatory_draw_footer {
+    local lines cols last_line
+    lines=$(tput lines)
+    cols=$(tput cols)
+    last_line=$((lines - 1))
+    tput csr 0 $((lines - 1)) 2>/dev/null  # reset scroll region first
+    tput cup "$last_line" 0
+    tput rev
+    printf " %-$((cols - 1))s" "$label"
+    tput sgr0
+    tput csr 0 $((last_line - 1)) 2>/dev/null
+    tput cup $((last_line - 1)) 0
+  }
   tput smcup 2>/dev/null
-  lines=$(tput lines)
-  cols=$(tput cols)
-  last_line=$((lines - 1))
-  tput cup "$last_line" 0
-  tput rev
-  printf " %-$((cols - 1))s" "$label"
-  tput sgr0
-  tput csr 0 $((last_line - 1)) 2>/dev/null
-  tput cup 0 0
-  trap '' INT
+  _observatory_draw_footer
   tail -f "$full_path" &
   local tail_pid=$!
-  trap "kill $tail_pid 2>/dev/null; wait $tail_pid 2>/dev/null" INT
+  local _observatory_stopped=0
+  trap "_observatory_draw_footer" WINCH
+  trap "_observatory_stopped=1; kill $tail_pid 2>/dev/null" INT
+  while [[ $_observatory_stopped -eq 0 ]] && kill -0 $tail_pid 2>/dev/null; do
+    wait $tail_pid 2>/dev/null
+  done
   wait $tail_pid 2>/dev/null
-  trap - INT
+  trap - INT WINCH
+  unset -f _observatory_draw_footer
   tput rmcup 2>/dev/null
   tput cnorm 2>/dev/null
   read -rp "Delete ${pipe_file}? [y/N] " answer
