@@ -142,5 +142,8 @@ fi
 # Mercurial support (only if hg is installed)
 command -v hg >/dev/null 2>&1 && [ -f "$BASH_CONFIG_DIR/hg_support.sh" ] && . "$BASH_CONFIG_DIR/hg_support.sh"
 
+# Tmux pane observatory
+[ -f "$BASH_CONFIG_DIR/tmux_observatory.sh" ] && . "$BASH_CONFIG_DIR/tmux_observatory.sh"
+
 # Sanity check (always last)
 [ -f "$BASH_CONFIG_DIR/sanity_check.sh" ] && . "$BASH_CONFIG_DIR/sanity_check.sh"
