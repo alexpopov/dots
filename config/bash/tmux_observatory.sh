@@ -4,7 +4,7 @@
 # Usage:
 #   tmux-broadcast [description]   - start piping this pane (re-run to update description)
 #   tmux-stop-broadcast            - stop piping and clean up
-#   tmux-watch                     - pick a broadcast to tail with a sticky footer
+#   tmux-watch                     - pick a broadcast to tail (label in tmux pane border)
 
 TMUX_OBSERVATORY_DIR="$HOME/.local/share/tmux/observatory"
 
@@ -66,39 +66,19 @@ function tmux-watch {
     return 1
   fi
   pipe_file=$(printf '%s\n' "${files[@]}" | xargs -n1 basename | \
-    fzf --preview "f='$TMUX_OBSERVATORY_DIR/{}'; d=\"\${f%.pipe}.desc\"; [ -f \"\$d\" ] && echo \"[\$(cat \"\$d\")]\" && echo; tail -5 \"\$f\"")  [[ -z "$pipe_file" ]] && return 0
+    fzf --preview "f='$TMUX_OBSERVATORY_DIR/{}'; d=\"\${f%.pipe}.desc\"; [ -f \"\$d\" ] && echo \"[\$(cat \"\$d\")]\" && echo; tail -5 \"\$f\"")
+  [[ -z "$pipe_file" ]] && return 0
   local full_path="$TMUX_OBSERVATORY_DIR/$pipe_file"
   local label="${pipe_file%.pipe}"
   local desc_file="$TMUX_OBSERVATORY_DIR/${label}.desc"
   [[ -f "$desc_file" ]] && label="$label — $(cat "$desc_file")"
-  # Helper to draw the footer and set scroll region
-  function _observatory_draw_footer {
-    local lines cols last_line
-    lines=$(tput lines)
-    cols=$(tput cols)
-    last_line=$((lines - 1))
-    tput csr 0 $((lines - 1)) 2>/dev/null  # reset scroll region first
-    tput cup "$last_line" 0
-    tput rev
-    printf " %-$((cols - 1))s" "$label"
-    tput sgr0
-    tput csr 0 $((last_line - 1)) 2>/dev/null
-    tput cup $((last_line - 1)) 0
-  }
-  tput smcup 2>/dev/null
-  _observatory_draw_footer
-  tail -f "$full_path" &
-  local tail_pid=$!
-  local _observatory_stopped=0
-  trap "_observatory_draw_footer" WINCH
-  trap "_observatory_stopped=1; kill $tail_pid 2>/dev/null" INT
-  while [[ $_observatory_stopped -eq 0 ]] && kill -0 $tail_pid 2>/dev/null; do
-    wait $tail_pid 2>/dev/null
-  done
-  wait $tail_pid 2>/dev/null
-  trap - INT WINCH
-  unset -f _observatory_draw_footer
-  tput rmcup 2>/dev/null
+  # Set tmux pane border to show the label
+  if [[ -n "$TMUX" ]]; then
+    tmux set-option -w pane-border-status bottom 2>/dev/null
+    tmux select-pane -T "$label"
+    tmux set-option -w pane-border-format " #{pane_title} " 2>/dev/null
+  fi
+  tail -f "$full_path" | sed -u 's/\x1b\][0-2];[^\x07]*\x07//g; s/\x1b\][0-2];[^\x1b]*\x1b\\//g'
   tput cnorm 2>/dev/null
   read -rp "Delete ${pipe_file}? [y/N] " answer
   if [[ "$answer" =~ ^[Yy]$ ]]; then
