@@ -1,0 +1,257 @@
+#!/bin/bash
+# browser-triage: Interact with Google Chrome tabs via AppleScript.
+#
+# Internally uses a tmux session to run osascript outside of any sandbox.
+# Only accepts fixed subcommands mapped to specific AppleScript invocations.
+# No arbitrary text is ever passed to the tmux session.
+#
+# Setup (once): browser-triage setup
+# Usage:
+#   browser-triage list                List all tabs as JSON
+#   browser-triage close-url PATTERN   Close tabs whose URL contains PATTERN
+#   browser-triage close-tab W T       Close tab T in window W (1-indexed)
+#   browser-triage close-tabs W:T ...  Close multiple tabs
+#   browser-triage focus W T           Focus tab T in window W
+
+set -euo pipefail
+
+SESSION="chrome-bridge"
+RESULT_FILE="/tmp/browser-triage-result.$$"
+DONE_FILE="/tmp/browser-triage-done.$$"
+TIMEOUT=15
+
+# --- Helpers ---
+
+ensure_session() {
+    if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+        echo "Creating chrome-bridge tmux session..." >&2
+        tmux new-session -d -s "$SESSION" -x 200 -y 50
+        sleep 0.5
+    fi
+}
+
+# Run a pre-built osascript file in the tmux session and return output.
+# $1 = path to an .applescript file under the scripts dir
+run_applescript() {
+    local script_file="$1"
+    rm -f "$RESULT_FILE" "$DONE_FILE"
+    tmux send-keys -t "$SESSION" \
+        "osascript '$script_file' > '$RESULT_FILE' 2>&1; echo \$? > '$DONE_FILE'" Enter
+
+    local elapsed=0
+    while [ ! -f "$DONE_FILE" ]; do
+        sleep 0.3
+        elapsed=$((elapsed + 1))
+        if [ "$elapsed" -ge "$((TIMEOUT * 3))" ]; then
+            echo '{"error": "timeout waiting for osascript"}' >&2
+            rm -f "$RESULT_FILE" "$DONE_FILE"
+            return 1
+        fi
+    done
+
+    local exit_code
+    exit_code=$(cat "$DONE_FILE")
+    local result=""
+    if [ -f "$RESULT_FILE" ]; then
+        result=$(cat "$RESULT_FILE")
+    fi
+    rm -f "$RESULT_FILE" "$DONE_FILE"
+
+    if [ "$exit_code" != "0" ]; then
+        echo "osascript error: $result" >&2
+        return 1
+    fi
+    echo "$result"
+}
+
+# Run an osascript with parameters baked into a temp .applescript file.
+# This avoids passing any user input through tmux send-keys.
+# $1 = applescript content
+run_applescript_inline() {
+    local tmpfile
+    tmpfile=$(mktemp /tmp/browser-triage-cmd.XXXXXX.applescript)
+    echo "$1" > "$tmpfile"
+    chmod 644 "$tmpfile"
+    run_applescript "$tmpfile"
+    local rc=$?
+    rm -f "$tmpfile"
+    return $rc
+}
+
+# Validate that a value is a positive integer
+validate_int() {
+    if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Error: expected integer, got '$1'" >&2
+        exit 1
+    fi
+}
+
+# Validate a URL pattern: alphanumeric, dots, dashes, slashes, colons only
+validate_url_pattern() {
+    if ! [[ "$1" =~ ^[a-zA-Z0-9._/:~@%+=-]+$ ]]; then
+        echo "Error: invalid URL pattern '$1'" >&2
+        exit 1
+    fi
+}
+
+# --- AppleScript generators (hardcoded templates with validated params) ---
+
+applescript_list() {
+    cat <<'EOF'
+set output to "["
+set isFirst to true
+tell application "Google Chrome"
+    set winCount to count of windows
+    repeat with w from 1 to winCount
+        set theWindow to window w
+        set winMode to mode of theWindow
+        set tabCount to count of tabs of theWindow
+        repeat with t from 1 to tabCount
+            set theTab to tab t of theWindow
+            set tabTitle to title of theTab
+            set tabURL to URL of theTab
+            -- escape backslashes then quotes for JSON
+            set AppleScript's text item delimiters to "\\"
+            set parts to text items of tabTitle
+            set AppleScript's text item delimiters to "\\\\"
+            set tabTitle to parts as text
+            set AppleScript's text item delimiters to "\""
+            set parts to text items of tabTitle
+            set AppleScript's text item delimiters to "\\\""
+            set tabTitle to parts as text
+            set AppleScript's text item delimiters to ""
+            if isFirst then
+                set isFirst to false
+            else
+                set output to output & ","
+            end if
+            set output to output & "{\"window\":" & w & ",\"tab\":" & t & ",\"mode\":\"" & winMode & "\",\"title\":\"" & tabTitle & "\",\"url\":\"" & tabURL & "\"}"
+        end repeat
+    end repeat
+end tell
+return output & "]"
+EOF
+}
+
+applescript_close_url() {
+    local pattern="$1"
+    cat <<EOF
+tell application "Google Chrome"
+    set closedCount to 0
+    repeat with w in windows
+        set tabList to tabs of w
+        repeat with i from (count of tabList) to 1 by -1
+            set t to item i of tabList
+            if URL of t contains "$pattern" then
+                close t
+                set closedCount to closedCount + 1
+            end if
+        end repeat
+    end repeat
+    return closedCount & " tab(s) closed"
+end tell
+EOF
+}
+
+applescript_close_tab() {
+    local win="$1" tab="$2"
+    cat <<EOF
+tell application "Google Chrome"
+    close tab $tab of window $win
+    return "closed $win:$tab"
+end tell
+EOF
+}
+
+applescript_focus() {
+    local win="$1" tab="$2"
+    cat <<EOF
+tell application "Google Chrome"
+    set active tab index of window $win to $tab
+    set index of window $win to 1
+    activate
+    return "focused $win:$tab"
+end tell
+EOF
+}
+
+# --- Main ---
+
+cmd="${1:-help}"
+shift || true
+
+ensure_session
+
+case "$cmd" in
+    list)
+        run_applescript_inline "$(applescript_list)"
+        ;;
+
+    close-url)
+        pattern="${1:?Usage: browser-triage close-url PATTERN}"
+        validate_url_pattern "$pattern"
+        run_applescript_inline "$(applescript_close_url "$pattern")"
+        ;;
+
+    close-tab)
+        win="${1:?Usage: browser-triage close-tab WINDOW TAB}"
+        tab="${2:?Usage: browser-triage close-tab WINDOW TAB}"
+        validate_int "$win"
+        validate_int "$tab"
+        run_applescript_inline "$(applescript_close_tab "$win" "$tab")"
+        ;;
+
+    close-tabs)
+        # Parse and validate all pairs first
+        pairs=()
+        for pair in "$@"; do
+            if ! [[ "$pair" =~ ^([0-9]+):([0-9]+)$ ]]; then
+                echo "Error: invalid pair '$pair', expected W:T" >&2
+                exit 1
+            fi
+            pairs+=("$pair")
+        done
+        # Sort by tab descending within each window so indices stay valid
+        sorted=$(printf '%s\n' "${pairs[@]}" | sort -t: -k1,1n -k2,2nr)
+        closed=0
+        for pair in $sorted; do
+            win="${pair%%:*}"
+            tab="${pair##*:}"
+            if run_applescript_inline "$(applescript_close_tab "$win" "$tab")" >/dev/null 2>&1; then
+                closed=$((closed + 1))
+            fi
+        done
+        echo "$closed tab(s) closed"
+        ;;
+
+    focus)
+        win="${1:?Usage: browser-triage focus WINDOW TAB}"
+        tab="${2:?Usage: browser-triage focus WINDOW TAB}"
+        validate_int "$win"
+        validate_int "$tab"
+        run_applescript_inline "$(applescript_focus "$win" "$tab")"
+        ;;
+
+    setup)
+        echo "Creating chrome-bridge tmux session..."
+        if tmux has-session -t "$SESSION" 2>/dev/null; then
+            echo "Session '$SESSION' already exists."
+        else
+            tmux new-session -d -s "$SESSION" -x 200 -y 50
+            echo "Session '$SESSION' created."
+        fi
+        echo "Ready. You can now use: browser-triage list"
+        ;;
+
+    help|*)
+        echo "Usage: browser-triage <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  setup             Create the background tmux session"
+        echo "  list              List all tabs as JSON"
+        echo "  close-url PATTERN Close tabs whose URL contains PATTERN"
+        echo "  close-tab W T     Close tab T in window W (1-indexed)"
+        echo "  close-tabs W:T... Close multiple tabs (e.g. 1:3 1:7 2:1)"
+        echo "  focus W T         Focus tab T in window W"
+        ;;
+esac
