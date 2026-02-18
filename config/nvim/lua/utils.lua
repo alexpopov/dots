@@ -52,4 +52,41 @@ function M.delete_hidden_buffers()
   vim.notify("Deleted " .. deleted .. " hidden buffers", vim.log.levels.INFO)
 end
 
+function M.add_to_para_inbox()
+  local inbox = vim.fn.expand("~/gdrive/00_inbox/")
+  local template_dir = vim.fn.stdpath("config") .. "/templates/"
+  local options = { "Meeting", "Note" }
+
+  vim.ui.select(options, {
+    prompt = "Add to PARA Inbox:",
+    format_item = function(item)
+      return "New " .. item
+    end,
+  }, function(choice)
+    if not choice then return end
+
+    vim.ui.input({ prompt = "Description (spaces ok): " }, function(desc)
+      if not desc or desc == "" then return end
+
+      local date_prefix = os.date("%Y_%m_%d")
+      local slug = desc:lower():gsub("%s+", "_"):gsub("[^%w_]", "")
+      local filename = date_prefix .. "_" .. slug .. ".md"
+
+      local subdir = (choice == "Meeting") and "meetings/" or "notes/"
+      local path = inbox .. subdir .. filename
+      local template = template_dir .. choice:lower() .. ".md"
+
+      vim.cmd("edit " .. vim.fn.fnameescape(path))
+
+      -- Pre-fill from template if the file is empty (new)
+      if vim.api.nvim_buf_line_count(0) <= 1 and vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == "" then
+        local lines = vim.fn.readfile(template)
+        if #lines > 0 then
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+        end
+      end
+    end)
+  end)
+end
+
 return M
