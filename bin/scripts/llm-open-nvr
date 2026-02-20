@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# llm-open-nvr: Open a file in the nvr instance for the current tmux window.
+# Designed for use by LLM agents (Claude Code, etc.) that run inside tmux
+# but need to open files in the user's neovim editor.
+#
+# Usage: llm-open-nvr [options] <file> [file2 ...]
+# Options:
+#   --tab       Open in a new tab (default)
+#   --split     Open in a horizontal split
+#   --vsplit    Open in a vertical split
+#   --diff      Open files in diff mode
+#   --send <keys>  Send keystrokes to neovim (e.g. --send ':w<CR>')
+#   --expr <expr>  Evaluate neovim expression and print result
+#   --line <n>     Jump to line number (e.g. --line 42 file.py)
+
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: llm-open-nvr [--tab|--split|--vsplit] <file> [file2 ...]" >&2
+    exit 1
+fi
+
+# Parse mode
+mode="--remote-tab"
+extra_args=()
+case "${1:-}" in
+    --tab)    mode="--remote-tab"; shift ;;
+    --split)  mode="-o"; shift ;;
+    --vsplit) mode="-O"; shift ;;
+    --diff)   mode="-d"; shift ;;
+    --send)
+        shift
+        if [[ $# -eq 0 ]]; then echo "Error: --send requires keys argument" >&2; exit 1; fi
+        keys="$1"; shift
+        window_name=$(tmux display-message -p '#W')
+        socket_path="$HOME/.local/state/nvr-$window_name"
+        if [[ ! -S "$socket_path" ]]; then
+            echo "Error: No nvr socket at $socket_path. Ask the user to run 'nvr' in the '$window_name' tmux window." >&2
+            exit 1
+        fi
+        exec nvr-classic --nostart --servername "$socket_path" --remote-send "$keys"
+        ;;
+    --expr)
+        shift
+        if [[ $# -eq 0 ]]; then echo "Error: --expr requires expression argument" >&2; exit 1; fi
+        expr="$1"; shift
+        window_name=$(tmux display-message -p '#W')
+        socket_path="$HOME/.local/state/nvr-$window_name"
+        if [[ ! -S "$socket_path" ]]; then
+            echo "Error: No nvr socket at $socket_path. Ask the user to run 'nvr' in the '$window_name' tmux window." >&2
+            exit 1
+        fi
+        exec nvr-classic --nostart --servername "$socket_path" --remote-expr "$expr"
+        ;;
+    --line)
+        shift
+        if [[ $# -lt 2 ]]; then echo "Error: --line requires <n> <file>" >&2; exit 1; fi
+        extra_args=("+$1"); shift
+        ;;
+esac
+
+if [[ $# -eq 0 ]]; then
+    echo "Error: No file specified" >&2
+    exit 1
+fi
+
+# Determine socket from tmux window name
+if [[ -z "${TMUX:-}" ]]; then
+    echo "Error: Not inside tmux" >&2
+    exit 1
+fi
+
+window_name=$(tmux display-message -p '#W')
+socket_path="$HOME/.local/state/nvr-$window_name"
+
+if [[ ! -S "$socket_path" ]]; then
+    echo "Error: No nvr socket at $socket_path. Ask the user to run 'nvr' in the '$window_name' tmux window." >&2
+    exit 1
+fi
+
+exec nvr-classic --nostart --servername "$socket_path" "$mode" "${extra_args[@]}" "$@"
