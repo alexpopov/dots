@@ -1,3 +1,9 @@
+-- Disable unused providers early (before any plugins load) to skip detection
+vim.g.loaded_node_provider = 0
+vim.g.loaded_perl_provider = 0
+vim.g.loaded_ruby_provider = 0
+vim.g.python3_host_prog = vim.fn.getenv("NVIM_PYTHON")
+
 -- Source private fb stuff if available
 local admin_scripts = vim.fn.getenv("ADMIN_SCRIPTS")
 if admin_scripts ~= vim.NIL then
@@ -9,12 +15,6 @@ end
 
 -- Load main Lua config
 require("lua_init")
-
--- Provider settings
-vim.g.python3_host_prog = vim.fn.getenv("NVIM_PYTHON")
-vim.g.loaded_node_provider = 0
-vim.g.loaded_perl_provider = 0
-vim.g.loaded_ruby_provider = 0
 
 -- Filetype detection for special files
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
