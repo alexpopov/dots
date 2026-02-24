@@ -19,6 +19,13 @@ return {
         ensure_installed = ensure_installed,
         auto_install = false,
       })
+
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'markdown',
+        callback = function(ev)
+          pcall(vim.treesitter.start, ev.buf)
+        end,
+      })
     end,
   },
   {"nvim-treesitter/nvim-treesitter-textobjects", lazy = true, dependencies = "nvim-treesitter/nvim-treesitter", },
