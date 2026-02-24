@@ -58,6 +58,11 @@ fi
 test -e "${HOME}/.iterm2_shell_integration.bash" && source "${HOME}/.iterm2_shell_integration.bash"
 
 
+# OSC52 clipboard (pbcopy shim for remote terminals)
+if ! command -v pbcopy >/dev/null 2>&1; then
+  pbcopy() { printf '\033]52;c;%s\a' "$(base64 < "${1:-/dev/stdin}")"; }
+fi
+
 # My Functions
 
 function agr {
