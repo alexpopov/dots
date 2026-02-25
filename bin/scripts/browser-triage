@@ -1,5 +1,5 @@
 #!/bin/bash
-# browser-triage: Interact with Google Chrome tabs via AppleScript.
+# browser-triage: Interact with browser tabs (Chrome or Safari) via AppleScript.
 #
 # Internally uses a tmux session to run osascript outside of any sandbox.
 # Only accepts fixed subcommands mapped to specific AppleScript invocations.
@@ -7,24 +7,49 @@
 #
 # Setup (once): browser-triage setup
 # Usage:
-#   browser-triage list                List all tabs as JSON
-#   browser-triage close-url PATTERN   Close tabs whose URL contains PATTERN
-#   browser-triage close-tab W T       Close tab T in window W (1-indexed)
-#   browser-triage close-tabs W:T ...  Close multiple tabs
-#   browser-triage focus W T           Focus tab T in window W
+#   browser-triage [-b chrome|safari] list                List all tabs as JSON
+#   browser-triage [-b chrome|safari] close-url PATTERN   Close tabs whose URL contains PATTERN
+#   browser-triage [-b chrome|safari] close-tab W T       Close tab T in window W (1-indexed)
+#   browser-triage [-b chrome|safari] close-tabs W:T ...  Close multiple tabs
+#   browser-triage [-b chrome|safari] focus W T           Focus tab T in window W
 
 set -euo pipefail
 
-SESSION="chrome-bridge"
+BROWSER="chrome"
+SESSION="browser-bridge"
 RESULT_FILE="/tmp/browser-triage-result.$$"
 DONE_FILE="/tmp/browser-triage-done.$$"
 TIMEOUT=15
+
+# --- Parse options ---
+
+while [[ "${1:-}" == -* ]]; do
+    case "$1" in
+        -b|--browser)
+            BROWSER="${2:?Usage: browser-triage -b chrome|safari <command>}"
+            shift 2
+            ;;
+        *)
+            echo "Error: unknown option '$1'" >&2
+            exit 1
+            ;;
+    esac
+done
+
+case "$BROWSER" in
+    chrome)  APP_NAME="Google Chrome" ;;
+    safari)  APP_NAME="Safari" ;;
+    *)
+        echo "Error: unsupported browser '$BROWSER' (use chrome or safari)" >&2
+        exit 1
+        ;;
+esac
 
 # --- Helpers ---
 
 ensure_session() {
     if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "Creating chrome-bridge tmux session..." >&2
+        echo "Creating $SESSION tmux session..." >&2
         tmux new-session -d -s "$SESSION" -x 200 -y 50
         sleep 0.5
     fi
@@ -97,7 +122,8 @@ validate_url_pattern() {
 # --- AppleScript generators (hardcoded templates with validated params) ---
 
 applescript_list() {
-    cat <<'EOF'
+    if [[ "$BROWSER" == "chrome" ]]; then
+        cat <<'EOF'
 set output to "["
 set isFirst to true
 tell application "Google Chrome"
@@ -131,12 +157,47 @@ tell application "Google Chrome"
 end tell
 return output & "]"
 EOF
+    else
+        cat <<'EOF'
+set output to "["
+set isFirst to true
+tell application "Safari"
+    set winCount to count of windows
+    repeat with w from 1 to winCount
+        set theWindow to window w
+        set tabCount to count of tabs of theWindow
+        repeat with t from 1 to tabCount
+            set theTab to tab t of theWindow
+            set tabTitle to name of theTab
+            set tabURL to URL of theTab
+            -- escape backslashes then quotes for JSON
+            set AppleScript's text item delimiters to "\\"
+            set parts to text items of tabTitle
+            set AppleScript's text item delimiters to "\\\\"
+            set tabTitle to parts as text
+            set AppleScript's text item delimiters to "\""
+            set parts to text items of tabTitle
+            set AppleScript's text item delimiters to "\\\""
+            set tabTitle to parts as text
+            set AppleScript's text item delimiters to ""
+            if isFirst then
+                set isFirst to false
+            else
+                set output to output & ","
+            end if
+            set output to output & "{\"window\":" & w & ",\"tab\":" & t & ",\"title\":\"" & tabTitle & "\",\"url\":\"" & tabURL & "\"}"
+        end repeat
+    end repeat
+end tell
+return output & "]"
+EOF
+    fi
 }
 
 applescript_close_url() {
     local pattern="$1"
     cat <<EOF
-tell application "Google Chrome"
+tell application "$APP_NAME"
     set closedCount to 0
     repeat with w in windows
         set tabList to tabs of w
@@ -156,7 +217,7 @@ EOF
 applescript_close_tab() {
     local win="$1" tab="$2"
     cat <<EOF
-tell application "Google Chrome"
+tell application "$APP_NAME"
     close tab $tab of window $win
     return "closed $win:$tab"
 end tell
@@ -165,9 +226,14 @@ EOF
 
 applescript_focus() {
     local win="$1" tab="$2"
+    if [[ "$BROWSER" == "chrome" ]]; then
+        local focus_cmd="set active tab index of window $win to $tab"
+    else
+        local focus_cmd="set current tab of window $win to tab $tab of window $win"
+    fi
     cat <<EOF
-tell application "Google Chrome"
-    set active tab index of window $win to $tab
+tell application "$APP_NAME"
+    $focus_cmd
     set index of window $win to 1
     activate
     return "focused $win:$tab"
@@ -233,7 +299,7 @@ case "$cmd" in
         ;;
 
     setup)
-        echo "Creating chrome-bridge tmux session..."
+        echo "Creating $SESSION tmux session..."
         if tmux has-session -t "$SESSION" 2>/dev/null; then
             echo "Session '$SESSION' already exists."
         else
@@ -244,7 +310,10 @@ case "$cmd" in
         ;;
 
     help|*)
-        echo "Usage: browser-triage <command> [args]"
+        echo "Usage: browser-triage [-b chrome|safari] <command> [args]"
+        echo ""
+        echo "Options:"
+        echo "  -b, --browser     Browser to target (chrome or safari, default: chrome)"
         echo ""
         echo "Commands:"
         echo "  setup             Create the background tmux session"
