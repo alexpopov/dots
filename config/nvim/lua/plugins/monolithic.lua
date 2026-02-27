@@ -286,7 +286,24 @@ local specs = {
       opts = {},
       dependencies = { "kyazdani42/nvim-web-devicons" },
       lazy = false,
-  }
+  },
+
+  {
+    'MeanderingProgrammer/render-markdown.nvim',
+    dependencies = { 'nvim-treesitter/nvim-treesitter', 'echasnovski/mini.nvim' },
+    ---@module 'render-markdown'
+    ---@type render.md.UserConfig
+    opts = {
+      code = {
+        conceal_delimiters = false,
+        border = 'none',
+        language = false,
+      },
+      bullet = {
+        icons = { '•', '◦', '•', '◦' },
+      },
+    },
+  },
 
 }
 

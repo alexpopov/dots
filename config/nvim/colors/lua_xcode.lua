@@ -109,6 +109,22 @@ local group_colors = {
   DiffChange = {c.skip, {cterm = 189, gui = "#d7d7ff"}},
   DiffText = {c.skip, {cterm = 229, gui = "#ffffaf"}, {bold = true}},
 
+  -- render-markdown.nvim
+  RenderMarkdownH1 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH2 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH3 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH4 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH5 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH6 = {c.black, c.skip, {bold = true}},
+  RenderMarkdownH1Bg = {c.skip, {cterm = 225, gui = "#f4f1f9"}, {bold = true}},   -- Soft Lavender
+  RenderMarkdownH2Bg = {c.skip, {cterm = 189, gui = "#eef0ff"}, {bold = true}},   -- Pale Ice Blue
+  RenderMarkdownH3Bg = {c.skip, {cterm = 224, gui = "#fdf2f7"}, {bold = true}},   -- Shell Pink
+  RenderMarkdownH4Bg = {c.skip, {cterm = 194, gui = "#f1f8f1"}, {bold = true}},   -- Mint Tint
+  RenderMarkdownH5Bg = {c.skip, {cterm = 195, gui = "#f0f7f8"}, {bold = true}},   -- Misty Cyan
+  RenderMarkdownH6Bg = {c.skip, {cterm = 230, gui = "#faf8f2"}, {bold = true}},   -- Warm Parchment
+  RenderMarkdownCode = {c.skip, {cterm = 231, gui = "#f8f8f8"}},
+  RenderMarkdownCodeInline = {c.skip, {cterm = 231, gui = "#f8f8f8"}},
+
   -- For My Stuff
   AiRecommendation = {c.skip, c.selection_pink},
 }
