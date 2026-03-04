@@ -100,6 +100,28 @@ function kobo_sync_to_device {
     # --exclude='*.pdf' \
 }
 
+function calibre_export_select {
+  local calibredb="/Applications/calibre.app/Contents/MacOS/calibredb"
+  local dest="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Books"
+  local selected
+  selected=$("$calibredb" list --fields title,authors --for-machine | python3 -c "
+import json, sys
+books = json.load(sys.stdin)
+for b in sorted(books, key=lambda x: x.get('authors','')):
+    print(f\"{b['id']}\t{b['authors']} - {b['title']}\")
+" | fzf --multi --with-nth=2.. --delimiter='\t' --prompt='Select books> ' | cut -f1 | tr '\n' ',' | sed 's/,$//')
+  if [[ -z "$selected" ]]; then
+    echo "No books selected"
+    return 1
+  fi
+  echo "Exporting IDs: $selected"
+  "$calibredb" export "$selected" \
+    --to-dir "$dest" \
+    --formats epub \
+    --dont-save-extra-files \
+    --progress
+}
+
 function calibre_export_to_icloud {
   local calibredb="/Applications/calibre.app/Contents/MacOS/calibredb"
   local dest="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Books"
