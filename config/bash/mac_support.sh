@@ -100,6 +100,20 @@ function kobo_sync_to_device {
     # --exclude='*.pdf' \
 }
 
+function calibre_export_to_icloud {
+  local calibredb="/Applications/calibre.app/Contents/MacOS/calibredb"
+  local dest="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Books"
+  "$calibredb" export --all \
+    --to-dir "$dest" \
+    --formats epub \
+    --dont-save-extra-files \
+    --progress
+}
+
 function kobo_backup_to_mac {
-  rsync -av --progress /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
+  rsync -av --progress \
+    --exclude='.Trashes' \
+    --exclude='.Spotlight-V100' \
+    --exclude='.fseventsd' \
+    /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
 }
