@@ -127,6 +127,13 @@ local group_colors = {
 
   -- For My Stuff
   AiRecommendation = {c.skip, c.selection_pink},
+
+  -- task-oil GSD view
+  TaskOilGSDTheme = {c.xcode_purple, {cterm = 225, gui = "#f4f1f9"}, {bold = true}},
+  TaskOilGSDThemeBorder = {c.xcode_grey, c.skip},
+  TaskOilGSDProject = {c.xcode_blue, {cterm = 189, gui = "#eef0ff"}, {bold = true}},
+  TaskOilGSDSection = {c.xcode_brown, c.skip, {bold = true}},
+  TaskOilGSDFloating = {c.xcode_brown, {cterm = 224, gui = "#fdf2f7"}, {italic = true}},
 }
 
 local links = {
