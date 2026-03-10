@@ -33,7 +33,7 @@ yabai_utils.sh style condensed
 
 # Permenantly off list:
 yabai -m rule --add label="Safari" app="^Safari$" title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
-yabai -m rule --add label="Finder Settings" app="^Finder$" title="(Co(py|nnect)|Move|Info|Pref)" manage=off
+yabai -m rule --add label="Finder" app="^Finder$" manage=off
 yabai -m rule --add label="System Preferences" app="^System Preferences$" title=".*" manage=off
 yabai -m rule --add label="System Settings" app="^System Settings$" title=".*" manage=off
 yabai -m rule --add app="System Information" manage=off
@@ -80,11 +80,16 @@ yabai -m rule --add app="Magic Island" manage=off
 yabai -m rule --add app="Santa" manage=off
 yabai -m rule --add app="Unity" manage=off
 
-# Stop new tabs from creating new windows in yabai?
-yabai -m signal --add app='^Ghostty$' event=window_created action='yabai -m space --layout bsp'
-yabai -m signal --add app='^Ghostty$' event=window_destroyed action='yabai -m space --layout bsp'
-yabai -m signal --add app='^Finder$' event=window_created action='yabai -m space --layout bsp'
-yabai -m signal --add app='^Finder$' event=window_destroyed action='yabai -m space --layout bsp'
+# Native-tab apps: tabs appear as new windows to yabai, which disrupts
+# BSP layout and destroys stacks. Finder is unmanaged by default.
+# For Ghostty: first window is managed normally; subsequent windows on
+# the same space (tabs) are floated to avoid layout disruption.
+yabai -m signal --add label=ghostty_tab_fix app='^Ghostty$' event=window_created action='
+  count=$(yabai -m query --windows | jq "[.[] | select(.app == \"Ghostty\" and .\"is-floating\" == false)] | length")
+  if [ "$count" -gt 1 ]; then
+    yabai -m window $YABAI_WINDOW_ID --toggle float 2>/dev/null
+  fi
+'
 
 
 # Apply all rules
