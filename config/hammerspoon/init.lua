@@ -16,6 +16,7 @@ require("hs.application")
 require("hs.fs")
 
 alex = require("alex")
+gridOverlay = require("alex.grid_overlay")
 
 function getCurrentApp()
   return hs.application.frontmostApplication()

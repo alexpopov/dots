@@ -295,7 +295,6 @@ function manage {
     "Books"
     "Calendar"
     "Discord"
-    "Finder"
     "Messages"
     "Messenger"
     "Music"

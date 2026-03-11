@@ -137,6 +137,7 @@ m_window_resize < shift - j : yabai_utils.sh resize down 100
 m_window_resize < shift - k : yabai_utils.sh resize up 100
 m_window_resize < b : yabai_utils.sh grid balance back_to_default
 m_window_resize < r : yabai_utils.sh grid rotate
+m_window_resize < i : yabai_utils.sh run_hs 'gridOverlay:toggle()' back_to_default
 m_window_resize < 3 ; m_window_resize_3
 m_window_resize < 4 ; m_window_resize_4
 m_window_resize < 5 ; m_window_resize_5
