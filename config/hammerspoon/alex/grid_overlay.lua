@@ -337,6 +337,9 @@ local function build_pill()
     pill:show()
 end
 
+local apply_task = nil
+local apply  -- forward declaration
+
 local function set_mode(new_mode)
     mode = new_mode
     pending_digit = nil
@@ -354,9 +357,7 @@ local function rebuild_grid()
     apply()
 end
 
-local apply_task = nil
-
-local function apply()
+apply = function()
     if not target_window_id then return end
     if apply_task and apply_task:isRunning() then apply_task:terminate() end
     local spec = string.format("%d:%d:%d:%d:%d:%d", rows, cols, sel.x, sel.y, sel.w, sel.h)

@@ -17,6 +17,7 @@ require("hs.fs")
 
 alex = require("alex")
 gridOverlay = require("alex.grid_overlay")
+skhdUI = require("alex.skhd_ui")
 
 function getCurrentApp()
   return hs.application.frontmostApplication()

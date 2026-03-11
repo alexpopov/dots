@@ -1,38 +1,41 @@
 # 0x5A is F20 in Karabiner Elements, but for some reason yabai doesn't agree
 # with using the name 'f20'. No clue why
+#
+# NOTE: Mode labels and key descriptions are mirrored in
+# hammerspoon/alex/skhd_ui.lua (the MODES table). Keep them in sync.
 
-:: default : alert.sh simple default
+:: default : hs -c "skhdUI:exit()"
 
 # Mode: Hyper
-:: m_hyper @ : alert.sh simple hyper
+:: m_hyper @ : hs -c "skhdUI:enter('hyper')"
 
 # Mode: Yabai/windows
-:: m_windows @ : alert.sh simple Windows
+:: m_windows @ : hs -c "skhdUI:enter('windows')"
 
 # Mode: open!
-:: m_open @ : alert.sh simple open
+:: m_open @ : hs -c "skhdUI:enter('open')"
 
 # Mode: Yabai config
-:: m_yabai_config @ : alert.sh simple 'Configuring Yabai'
+:: m_yabai_config @ : hs -c "skhdUI:enter('yabai_config')"
 
 # Mode: Yabai config
-:: m_window_focus @ : alert.sh simple 'Focusing'
+:: m_window_focus @ : hs -c "skhdUI:enter('focus')"
 
-:: m_window_create @ : alert.sh simple 'Creating'
+:: m_window_create @ : hs -c "skhdUI:enter('create')"
 
-:: m_window_resize @ : alert.sh simple 'Resize'
-:: m_window_resize_3 @ : alert.sh simple 'Resize Thirds'
-:: m_window_resize_4 @ : alert.sh simple 'Resize Fourths'
-:: m_window_resize_5 @ : alert.sh simple 'Resize Fifths'
+:: m_window_resize @ : hs -c "skhdUI:enter('resize')"
+:: m_window_resize_3 @ : hs -c "skhdUI:enter('resize_3')"
+:: m_window_resize_4 @ : hs -c "skhdUI:enter('resize_4')"
+:: m_window_resize_5 @ : hs -c "skhdUI:enter('resize_5')"
 
-:: m_window_tabs @ : alert.sh simple 'Tabs'
+:: m_window_tabs @ : hs -c "skhdUI:enter('tabs')"
 
-:: m_window_swap @ : alert.sh simple 'Swap'
+:: m_window_swap @ : hs -c "skhdUI:enter('swap')"
 
-:: m_window_warp @ : alert.sh simple 'Warp'
+:: m_window_warp @ : hs -c "skhdUI:enter('warp')"
 
 # Mode: Actions
-:: m_actions @ : alert.sh simple 'Actions'
+:: m_actions @ : hs -c "skhdUI:enter('actions')"
 
 default < 0x5A ; m_windows
 # globe/fn key on macbook
