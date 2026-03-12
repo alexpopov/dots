@@ -132,7 +132,7 @@ local group_colors = {
   TaskOilGSDTheme = {c.xcode_purple, {cterm = 225, gui = "#f4f1f9"}, {bold = true}},
   TaskOilGSDThemeBorder = {c.xcode_grey, c.skip},
   TaskOilGSDProject = {c.xcode_blue, {cterm = 189, gui = "#eef0ff"}, {bold = true}},
-  TaskOilGSDSection = {c.xcode_brown, c.skip, {bold = true}},
+  TaskOilGSDSection = {c.xcode_teal, c.skip},
   TaskOilGSDFloating = {c.xcode_brown, {cterm = 224, gui = "#fdf2f7"}, {italic = true}},
 }
 
