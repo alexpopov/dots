@@ -349,10 +349,10 @@ function resize {
 
   local action_name
   case "$type" in
-    'left') action_name=$'\u2190 Resize' ;;
-    'right') action_name=$'\u2192 Resize' ;;
-    'up') action_name=$'\u2191 Resize' ;;
-    'down') action_name=$'\u2193 Resize' ;;
+    'left') action_name="Left" ;;
+    'right') action_name="Right" ;;
+    'up') action_name="Up" ;;
+    'down') action_name="Down" ;;
     *) action_name="$type" ;;
   esac
 
