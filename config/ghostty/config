@@ -1,0 +1,8 @@
+theme = TokyoNight Storm
+font-size = 10
+
+# Copy on select to system clipboard (middle-click paste is always on)
+copy-on-select = clipboard
+
+# Ctrl+V to paste
+keybind = ctrl+v=paste_from_clipboard

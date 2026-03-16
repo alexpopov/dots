@@ -358,6 +358,7 @@ function create_links {
   ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
   ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR" || _fail_error "Failed to symlink systemd config"
   ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR" || _fail_error "Failed to symlink selinux config"
+  ln -sf "$DOTS_CONFIG_DIR/ghostty" "$CONFIG_DIR" || _fail_error "Failed to symlink ghostty config"
 
   # tmux refuses to use XDG, this is for us to have tmux.conf
   ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR" || _fail_error "Failed to symlink tmux config dir"
