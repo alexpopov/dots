@@ -1,0 +1,11 @@
+[Unit]
+Description=Whisper transcription server
+
+[Service]
+Type=simple
+Restart=always
+Environment=LD_LIBRARY_PATH=/home/cay/.local/share/venvs/whisper/lib/python3.13/site-packages/nvidia/cublas/lib:/home/cay/.local/share/venvs/whisper/lib/python3.13/site-packages/nvidia/cudnn/lib
+ExecStart=/home/cay/.local/share/venvs/whisper/bin/python /home/cay/.local/bin/whisper-server.py
+
+[Install]
+WantedBy=default.target

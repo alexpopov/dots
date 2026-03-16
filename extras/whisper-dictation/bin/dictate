@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Toggle-style dictation: run once to start recording, run again to stop and type.
+#
+# Files:
+#   /tmp/dictate.wav  - temporary WAV recording, deleted after transcription
+#   /tmp/dictate.pid  - PID of pw-record process (tracks recording state)
+#   /tmp/dictate.log  - append-only transcription log (persists until /tmp is cleared on reboot)
+#   /tmp/whisper-server.sock - Unix socket for whisper-server (managed by systemd)
+#
+# Nothing is kept permanently. WAVs are deleted after each transcription.
+# The log in /tmp survives the session but is cleared on reboot.
+
+PIDFILE="/tmp/dictate.pid"
+AUDIOFILE="/tmp/dictate.wav"
+SOCKET="/tmp/whisper-server.sock"
+export YDOTOOL_SOCKET="/run/user/$(id -u)/.ydotool_socket"
+
+# Clean up stale pidfile if process is dead
+if [ -f "$PIDFILE" ] && ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    rm -f "$PIDFILE" "$AUDIOFILE"
+fi
+
+# If already recording, stop and transcribe
+if [ -f "$PIDFILE" ]; then
+    kill "$(cat "$PIDFILE")" 2>/dev/null
+    sleep 0.2
+    rm "$PIDFILE"
+    notify-send -t 1500 -i media-playback-pause "Dictation" "Transcribing..."
+
+    # Send audio path to whisper server, get text back
+    text=$(echo "$AUDIOFILE" | socat -t30 - UNIX-CONNECT:"$SOCKET" 2>/dev/null)
+
+    rm -f "$AUDIOFILE"
+
+    echo "$(date): Transcribed: '$text'" >> /tmp/dictate.log
+    if [ -n "$text" ] && [ "$text" != " " ]; then
+        wl-copy "$text"
+        ydotool key 29:1 47:1 47:0 29:0  # Ctrl+V
+    else
+        notify-send -t 2000 -i dialog-error "Dictation" "No transcription returned"
+    fi
+    exit 0
+fi
+
+# Check server is up before recording
+if [ ! -S "$SOCKET" ]; then
+    notify-send -t 2000 -i dialog-error "Dictation" "Whisper server not running"
+    exit 1
+fi
+
+# Start recording
+notify-send -t 1500 -i audio-input-microphone "Dictation" "Recording..."
+pw-record --format=s16 --rate=16000 --channels=1 "$AUDIOFILE" &
+echo $! > "$PIDFILE"
