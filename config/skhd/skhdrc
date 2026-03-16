@@ -173,8 +173,8 @@ m_window_warp < 3 : yabai_utils.sh warp_display 3 back_to_default
 m_window_warp < f : yabai_utils.sh warp_display 1 back_to_default; yabai_utils.sh fullscreen
 
 # Tabs
-m_window_tabs < h : skhd -k "ctrl + shift - tab;"
-m_window_tabs < l : skhd -k "ctrl - tab"
+m_window_tabs < h : skhd -k "ctrl + shift - tab;"; hs -c "skhdUI:action('Left')" &
+m_window_tabs < l : skhd -k "ctrl - tab"; hs -c "skhdUI:action('Right')" &
 m_window_tabs < ctrl - tab -> : #
 m_window_tabs < ctrl + shift - tab -> : #
 m_window_tabs < cmd - w -> : #
