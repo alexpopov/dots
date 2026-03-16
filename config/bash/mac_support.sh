@@ -65,6 +65,9 @@ fi
 
 export PATH
 
+# Buckets budgeting app — used by budget-tool CLI (~/Development/budget_tools/)
+export BUDGET_DB="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Documents/Important/Budget/Our Budget.buckets"
+
 # Meta work machine support
 if [ -d /opt/facebook ]; then
   META_SUPPORT="$HOME/.config/bash/meta_macbook_support.sh"
