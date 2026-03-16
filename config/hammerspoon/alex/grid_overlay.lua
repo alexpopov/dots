@@ -1,5 +1,5 @@
-local cols = 3
-local rows = 3
+local cols = 7
+local rows = 7
 local MIN_GRID = 2
 local MAX_GRID = 16
 
@@ -24,7 +24,7 @@ local target_window_id = nil
 local mode = "move" -- "move", "resize", "grid"
 local pending_digit = nil
 
-local sel = { x = 1, y = 1, w = 1, h = 1 }
+local sel = { x = 2, y = 1, w = 3, h = 4 }
 local key_swallower = nil
 local swallow_count = 0
 local SWALLOW_SHAKE_EVERY = 3
