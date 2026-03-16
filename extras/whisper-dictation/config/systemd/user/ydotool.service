@@ -1,0 +1,10 @@
+[Unit]
+Description=ydotoold - ydotool daemon
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/bin/ydotoold
+
+[Install]
+WantedBy=default.target
