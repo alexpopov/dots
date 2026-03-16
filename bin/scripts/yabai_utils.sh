@@ -515,6 +515,7 @@ function manage {
     "Things"
     "WhatsApp"
     "Workplace Chat"
+    "Google Chat"
   )
   local nomanagerule="No Manage"
 
