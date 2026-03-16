@@ -30,6 +30,7 @@ yabai -m config window_gap     $padding
 
 # This disabled/enables certain apps from being managed implicitly:
 yabai_utils.sh style condensed
+yabai_utils.sh manage less
 
 # Permenantly off list:
 yabai -m rule --add label="Safari" app="^Safari$" title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
