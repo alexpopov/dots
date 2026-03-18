@@ -3,6 +3,12 @@ local rows = 7
 local MIN_GRID = 2
 local MAX_GRID = 16
 
+-- Screen layout: used to compute usable area from fullFrame
+local MENUBAR_HEIGHT = 37   -- 25 without notch, 37 with notch
+local DOCK_ENABLED = true
+local DOCK_POSITION = "bottom"  -- "left", "bottom", "right"
+local DOCK_SIZE = 70            -- approximate dock thickness in pixels
+
 local canvas = require("hs.canvas")
 local screen = require("hs.screen")
 local hotkey = require("hs.hotkey")
@@ -21,6 +27,7 @@ local confirm_modal = nil
 local active = false
 local cell_indices = {} -- [row][col] -> canvas element index
 local target_window_id = nil
+local target_window_frame = nil
 local mode = "move" -- "move", "resize", "grid"
 local pending_digit = nil
 
@@ -67,14 +74,51 @@ local yabai_path = (function()
     return "yabai"
 end)()
 
+local function usable_frame()
+    local sf = screen.mainScreen():fullFrame()
+    local ux = sf.x
+    local uy = sf.y + MENUBAR_HEIGHT
+    local uw = sf.w
+    local uh = sf.h - MENUBAR_HEIGHT
+    if DOCK_ENABLED then
+        if DOCK_POSITION == "left" then
+            ux = ux + DOCK_SIZE; uw = uw - DOCK_SIZE
+        elseif DOCK_POSITION == "right" then
+            uw = uw - DOCK_SIZE
+        elseif DOCK_POSITION == "bottom" then
+            uh = uh - DOCK_SIZE
+        end
+    end
+    return { x = ux, y = uy, w = uw, h = uh }
+end
+
 local function capture_target_window()
     local output, ok = hs.execute(yabai_path .. " -m query --windows --window 2>/dev/null", true)
     if not ok or not output or output == "" then
         target_window_id = nil
+        target_window_frame = nil
         return
     end
     local win = json.decode(output)
     target_window_id = win and win.id or nil
+    target_window_frame = win and win.frame or nil
+end
+
+local function init_selection_from_window()
+    if not target_window_frame then return end
+    local uf = usable_frame()
+    local wf = target_window_frame
+
+    local rx = (wf.x - uf.x) / uf.w
+    local ry = (wf.y - uf.y) / uf.h
+    local rw = wf.w / uf.w
+    local rh = wf.h / uf.h
+
+    sel.x = math.max(0, math.floor(rx * cols + 0.5))
+    sel.y = math.max(0, math.floor(ry * rows + 0.5))
+    sel.w = math.max(1, math.floor(rw * cols + 0.5))
+    sel.h = math.max(1, math.floor(rh * rows + 0.5))
+    clamp_selection()
 end
 
 local function is_window_floating()
@@ -375,7 +419,7 @@ end
 local function enter_overlay()
     mode = "move"
     pending_digit = nil
-    clamp_selection()
+    init_selection_from_window()
     if modal then modal:enter() end
     active = true
 end
