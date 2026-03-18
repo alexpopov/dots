@@ -428,16 +428,24 @@ end
 modal = hotkey.modal.new()
 
 modal.entered = function()
+    local t0 = hs.timer.secondsSinceEpoch()
     build_canvas()
+    local t1 = hs.timer.secondsSinceEpoch()
     redraw()
+    local t2 = hs.timer.secondsSinceEpoch()
     overlay:show()
+    local t3 = hs.timer.secondsSinceEpoch()
     build_pill()
+    local t4 = hs.timer.secondsSinceEpoch()
     start_swallower({
         "h", "j", "k", "l",
         "r", "g", "tab", "q",
         "=", "-", "return", "escape",
         "1", "2", "3", "4", "5", "6", "7", "8", "9",
     })
+    local t5 = hs.timer.secondsSinceEpoch()
+    print(string.format("[grid.entered] canvas=%.0fms  redraw=%.0fms  show=%.0fms  pill=%.0fms  swallower=%.0fms  total=%.0fms",
+        (t1-t0)*1000, (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000, (t5-t4)*1000, (t5-t0)*1000))
 end
 
 modal.exited = function()
@@ -656,13 +664,20 @@ function M.toggle()
     if active then
         exit_overlay()
     else
+        local t0 = hs.timer.secondsSinceEpoch()
         capture_target_window()
-        if not is_window_floating() then
+        local t1 = hs.timer.secondsSinceEpoch()
+        local floating = is_window_floating()
+        local t2 = hs.timer.secondsSinceEpoch()
+        if not floating then
             show_confirm_alert()
             confirm_modal:enter()
         else
             enter_overlay()
         end
+        local t3 = hs.timer.secondsSinceEpoch()
+        print(string.format("[grid] capture=%.0fms  float_check=%.0fms  enter=%.0fms  total=%.0fms",
+            (t1-t0)*1000, (t2-t1)*1000, (t3-t2)*1000, (t3-t0)*1000))
     end
 end
 
