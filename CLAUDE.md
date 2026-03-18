@@ -41,6 +41,11 @@ bin/scripts/              # Utility scripts (yabai_utils, tmux_claude, git helpe
 - **LSP**: Uses Neovim 0.11+ `vim.lsp.config()` pattern. Mason manages LSP server installs. Keymaps bound via `LspAttach` autocmd.
 - **Bootstrap**: `bootstrap.sh` is both sourceable (for helper functions) and executable (full setup). Custom installers are `_install_package_<name>` functions.
 
+## Rules
+
+- **Never kill processes** without explicit user instruction. No `killall`, `kill`, `pkill`, or similar. If a process needs restarting, ask first.
+- **Never `brew install`** without explicit user permission.
+
 ## Useful commands
 
 ```bash
