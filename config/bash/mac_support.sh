@@ -76,31 +76,30 @@ if [ -d /opt/facebook ]; then
   fi
 fi
 
+# Sync iCloud Books to Kobo eReader device
 function kobo_sync_to_device {
-  local destination_path=
-  local local_path="/Volumes/KOBOeReader/"
-  local kobo_ssh="root@192.168.1.74"
-  if [[ -d $local_path ]] ; then 
-    # echo "Not plugged in..."
-    # echo "Trying ssh..."
-    destination_path="$local_path"
-  # elif nc -z -w 3 192.168.1.74 2222 > /dev/null 2>&1 ; then 
-  #   # we can ssh to kobo
-  #   echo "Can ssh!"
-  #   destination_path="kobo:/mnt/onboard/"
-  else
-    echo "Error: no kobo plugged in or on network"
+  local kobo_path="/Volumes/KOBOeReader/"
+  local source_path="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Books/"
+
+  if [[ ! -d "$kobo_path" ]]; then
+    echo "Error: Kobo not found at $kobo_path"
+    echo "Please connect your Kobo eReader via USB"
     return 1
   fi
+
+  if [[ ! -d "$source_path" ]]; then
+    echo "Error: Source directory not found at $source_path"
+    return 1
+  fi
+
   rsync -av --size-only --progress \
     --exclude='*.sdr/' \
     --exclude='Audiobooks/' \
-    --exclude="German/" \
-    --exclude="PDFs/" \
-    --exclude="Pages/" \
-    /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Books/ \
-    "$destination_path"
-    # --exclude='*.pdf' \
+    --exclude='German/' \
+    --exclude='PDFs/' \
+    --exclude='Pages/' \
+    "$source_path" \
+    "$kobo_path"
 }
 
 function calibre_export_select {
@@ -135,10 +134,21 @@ function calibre_export_to_icloud {
     --progress
 }
 
+# Backup Kobo eReader to iCloud
 function kobo_backup_to_mac {
+  local kobo_path="/Volumes/KOBOeReader/"
+  local backup_path="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Kobo Backup/"
+
+  if [[ ! -d "$kobo_path" ]]; then
+    echo "Error: Kobo not found at $kobo_path"
+    echo "Please connect your Kobo eReader via USB"
+    return 1
+  fi
+
   rsync -av --progress \
     --exclude='.Trashes' \
     --exclude='.Spotlight-V100' \
     --exclude='.fseventsd' \
-    /Volumes/KOBOeReader/ /Users/alp/Library/Mobile\ Documents/com~apple~CloudDocs/Kobo\ Backup/
+    "$kobo_path" \
+    "$backup_path"
 }
