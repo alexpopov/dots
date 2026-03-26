@@ -30,7 +30,6 @@ local target_window_id = nil
 local target_window_frame = nil
 local mode = "move" -- "move", "resize", "grid"
 local pending_digit = nil
-local enter_time = 0 -- timestamp to ignore escape race from skhd back_to_default
 
 local sel = { x = 2, y = 1, w = 3, h = 4 }
 local key_swallower = nil
@@ -74,6 +73,15 @@ local yabai_path = (function()
     end
     return "yabai"
 end)()
+
+local function clamp_selection()
+    if sel.w > cols then sel.w = cols end
+    if sel.h > rows then sel.h = rows end
+    if sel.x < 0 then sel.x = 0 end
+    if sel.y < 0 then sel.y = 0 end
+    if sel.x + sel.w > cols then sel.x = cols - sel.w end
+    if sel.y + sel.h > rows then sel.y = rows - sel.h end
+end
 
 local function usable_frame()
     local sf = screen.mainScreen():fullFrame()
@@ -209,15 +217,6 @@ local function show_confirm_alert()
         app_name = win:application():name()
     end
     alert.show(app_name .. " is managed. Float it? (y/n)", { textSize = 20 }, 10)
-end
-
-local function clamp_selection()
-    if sel.w > cols then sel.w = cols end
-    if sel.h > rows then sel.h = rows end
-    if sel.x < 0 then sel.x = 0 end
-    if sel.y < 0 then sel.y = 0 end
-    if sel.x + sel.w > cols then sel.x = cols - sel.w end
-    if sel.y + sel.h > rows then sel.y = rows - sel.h end
 end
 
 local function rescale_selection(old_cols, old_rows)
@@ -421,7 +420,6 @@ local function enter_overlay()
     mode = "move"
     pending_digit = nil
     init_selection_from_window()
-    enter_time = hs.timer.secondsSinceEpoch()
     if modal then modal:enter() end
     active = true
 end
@@ -562,8 +560,6 @@ end
 
 -- Escape: back to move, or exit if already in move
 modal:bind({}, "escape", function()
-    -- Ignore escape within 300ms of entering (race from skhd back_to_default)
-    if (hs.timer.secondsSinceEpoch() - enter_time) < 0.3 then return end
     if pending_digit then
         pending_digit = nil
         build_pill()
