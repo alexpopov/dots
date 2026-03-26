@@ -101,18 +101,6 @@ local function usable_frame()
     return { x = ux, y = uy, w = uw, h = uh }
 end
 
-local function capture_target_window()
-    local output, ok = hs.execute(yabai_path .. " -m query --windows --window 2>/dev/null", true)
-    if not ok or not output or output == "" then
-        target_window_id = nil
-        target_window_frame = nil
-        return
-    end
-    local win = json.decode(output)
-    target_window_id = win and win.id or nil
-    target_window_frame = win and win.frame or nil
-end
-
 local function init_selection_from_window()
     if not target_window_frame then return end
     local uf = usable_frame()
@@ -130,16 +118,26 @@ local function init_selection_from_window()
     clamp_selection()
 end
 
-local function is_window_floating()
-    local output, ok = hs.execute(yabai_path .. " -m query --windows --window 2>/dev/null", true)
-    if not ok or not output or output == "" then return true end
-    local win = json.decode(output)
-    if not win then return true end
-    return win["is-floating"]
+-- Query focused window from yabai asynchronously (single query for both ID and floating status)
+local function query_focused_window(callback)
+    hs.task.new(yabai_path, function(exitCode, stdOut, stdErr)
+        if exitCode ~= 0 or not stdOut or stdOut == "" then
+            callback(nil)
+            return
+        end
+        local success, win = pcall(json.decode, stdOut)
+        if not success or not win then
+            callback(nil)
+            return
+        end
+        callback(win)
+    end, { "-m", "query", "--windows", "--window" }):start()
 end
 
-local function float_focused_window()
-    hs.execute(yabai_path .. " -m window --toggle float 2>/dev/null", true)
+local function float_focused_window(callback)
+    hs.task.new(yabai_path, function()
+        if callback then callback() end
+    end, { "-m", "window", "--toggle", "float" }):start()
 end
 
 local function overlay_frame()
@@ -645,8 +643,9 @@ confirm_modal = hotkey.modal.new()
 local function confirm_yes()
     confirm_modal:exit()
     alert.closeAll()
-    float_focused_window()
-    enter_overlay()
+    float_focused_window(function()
+        enter_overlay()
+    end)
 end
 
 local function confirm_no()
@@ -663,22 +662,19 @@ confirm_modal:bind({}, "escape", confirm_no)
 function M.toggle()
     if active then
         exit_overlay()
-    else
-        local t0 = hs.timer.secondsSinceEpoch()
-        capture_target_window()
-        local t1 = hs.timer.secondsSinceEpoch()
-        local floating = is_window_floating()
-        local t2 = hs.timer.secondsSinceEpoch()
+        return
+    end
+    query_focused_window(function(win)
+        target_window_id = win and win.id or nil
+        target_window_frame = win and win.frame or nil
+        local floating = not win or win["is-floating"]
         if not floating then
             show_confirm_alert()
             confirm_modal:enter()
         else
             enter_overlay()
         end
-        local t3 = hs.timer.secondsSinceEpoch()
-        print(string.format("[grid] capture=%.0fms  float_check=%.0fms  enter=%.0fms  total=%.0fms",
-            (t1-t0)*1000, (t2-t1)*1000, (t3-t2)*1000, (t3-t0)*1000))
-    end
+    end)
 end
 
 return M
