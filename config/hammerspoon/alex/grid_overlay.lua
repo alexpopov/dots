@@ -30,6 +30,7 @@ local target_window_id = nil
 local target_window_frame = nil
 local mode = "move" -- "move", "resize", "grid"
 local pending_digit = nil
+local enter_time = 0 -- timestamp to ignore escape race from skhd back_to_default
 
 local sel = { x = 2, y = 1, w = 3, h = 4 }
 local key_swallower = nil
@@ -420,6 +421,7 @@ local function enter_overlay()
     mode = "move"
     pending_digit = nil
     init_selection_from_window()
+    enter_time = hs.timer.secondsSinceEpoch()
     if modal then modal:enter() end
     active = true
 end
@@ -560,6 +562,8 @@ end
 
 -- Escape: back to move, or exit if already in move
 modal:bind({}, "escape", function()
+    -- Ignore escape within 300ms of entering (race from skhd back_to_default)
+    if (hs.timer.secondsSinceEpoch() - enter_time) < 0.3 then return end
     if pending_digit then
         pending_digit = nil
         build_pill()
