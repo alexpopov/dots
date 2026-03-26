@@ -703,4 +703,10 @@ hs.urlevent.bind("hsalert", function(_, params)
     end
 end)
 
+hs.urlevent.bind("hsalertdebug", function()
+    local app = hs.application.frontmostApplication()
+    local name = app and app:name() or "Unknown"
+    hs.alert.show(name, {textSize = 24, radius = 20, fillColor = { white = 0, alpha = 0.5}})
+end)
+
 return M

@@ -5,25 +5,18 @@ if [ "$#" == "0" ]; then
 	exit 1
 fi
 
-function simple {
-  hs -c
-}
-
 case $1 in
   'simple')
     shift
-    title=$1
-    hs -c "hs.alert.show(\"$title\", {textSize = 24, radius = 20, fillColor = { white = 0, alpha = 0.5}})" > /dev/null
+    title="${1// /%20}"
+    open -g "hammerspoon://hsAlert?text=$title"
     ;;
 
   'debug')
-    shift
-    title="$(hs -c 'hs.application.frontmostApplication():name()')"
-    hs -c "hs.alert.show(\"$title\", {textSize = 24, radius = 20, fillColor = { white = 0, alpha = 0.5}})" > /dev/null
+    open -g "hammerspoon://hsAlertDebug"
     ;;
   *)
-    hs -c 'hs.alert.show("alert: unhandled argument: $1")'
+    open -g "hammerspoon://hsAlert?text=alert:%20unhandled%20argument:%20$1"
     ;;
 
 esac
-
