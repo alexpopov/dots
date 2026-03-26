@@ -4,38 +4,38 @@
 # NOTE: Mode labels and key descriptions are mirrored in
 # hammerspoon/alex/skhd_ui.lua (the MODES table). Keep them in sync.
 
-:: default : hs -c "skhdUI:exit()"
+:: default : open -g "hammerspoon://skhdExit"
 
 # Mode: Hyper
-:: m_hyper @ : hs -c "skhdUI:enter('hyper')"
+:: m_hyper @ : open -g "hammerspoon://skhdEnter?mode=hyper"
 
 # Mode: Yabai/windows
-:: m_windows @ : hs -c "skhdUI:enter('windows')"
+:: m_windows @ : open -g "hammerspoon://skhdEnter?mode=windows"
 
 # Mode: open!
-:: m_open @ : hs -c "skhdUI:enter('open')"
+:: m_open @ : open -g "hammerspoon://skhdEnter?mode=open"
 
 # Mode: Yabai config
-:: m_yabai_config @ : hs -c "skhdUI:enter('yabai_config')"
+:: m_yabai_config @ : open -g "hammerspoon://skhdEnter?mode=yabai_config"
 
 # Mode: Yabai config
-:: m_window_focus @ : hs -c "skhdUI:enter('focus')"
+:: m_window_focus @ : open -g "hammerspoon://skhdEnter?mode=focus"
 
-:: m_window_create @ : hs -c "skhdUI:enter('create')"
+:: m_window_create @ : open -g "hammerspoon://skhdEnter?mode=create"
 
-:: m_window_resize @ : hs -c "skhdUI:enter('resize')"
-:: m_window_resize_3 @ : hs -c "skhdUI:enter('resize_3')"
-:: m_window_resize_4 @ : hs -c "skhdUI:enter('resize_4')"
-:: m_window_resize_5 @ : hs -c "skhdUI:enter('resize_5')"
+:: m_window_resize @ : open -g "hammerspoon://skhdEnter?mode=resize"
+:: m_window_resize_3 @ : open -g "hammerspoon://skhdEnter?mode=resize_3"
+:: m_window_resize_4 @ : open -g "hammerspoon://skhdEnter?mode=resize_4"
+:: m_window_resize_5 @ : open -g "hammerspoon://skhdEnter?mode=resize_5"
 
-:: m_window_tabs @ : hs -c "skhdUI:enter('tabs')"
+:: m_window_tabs @ : open -g "hammerspoon://skhdEnter?mode=tabs"
 
-:: m_window_swap @ : hs -c "skhdUI:enter('swap')"
+:: m_window_swap @ : open -g "hammerspoon://skhdEnter?mode=swap"
 
-:: m_window_warp @ : hs -c "skhdUI:enter('warp')"
+:: m_window_warp @ : open -g "hammerspoon://skhdEnter?mode=warp"
 
 # Mode: Actions
-:: m_actions @ : hs -c "skhdUI:enter('actions')"
+:: m_actions @ : open -g "hammerspoon://skhdEnter?mode=actions"
 
 default < 0x5A ; m_windows
 # globe/fn key on macbook

@@ -680,4 +680,13 @@ function M:exit_with_action(name, context)
     end
 end
 
+-- URL event handlers: fire-and-forget triggers from skhd (no hs -c blocking)
+hs.urlevent.bind("skhdenter", function(_, params)
+    if params.mode then M:enter(params.mode) end
+end)
+
+hs.urlevent.bind("skhdexit", function()
+    M:exit()
+end)
+
 return M
