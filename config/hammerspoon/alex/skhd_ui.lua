@@ -689,4 +689,18 @@ hs.urlevent.bind("skhdexit", function()
     M:exit()
 end)
 
+hs.urlevent.bind("skhdaction", function(_, params)
+    if params.name then M:action(params.name) end
+end)
+
+hs.urlevent.bind("skhdexitaction", function(_, params)
+    if params.name then M:exit_with_action(params.name, params.context) end
+end)
+
+hs.urlevent.bind("hsalert", function(_, params)
+    if params.text then
+        hs.alert.show(params.text, {textSize = 24, radius = 20, fillColor = { white = 0, alpha = 0.5}})
+    end
+end)
+
 return M

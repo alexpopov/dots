@@ -1,13 +1,26 @@
 #!/usr/bin/env /bin/bash
 
+function _hs_action {
+    local name="${1// /%20}"
+    open -g "hammerspoon://skhdAction?name=$name" &
+}
+
+function _hs_exit_action {
+    local name="${1// /%20}"
+    local context="${2// /%20}"
+    if [ -n "$context" ]; then
+        open -g "hammerspoon://skhdExitAction?name=$name&context=$context" &
+    else
+        open -g "hammerspoon://skhdExitAction?name=$name" &
+    fi
+}
+
 function maybe_back_to_normal {
     if [ "$1" = "back_to_default" ]; then
         local action_name="$2"
         local context="$3"
-        if [ -n "$action_name" ] && [ -n "$context" ]; then
-            hs -c "skhdUI:exit_with_action('$action_name', '$context')"
-        elif [ -n "$action_name" ]; then
-            hs -c "skhdUI:exit_with_action('$action_name')"
+        if [ -n "$action_name" ]; then
+            _hs_exit_action "$action_name" "$context"
         fi
         skhd -k "escape"
     fi
@@ -20,7 +33,7 @@ function run_hs {
   hs -c "$script"
   maybe_back_to_normal "$back_flag" "Run Script"
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('Run Script')" &
+      _hs_action "Run Script"
   fi
 }
 
@@ -61,7 +74,7 @@ function focus_window {
             ;;
     esac
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -86,7 +99,7 @@ function focus_display {
             ;;
     esac
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -117,7 +130,7 @@ function swap_window {
             ;;
     esac
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -142,7 +155,7 @@ function warp_window {
             ;;
     esac
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -171,7 +184,7 @@ function warp_display {
           ;;
     esac
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -191,7 +204,7 @@ function config {
     yabai -m config layout $type
     alert.sh simple "Layout mode: $type"
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -201,7 +214,7 @@ function reload_config {
     source ~/.yabairc
     alert.sh simple "Reloading config..."
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('Reload')" &
+        _hs_action "Reload"
     fi
 }
 
@@ -224,7 +237,7 @@ function create_stack {
     yabai -m window --stack $direction
     alert.sh simple "Stacking $direction"
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('$action_name')" &
+        _hs_action "$action_name"
     fi
 }
 
@@ -233,7 +246,7 @@ function unstack {
     maybe_back_to_normal "$back_flag" "Unstack"
     window=$(yabai -m query --windows --window | jq -r '.id') && yabai -m window east --stack $window || (yabai -m window $window --toggle float && yabai -m window $window --toggle float)
     if [ "$back_flag" != "back_to_default" ]; then
-        hs -c "skhdUI:action('Unstack')" &
+        _hs_action "Unstack"
     fi
 }
 
@@ -244,7 +257,7 @@ function toggle_manage {
   yabai -m window $window --toggle float
   alert.sh simple "Toggling Managed Status"
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('Toggle Float')" &
+      _hs_action "Toggle Float"
   fi
 }
 
@@ -336,7 +349,7 @@ function grid {
   esac
   alert.sh simple "$type"
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('$action_name')" &
+      _hs_action "$action_name"
   fi
 }
 
@@ -381,7 +394,7 @@ function resize {
   esac
   # alert.sh simple "$type"
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('$action_name')" &
+      _hs_action "$action_name"
   fi
 }
 
@@ -391,7 +404,7 @@ function toggle_fullscreen {
   yabai -m window --toggle zoom-fullscreen
   # alert.sh simple "Toggle: Fullscreen is buggy WARNING"
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('Fullscreen')" &
+      _hs_action "Fullscreen"
   fi
 }
 
@@ -424,7 +437,7 @@ function auto_hide_dock {
       ;;
   esac
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('$action_name')" &
+      _hs_action "$action_name"
   fi
 }
 
@@ -476,7 +489,7 @@ function style {
 
   esac
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('$action_name')" &
+      _hs_action "$action_name"
   fi
 }
 
@@ -539,7 +552,7 @@ function manage {
 
   esac
   if [ "$back_flag" != "back_to_default" ]; then
-      hs -c "skhdUI:action('$action_name')" &
+      _hs_action "$action_name"
   fi
 }
 
@@ -628,7 +641,7 @@ case $command in
     ;;
 
   *)
-    hs -c "hs.alert.show(\"yabai_utils: unhandled argument: $1\")"
+    open -g "hammerspoon://hsAlert?text=yabai_utils:%20unhandled%20argument:%20$1"
     ;;
 
   esac
