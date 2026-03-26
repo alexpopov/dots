@@ -21,6 +21,11 @@ local styledtext = require("hs.styledtext")
 
 local M = {}
 
+local DEBUG = true
+local function dbg(fmt, ...)
+    if DEBUG then print(string.format(fmt, ...)) end
+end
+
 local overlay = nil
 local modal = nil
 local confirm_modal = nil
@@ -410,16 +415,20 @@ apply = function()
 end
 
 local function exit_overlay()
+    dbg("[grid] exit_overlay")
     if modal then modal:exit() end
     active = false
 end
 
 local function enter_overlay()
+    dbg("[grid] enter_overlay start")
     mode = "move"
     pending_digit = nil
     init_selection_from_window()
+    dbg("[grid] enter_overlay sel={x=%d,y=%d,w=%d,h=%d}", sel.x, sel.y, sel.w, sel.h)
     if modal then modal:enter() end
     active = true
+    dbg("[grid] enter_overlay done, active=true")
 end
 
 -- Build the modal (no trigger key)
@@ -558,6 +567,7 @@ end
 
 -- Escape: back to move, or exit if already in move
 modal:bind({}, "escape", function()
+    dbg("[grid] escape pressed, mode=%s pending=%s", mode, tostring(pending_digit))
     if pending_digit then
         pending_digit = nil
         build_pill()
@@ -660,11 +670,16 @@ confirm_modal:bind({}, "n", confirm_no)
 confirm_modal:bind({}, "escape", confirm_no)
 
 function M.toggle()
+    dbg("[grid.toggle] active=%s", tostring(active))
     if active then
         exit_overlay()
         return
     end
+    local t0 = hs.timer.secondsSinceEpoch()
     query_focused_window(function(win)
+        local t1 = hs.timer.secondsSinceEpoch()
+        dbg("[grid.toggle] query=%.0fms window_id=%s floating=%s",
+            (t1-t0)*1000, win and tostring(win.id) or "nil", win and tostring(win["is-floating"]) or "nil")
         target_window_id = win and win.id or nil
         target_window_frame = win and win.frame or nil
         local floating = not win or win["is-floating"]
@@ -674,7 +689,15 @@ function M.toggle()
         else
             enter_overlay()
         end
+        dbg("[grid.toggle] done in %.0fms", (hs.timer.secondsSinceEpoch()-t0)*1000)
     end)
 end
+
+-- URL event handler: fire-and-forget trigger from skhd (no hs -c blocking)
+hs.urlevent.bind("gridtoggle", function()
+    dbg("[grid] urlevent gridToggle received")
+    skhdUI:exit_with_action("Grid Overlay")
+    M.toggle()
+end)
 
 return M
