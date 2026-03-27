@@ -40,6 +40,9 @@ opt.diffopt:append("internal,algorithm:patience")
 opt.ignorecase = true -- case insensitive
 opt.smartcase = true -- all caps will be searched as all caps
 
+opt.wrap = true
+opt.linebreak = true -- visual wrap at word boundaries, not mid-word
+
 opt.cmdheight = 1
 opt.updatetime = 300 -- diagnostic message time
 opt.signcolumn = "no"

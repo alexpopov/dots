@@ -288,12 +288,6 @@ local specs = {
       lazy = false,
   },
 
-  {
-    "andrewferrier/wrapping.nvim",
-    opts = {
-      set_nvim_opt_defaults = false,
-    },
-  },
 
   {
     'MeanderingProgrammer/render-markdown.nvim',
