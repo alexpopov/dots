@@ -384,6 +384,17 @@ function create_links {
     mkdir -p "$HOME/.docker"
     ln -sf "$DOTS_CONFIG_DIR/docker/config_macos.json" "$HOME/.docker/config.json" || _fail_error "Failed to symlink docker config"
   fi
+
+  # Claude skills - symlink each skill directory individually
+  mkdir -p "$HOME/.claude/skills"
+  if [[ -d "$DOTS_CONFIG_DIR/claude/skills" ]]; then
+    for skill_dir in "$DOTS_CONFIG_DIR/claude/skills"/*; do
+      if [[ -d "$skill_dir" ]]; then
+        local skill_name=$(basename "$skill_dir")
+        ln -sf "$skill_dir" "$HOME/.claude/skills/$skill_name" || _fail_error "Failed to symlink claude skill: $skill_name"
+      fi
+    done
+  fi
 }
 
 function ensure_shell_sources_dots {
