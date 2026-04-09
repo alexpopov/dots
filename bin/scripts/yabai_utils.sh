@@ -347,7 +347,6 @@ function grid {
       return
       ;;
   esac
-  alert.sh simple "$type"
   if [ "$back_flag" != "back_to_default" ]; then
       _hs_action "$action_name"
   fi
