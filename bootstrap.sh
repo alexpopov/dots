@@ -312,13 +312,10 @@ function setup_neovim_venv {
     _log_btw "Already created: ${color_blue}nvim virtual env${color_reset}. Skipping!"
   fi
 
-  # Upgrade pip and install/upgrade pynvim and neovim-remote
-  _log_btw "Upgrading ${color_blue}pip${color_reset}, ${color_blue}pynvim${color_reset}, and ${color_blue}neovim-remote${color_reset} in neovim venv"
+  # Upgrade pip and install/upgrade pynvim
+  _log_btw "Upgrading ${color_blue}pip${color_reset} and ${color_blue}pynvim${color_reset} in neovim venv"
   "$nvim_venv_path/bin/pip3" install --upgrade pip
-  "$nvim_venv_path/bin/pip3" install --upgrade --index-url https://pypi.org/simple pynvim neovim-remote
-
-  # Symlink nvr to ~/.local/bin as nvr-classic
-  ln -sf "$nvim_venv_path/bin/nvr" "$HOME/.local/bin/nvr-classic"
+  "$nvim_venv_path/bin/pip3" install --upgrade --index-url https://pypi.org/simple pynvim
 }
 
 function clone_dots {

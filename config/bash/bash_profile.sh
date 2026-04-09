@@ -82,10 +82,6 @@ function jk_tmux_resize_equal () {
     tmux select-layout even-horizontal
 }
 
-function vime {
-  nvr --remote $@
-}
-
 function nvr {
   local window_name=""
 
@@ -108,12 +104,10 @@ function nvr {
     window_name="$new_name"
   fi
 
-  # Create socket directory if it doesn't exist
   mkdir -p ~/.local/state
 
-  # Use nvr-classic with the named socket
   local socket_path="$HOME/.local/state/nvr-$window_name"
-  nvr-classic --servername "$socket_path" "$@"
+  nvim --listen "$socket_path" "$@"
 }
 
 function jk_choose_dirs_v {
