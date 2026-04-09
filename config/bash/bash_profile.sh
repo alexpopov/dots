@@ -83,30 +83,35 @@ function jk_tmux_resize_equal () {
 }
 
 function nvr {
-  local window_name=""
-
-  # Get tmux window name if in tmux session
-  if [[ -n "$TMUX" ]]; then
-    window_name=$(tmux display-message -p '#W')
-  fi
-
-  # If not in tmux or window name is "bash", prompt for a new name
-  if [[ -z "$TMUX" ]] || [[ "$window_name" == "bash" ]]; then
-    local new_name=$(gum input --placeholder "Enter a name for this nvr session")
-    if [[ -z "$new_name" ]]; then
-      echo "Error: No name provided"
-      return 1
-    fi
-    # Rename the tmux window if we're in tmux
-    if [[ -n "$TMUX" ]]; then
-      tmux rename-window "$new_name"
-    fi
-    window_name="$new_name"
+  if [[ -z "${TMUX:-}" ]]; then
+    echo "Error: nvr requires tmux" >&2
+    return 1
   fi
 
   mkdir -p ~/.local/state
 
-  local socket_path="$HOME/.local/state/nvr-$window_name"
+  local window_name
+  window_name=$(tmux display-message -p '#W')
+  local socket_path="$HOME/.local/state/nvr-${window_name}"
+
+  # Fall back to session-window-pane if name is generic or socket already taken
+  case "$window_name" in
+    bash|zsh|fish|sh|tmux|"")
+      local session=$(tmux display-message -p '#S')
+      local window=$(tmux display-message -p '#I')
+      local pane=$(tmux display-message -p '#P')
+      socket_path="$HOME/.local/state/nvr-${session}-${window}-${pane}"
+      ;;
+    *)
+      if [[ -S "$socket_path" ]]; then
+        local session=$(tmux display-message -p '#S')
+        local window=$(tmux display-message -p '#I')
+        local pane=$(tmux display-message -p '#P')
+        socket_path="$HOME/.local/state/nvr-${session}-${window}-${pane}"
+      fi
+      ;;
+  esac
+
   nvim --listen "$socket_path" "$@"
 }
 

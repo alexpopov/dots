@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
-# llm-open-nvr: Open a file in the neovim instance for the current tmux window.
-# Designed for use by LLM agents (Claude Code, etc.) that run inside tmux
-# but need to open files in the user's neovim editor.
+# llm-open-nvr: Open files in a running Neovim instance.
+# Uses native nvim --server/--remote (Neovim 0.10+, no dependencies).
 #
-# Uses native nvim --server/--remote (no neovim-remote dependency).
+# Socket discovery priority:
+#   1. --socket <path>     (explicit)
+#   2. $NVIM               (inside Neovim's :terminal)
+#   3. Tmux-based          (named + session-indexed sockets in ~/.local/state/)
+#   4. Auto-scan           (/run/user/$UID/nvim.*)
 #
 # Usage: llm-open-nvr [options] <file> [file2 ...]
 # Options:
-#   --tab       Open in a new tab (default)
-#   --split     Open in a horizontal split
-#   --vsplit    Open in a vertical split
-#   --diff      Open files in diff mode
-#   --send <keys>  Send keystrokes to neovim (e.g. --send ':w<CR>')
-#   --expr <expr>  Evaluate neovim expression and print result
-#   --line <n>     Jump to line number (e.g. --line 42 file.py)
+#   --tab         Open in a new tab (default)
+#   --split       Open in a horizontal split
+#   --vsplit      Open in a vertical split
+#   --diff        Open files in diff mode
+#   --send <keys> Send keystrokes to neovim
+#   --expr <expr> Evaluate expression and print result
+#   --line <n>    Jump to line number
+#   --socket <s>  Use this socket (skip discovery)
+#   --pane <p>    Target a specific tmux pane index
 
 set -euo pipefail
 
@@ -22,69 +27,182 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-get_socket() {
-    if [[ -z "${TMUX:-}" ]]; then
-        echo "Error: Not inside tmux" >&2
+# Find live nvim sockets. Sets SOCKETS array.
+FORCE_PANE=""
+FORCE_SOCKET=""
+find_sockets() {
+    SOCKETS=()
+
+    # 1. Explicit socket
+    if [[ -n "$FORCE_SOCKET" ]]; then
+        if [[ -S "$FORCE_SOCKET" ]] && nvim --headless --server "$FORCE_SOCKET" --remote-expr '1' &>/dev/null; then
+            SOCKETS+=("$FORCE_SOCKET")
+        else
+            echo "Error: Socket $FORCE_SOCKET is not available." >&2
+            exit 1
+        fi
+        return
+    fi
+
+    # 2. $NVIM env var (inside nvim's :terminal)
+    if [[ -n "${NVIM:-}" ]] && [[ -S "$NVIM" ]]; then
+        if nvim --headless --server "$NVIM" --remote-expr '1' &>/dev/null; then
+            SOCKETS+=("$NVIM")
+            return
+        fi
+    fi
+
+    # 3. Tmux-based discovery
+    if [[ -n "${TMUX:-}" ]]; then
+        local session window window_name
+        session=$(tmux display-message -p '#S')
+        window=$(tmux display-message -p '#I')
+        window_name=$(tmux display-message -p '#W')
+
+        # Check named socket (e.g. nvr-dots)
+        local named_sock="$HOME/.local/state/nvr-${window_name}"
+        if [[ -S "$named_sock" ]] && nvim --headless --server "$named_sock" --remote-expr '1' &>/dev/null; then
+            SOCKETS+=("$named_sock")
+        fi
+
+        # Check session-window-pane sockets (e.g. nvr-0-3-1)
+        local pattern="$HOME/.local/state/nvr-${session}-${window}-"
+        for sock in "${pattern}"*; do
+            [[ -S "$sock" ]] || continue
+            if nvim --headless --server "$sock" --remote-expr '1' &>/dev/null; then
+                SOCKETS+=("$sock")
+            else
+                rm -f "$sock"
+            fi
+        done
+
+        # Filter to specific pane if requested
+        if [[ -n "$FORCE_PANE" ]] && [[ ${#SOCKETS[@]} -gt 0 ]]; then
+            local filtered=()
+            local pane_sock="${pattern}${FORCE_PANE}"
+            for sock in "${SOCKETS[@]}"; do
+                if [[ "$sock" == "$pane_sock" ]]; then
+                    filtered+=("$sock")
+                fi
+            done
+            SOCKETS=("${filtered[@]}")
+        fi
+
+        if [[ ${#SOCKETS[@]} -gt 0 ]]; then
+            return
+        fi
+    fi
+
+    # 4. Auto-scan /run/user/$UID/nvim.*
+    local uid
+    uid=$(id -u)
+    for sock in /run/user/"$uid"/nvim.*; do
+        [[ -S "$sock" ]] || continue
+        if nvim --headless --server "$sock" --remote-expr '1' &>/dev/null; then
+            SOCKETS+=("$sock")
+        fi
+    done
+
+    if [[ ${#SOCKETS[@]} -eq 0 ]]; then
+        echo "Error: No running Neovim instance found." >&2
+        echo "Start Neovim, or use --socket <path>." >&2
+        echo "Inside Neovim, run :echo v:servername to find the socket path." >&2
         exit 1
     fi
-    local wname
-    wname=$(tmux display-message -p '#W')
-    local sock="$HOME/.local/state/nvr-$wname"
-    if [[ ! -S "$sock" ]]; then
-        echo "Error: No nvr socket at $sock. Ask the user to run 'nvr' in the '$wname' tmux window." >&2
-        exit 1
-    fi
-    echo "$sock"
 }
+
+# Return a single socket or error if ambiguous.
+get_one_socket() {
+    find_sockets
+    if [[ ${#SOCKETS[@]} -gt 1 ]]; then
+        echo "Error: Multiple Neovim instances found:" >&2
+        for s in "${SOCKETS[@]}"; do
+            local cwd
+            cwd=$(nvim --headless --server "$s" --remote-expr 'getcwd()' 2>/dev/null || echo '?')
+            echo "  $s  (cwd: $cwd)" >&2
+        done
+        echo "Use --socket <path> to pick one." >&2
+        exit 1
+    fi
+    echo "${SOCKETS[0]}"
+}
+
+# Parse leading flags: --socket and --pane
+while true; do
+    case "${1:-}" in
+        --socket)
+            shift
+            if [[ $# -eq 0 ]]; then echo "Error: --socket requires path" >&2; exit 1; fi
+            FORCE_SOCKET="$1"; shift
+            ;;
+        --pane)
+            shift
+            if [[ $# -eq 0 ]]; then echo "Error: --pane requires index" >&2; exit 1; fi
+            FORCE_PANE="$1"; shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 case "${1:-}" in
     --tab)
         shift
-        socket_path=$(get_socket)
-        exec nvim --server "$socket_path" --remote-tab "$@"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            nvim --server "$sock" --remote-tab "$@"
+        done
         ;;
     --split)
         shift
-        socket_path=$(get_socket)
-        for f in "$@"; do
-            nvim --server "$socket_path" --remote-send "<C-\\><C-N>:split $(printf '%q' "$f")<CR>"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            for f in "$@"; do
+                nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:split $(printf '%q' "$f")<CR>"
+            done
         done
-        exit 0
         ;;
     --vsplit)
         shift
-        socket_path=$(get_socket)
-        for f in "$@"; do
-            nvim --server "$socket_path" --remote-send "<C-\\><C-N>:vsplit $(printf '%q' "$f")<CR>"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            for f in "$@"; do
+                nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:vsplit $(printf '%q' "$f")<CR>"
+            done
         done
-        exit 0
         ;;
     --diff)
         shift
-        socket_path=$(get_socket)
         if [[ $# -lt 2 ]]; then echo "Error: --diff requires two files" >&2; exit 1; fi
-        nvim --server "$socket_path" --remote-send "<C-\\><C-N>:tabnew $1 | diffthis | vsplit $2 | diffthis<CR>"
-        exit 0
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:tabnew $1 | diffthis | vsplit $2 | diffthis<CR>"
+        done
         ;;
     --send)
         shift
         if [[ $# -eq 0 ]]; then echo "Error: --send requires keys argument" >&2; exit 1; fi
-        socket_path=$(get_socket)
-        exec nvim --headless --server "$socket_path" --remote-send "$1"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            nvim --headless --server "$sock" --remote-send "$1"
+        done
         ;;
     --expr)
         shift
         if [[ $# -eq 0 ]]; then echo "Error: --expr requires expression argument" >&2; exit 1; fi
-        socket_path=$(get_socket)
+        socket_path=$(get_one_socket)
         exec nvim --headless --server "$socket_path" --remote-expr "$1"
         ;;
     --line)
         shift
         if [[ $# -lt 2 ]]; then echo "Error: --line requires <n> <file>" >&2; exit 1; fi
         line_num="$1"; shift
-        socket_path=$(get_socket)
-        nvim --server "$socket_path" --remote-tab "$1"
-        exec nvim --server "$socket_path" --remote-send "<C-\\><C-N>:${line_num}<CR>"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            nvim --server "$sock" --remote-tab "$1"
+            nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:${line_num}<CR>"
+        done
         ;;
     -*)
         echo "Error: Unknown option $1" >&2
@@ -92,7 +210,9 @@ case "${1:-}" in
         ;;
     *)
         # Default: open in new tab
-        socket_path=$(get_socket)
-        exec nvim --server "$socket_path" --remote-tab "$@"
+        find_sockets
+        for sock in "${SOCKETS[@]}"; do
+            nvim --server "$sock" --remote-tab "$@"
+        done
         ;;
 esac
