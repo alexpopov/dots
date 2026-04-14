@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# tmux-renumber-windows: Renumber tmux windows to be sequential.
+# e.g. 1,2,3,5,8,11 → 1,2,3,4,5,6
+# Respects the session's base-index setting.
+
+set -euo pipefail
+
+session="${1:-$(tmux display-message -p '#S')}"
+base=$(tmux show-options -gv base-index 2>/dev/null || echo 0)
+
+i=$base
+for idx in $(tmux list-windows -t "$session" -F '#{window_index}' | sort -n); do
+    if [[ "$idx" -ne "$i" ]]; then
+        tmux move-window -s "$session:$idx" -t "$session:$i"
+    fi
+    ((i++))
+done
+
+echo "Renumbered $(($i - $base)) windows ($base–$(($i - 1)))"
