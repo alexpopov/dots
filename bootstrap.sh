@@ -347,6 +347,7 @@ function create_links {
   mkdir -p "$CONFIG_DIR" "$DOTS_CONFIG_DIR" "$BIN_DIR" 
 
   ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR" || _fail_error "Failed to symlink bash config"
+  ln -sf "$DOTS_CONFIG_DIR/claude-mcp" "$CONFIG_DIR" || _fail_error "Failed to symlink claude-mcp config"
   ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR" || _fail_error "Failed to symlink input config"
   ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR" || _fail_error "Failed to symlink lazygit config"
   ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR" || _fail_error "Failed to symlink karabiner config"

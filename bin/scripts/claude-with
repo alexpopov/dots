@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Launch `claude` with an interactively-chosen subset of MCP servers.
+# Definitions live in $CLAUDE_MCP_DEFINITIONS (default: ~/.config/claude-mcp/servers.json),
+# a JSON object mapping server name -> server config (same shape as the value side
+# of `mcpServers`). Selected servers are written to a temp file and passed to
+# `claude --strict-mcp-config --mcp-config`, so nothing else leaks in.
+
+set -euo pipefail
+
+DEFINITIONS="${CLAUDE_MCP_DEFINITIONS:-$HOME/.config/claude-mcp/servers.json}"
+
+if [[ ! -f "$DEFINITIONS" ]]; then
+    echo "claude-with: definitions file not found: $DEFINITIONS" >&2
+    exit 1
+fi
+
+available=$(jq -r 'keys[]' "$DEFINITIONS")
+if [[ -z "$available" ]]; then
+    echo "claude-with: no servers defined in $DEFINITIONS" >&2
+    exit 1
+fi
+
+selected=$(printf '%s\n' "$available" | gum choose --no-limit --header "MCP servers for this session" || true)
+
+keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
+config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
+
+tmp=$(mktemp -t claude-mcp).json
+printf '%s\n' "$config" > "$tmp"
+
+exec claude --strict-mcp-config --mcp-config "$tmp" "$@"

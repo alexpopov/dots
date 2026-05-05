@@ -1,0 +1,10 @@
+{
+  "things": {
+    "command": "uvx",
+    "args": ["things-mcp"]
+  },
+  "notion": {
+    "type": "http",
+    "url": "https://mcp.notion.com/mcp"
+  }
+}
