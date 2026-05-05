@@ -25,6 +25,18 @@ selected=$(printf '%s\n' "$available" | gum choose --no-limit --header "MCP serv
 keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
 config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
 
+# Substitute ${VAR} references in the assembled config (e.g. NOTION_TOKEN_*).
+# Source a tokens file first so we don't depend on the parent shell sourcing it.
+TOKENS_FILE="${CLAUDE_MCP_TOKENS:-$HOME/.config/bash/private/mcp_tokens.sh}"
+[[ -f "$TOKENS_FILE" ]] && source "$TOKENS_FILE"
+
+# Pure-bash substitution: portable (no envsubst dep on Fedora minimal etc).
+# Tokens are assumed JSON-safe (no quotes/backslashes); fine for Notion's ntn_*.
+for var in $(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' <<< "$config" | sed -E 's/[$\{\}]//g' | sort -u); do
+    [[ -z "${!var:-}" ]] && echo "claude-with: warning: \$$var is unset" >&2
+    config="${config//\$\{$var\}/${!var:-}}"
+done
+
 tmp=$(mktemp -t claude-mcp).json
 printf '%s\n' "$config" > "$tmp"
 
