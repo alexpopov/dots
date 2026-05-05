@@ -40,4 +40,8 @@ done
 tmp=$(mktemp -t claude-mcp).json
 printf '%s\n' "$config" > "$tmp"
 
+# Drop a leading literal "claude" so an existing invocation can be prefixed
+# verbatim, e.g. `claude-with claude --resume <id>`.
+[[ "${1:-}" == "claude" ]] && shift
+
 exec claude --strict-mcp-config --mcp-config "$tmp" "$@"
