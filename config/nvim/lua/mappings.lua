@@ -43,7 +43,7 @@ wk.add({
   { "<localleader>e",  group = "edit" },
   { "<localleader>ed", ":FZF ~/dots/<CR>",                                desc = "dots config files" },
   { "<localleader>ev", ":FZF ~/.config/nvim/<CR>",                        desc = "vim files" },
-  { "<localleader>es", ":FZF ~/fbsource/fbsource/users/al/alexpopov/<CR>", desc = "personal scripts" },
+  { "<localleader>es", ":FZF ~/fbsource/users/al/alexpopov/<CR>", desc = "personal scripts" },
 
   -- Localleader: buffers
   { "<localleader>b",  group = "buffers" },
