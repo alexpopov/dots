@@ -1,0 +1,17 @@
+[Unit]
+Description=RGB toggle HTTP wrapper for HomeBridge
+After=openrgb-server.service network-online.target
+Wants=openrgb-server.service network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/rgb-toggle
+Restart=on-failure
+RestartSec=3
+User=alp
+Group=alp
+StateDirectory=rgb-toggle
+Environment=RGB_STATE=/var/lib/rgb-toggle/state
+
+[Install]
+WantedBy=multi-user.target

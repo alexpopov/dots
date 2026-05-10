@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenRGB SDK server
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/openrgb --server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

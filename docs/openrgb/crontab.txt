@@ -1,0 +1,4 @@
+# User crontab on zorn for `alp`. Install with: `crontab crontab.txt`
+# RAM RGB schedule — off after work, on in the morning
+0 17 * * * /usr/bin/openrgb --client 127.0.0.1 -d 0 -m Static -c 000000 >> /tmp/openrgb-cron.log 2>&1
+0 6  * * * /usr/bin/openrgb --client 127.0.0.1 -d 0 -m Rainbow --brightness 100 >> /tmp/openrgb-cron.log 2>&1
