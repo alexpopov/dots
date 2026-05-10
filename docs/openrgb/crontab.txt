@@ -1,4 +1,5 @@
 # User crontab on zorn for `alp`. Install with: `crontab crontab.txt`
-# RAM RGB schedule — off after work, on in the morning
-0 17 * * * /usr/bin/openrgb --client 127.0.0.1 -d 0 -m Static -c 000000 >> /tmp/openrgb-cron.log 2>&1
-0 6  * * * /usr/bin/openrgb --client 127.0.0.1 -d 0 -m Rainbow --brightness 100 >> /tmp/openrgb-cron.log 2>&1
+# RAM RGB schedule — off after work, on in the morning. Goes via the
+# rgb-toggle HTTP wrapper so the HomeKit state file stays in sync.
+0 17 * * * /usr/bin/curl -fs -X POST http://127.0.0.1:6743/rgb/off >> /tmp/openrgb-cron.log 2>&1
+0 6  * * * /usr/bin/curl -fs -X POST http://127.0.0.1:6743/rgb/on  >> /tmp/openrgb-cron.log 2>&1

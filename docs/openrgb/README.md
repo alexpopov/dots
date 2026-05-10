@@ -74,6 +74,9 @@ The schedule (see `crontab.txt`):
 
 Runs every day. To restrict to weekdays, change `* * *` to `* * 1-5`.
 
+Cron calls the rgb-toggle HTTP wrapper rather than `openrgb` directly, so
+the HomeKit state file stays in sync when the schedule fires.
+
 ## HomeKit toggle
 
 HomeBridge runs in a podman container on zorn (`homebridge.service`), so
