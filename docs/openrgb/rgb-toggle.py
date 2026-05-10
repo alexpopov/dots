@@ -75,19 +75,18 @@ class Handler(BaseHTTPRequestHandler):
         write_state(on)
         self._json(200, {"on": on})
 
-    def do_POST(self):
+    def _route(self):
         if self.path == "/rgb/on":
             self._set(True)
         elif self.path == "/rgb/off":
             self._set(False)
-        else:
-            self._json(404, {"error": "not found"})
-
-    def do_GET(self):
-        if self.path == "/rgb/state":
+        elif self.path == "/rgb/state":
             self._json(200, {"on": read_state()})
         else:
             self._json(404, {"error": "not found"})
+
+    do_GET = _route
+    do_POST = _route
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
