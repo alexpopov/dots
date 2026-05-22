@@ -52,6 +52,11 @@ if [[ -n "$LOCAL_LABEL" ]] && grep -qxF "$LOCAL_LABEL" <<< "$selected"; then
     selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" || true)
 fi
 
+if [[ -z "${selected//[[:space:]]/}" ]]; then
+    echo "claude-with: no servers selected — did you forget to hit space?" >&2
+    exit 1
+fi
+
 keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
 config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
 
@@ -72,7 +77,7 @@ for var in $(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' <<< "$config" | sed -E 's/[$\{\}]
     config="${config//\$\{$var\}/${!var:-}}"
 done
 
-tmp=$(mktemp -t claude-mcp).json
+tmp=$(mktemp "${TMPDIR:-/tmp}/claude-mcp.XXXXXX").json
 printf '%s\n' "$config" > "$tmp"
 
 # Drop a leading literal "claude" so an existing invocation can be prefixed
