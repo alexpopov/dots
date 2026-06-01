@@ -93,6 +93,7 @@ m_windows < p : yabai_utils.sh focus stack.prev back_to_default
 m_windows < d : yabai_utils.sh fullscreen back_to_default
 
 m_windows < u : yabai_utils.sh toggle_manage back_to_default
+m_windows < shift - u : yabai_utils.sh toggle_stack_all back_to_default
 
 
 # Focus Mode
@@ -124,6 +125,7 @@ m_window_create < ctrl - l : yabai_utils.sh stack east
 
 m_window_create < u : yabai_utils.sh unstack back_to_default
 m_window_create < ctrl - u : yabai_utils.sh unstack
+m_window_create < shift - u : yabai_utils.sh toggle_stack_all back_to_default
 
 # Grid Mode
 m_window_resize < c : yabai_utils.sh grid centre back_to_default

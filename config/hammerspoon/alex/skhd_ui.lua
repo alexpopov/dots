@@ -53,6 +53,7 @@ local MODES = {
             { key = "n/p",     desc = "stack next/prev" },
             { key = "d",       desc = "fullscreen" },
             { key = "u",       desc = "float toggle" },
+            { key = "⇧ u",    desc = "stack/unstack all" },
             { key = "f",       desc = "focus mode" },
             { key = "c",       desc = "create stacks" },
             { key = "r",       desc = "resize" },
@@ -81,6 +82,7 @@ local MODES = {
             { key = "h/j/k/l",     desc = "stack direction" },
             { key = "⌃ h/j/k/l",   desc = "stack (stay)" },
             { key = "u",            desc = "unstack" },
+            { key = "⇧ u",         desc = "stack/unstack all" },
         },
     },
     resize = {

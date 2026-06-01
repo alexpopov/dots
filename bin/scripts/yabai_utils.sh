@@ -250,6 +250,56 @@ function unstack {
     fi
 }
 
+function toggle_stack_all {
+  local back_flag="$1"
+  maybe_back_to_normal "$back_flag" "Stack All"
+
+  # Managed (non-floating) windows on the current space
+  local managed
+  managed=$(yabai -m query --windows --space | jq '[.[] | select(."is-floating" == false)]')
+  local count
+  count=$(echo "$managed" | jq 'length')
+
+  if [ "$count" -lt 2 ]; then
+    alert.sh simple "Need 2+ managed windows"
+    if [ "$back_flag" != "back_to_default" ]; then
+        _hs_action "Stack All"
+    fi
+    return
+  fi
+
+  local any_stacked
+  any_stacked=$(echo "$managed" | jq '[.[] | select(."stack-index" > 0)] | length')
+
+  if [ "$any_stacked" -gt 0 ]; then
+    # Unstack: float-toggle twice on every managed window. This pops each
+    # window out of its stack and back into the BSP tree.
+    local id
+    while IFS= read -r id; do
+      yabai -m window "$id" --toggle float
+      yabai -m window "$id" --toggle float
+    done < <(echo "$managed" | jq -r '.[].id')
+    alert.sh simple "Unstack all"
+  else
+    # Stack everything onto the focused managed window (or the first one).
+    local target
+    target=$(echo "$managed" | jq -r '[.[] | select(."has-focus" == true)] | .[0].id // empty')
+    if [ -z "$target" ]; then
+      target=$(echo "$managed" | jq -r '.[0].id')
+    fi
+    local id
+    while IFS= read -r id; do
+      [ "$id" = "$target" ] && continue
+      yabai -m window "$id" --stack "$target"
+    done < <(echo "$managed" | jq -r '.[].id')
+    alert.sh simple "Stack all"
+  fi
+
+  if [ "$back_flag" != "back_to_default" ]; then
+      _hs_action "Stack All"
+  fi
+}
+
 function toggle_manage {
   local back_flag="$1"
   maybe_back_to_normal "$back_flag" "Toggle Float"
@@ -613,6 +663,10 @@ case $command in
 
   'unstack')
     unstack "$@"
+    ;;
+
+  'toggle_stack_all')
+    toggle_stack_all "$@"
     ;;
 
   'toggle_manage')
