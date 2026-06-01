@@ -43,6 +43,13 @@
                         "vendor_id": 12951
                     },
                     "ignore": true
+                },
+                {
+                    "identifiers": {
+                        "product_id": 6505,
+                        "vendor_id": 12951
+                    },
+                    "ignore": true
                 }
             ],
             "fn_function_keys": [
