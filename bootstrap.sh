@@ -370,6 +370,29 @@ function create_links {
   mkdir -p "$HOME/.ollama"
   ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml" || _fail_error "Failed to symlink ollama config"
 
+  # pi also refuses to use XDG. settings.json gets `lastChangelogVersion`
+  # written back to it by pi after updates; expect periodic dirty-file
+  # churn in dots.
+  mkdir -p "$HOME/.pi/agent/themes" "$HOME/.pi/agent/extensions"
+  ln -sf "$DOTS_CONFIG_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json" || _fail_error "Failed to symlink pi settings"
+
+  # pi themes and extensions - per-item symlinks so each dir can hold
+  # dots-tracked items alongside machine-local or installed ones.
+  if [[ -d "$DOTS_CONFIG_DIR/pi/themes" ]]; then
+    for theme in "$DOTS_CONFIG_DIR/pi/themes"/*; do
+      [[ -e "$theme" ]] || continue
+      ln -sfn "$theme" "$HOME/.pi/agent/themes/$(basename "$theme")" \
+        || _fail_error "Failed to symlink pi theme $(basename "$theme")"
+    done
+  fi
+  if [[ -d "$DOTS_CONFIG_DIR/pi/extensions" ]]; then
+    for ext in "$DOTS_CONFIG_DIR/pi/extensions"/*; do
+      [[ -e "$ext" ]] || continue
+      ln -sfn "$ext" "$HOME/.pi/agent/extensions/$(basename "$ext")" \
+        || _fail_error "Failed to symlink pi extension $(basename "$ext")"
+    done
+  fi
+
   # binary stuff
   ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts" || _fail_error "Failed to symlink scripts"
 

@@ -1,0 +1,6 @@
+{
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-4-7",
+  "theme": "alexpopov",
+  "lastChangelogVersion": "0.77.0"
+}
