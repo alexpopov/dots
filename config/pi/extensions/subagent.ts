@@ -39,16 +39,18 @@ export default function (pi: ExtensionAPI) {
         ? `${params.contextHint}\n\n${params.prompt}`
         : params.prompt;
 
-      // (B) Build CLI args. `--session <file>` is only added in inherit mode.
-      const args: string[] = [];
+      // (B) Build CLI args. `--mode json` emits a structured JSONL event
+      // stream we can parse reliably. `--session <file>` is only added in
+      // inherit mode.
+      const args: string[] = ["--mode", "json"];
       if (mode === "inherit") {
         const childFile = buildChildSession(ctx, toolCallId);
         args.push("--session", childFile);
       }
       args.push("-p", fullPrompt);
 
-      // (C) Spawn pi non-interactively. PI_AGENT_TEAM_CHILD=1 triggers the
-      // recursion guard above when the child loads this same extension.
+      // (C) Spawn pi. PI_AGENT_TEAM_CHILD=1 triggers the recursion guard
+      // above when the child loads this same extension.
       const child = spawn("pi", args, {
         env: { ...process.env, PI_AGENT_TEAM_CHILD: "1" },
         stdio: ["ignore", "pipe", "pipe"],
@@ -58,12 +60,15 @@ export default function (pi: ExtensionAPI) {
       const onAbort = () => child.kill("SIGTERM");
       signal?.addEventListener("abort", onAbort);
 
-      // (E) Stream stdout back to the parent TUI as it arrives.
-      let stdout = "";
+      // (E) Parse JSONL events as they arrive. The parser keeps running
+      // state for assistant messages (final + streaming draft), tool-call
+      // activity, and stopReason.
+      const parser = new JsonModeParser();
       let stderr = "";
       child.stdout.on("data", (chunk) => {
-        stdout += chunk.toString();
-        onUpdate?.({ content: [{ type: "text", text: stdout }] });
+        parser.push(chunk.toString(), (preview) => {
+          onUpdate?.({ content: [{ type: "text", text: preview }] });
+        });
       });
       child.stderr.on("data", (chunk) => {
         stderr += chunk.toString();
@@ -75,19 +80,8 @@ export default function (pi: ExtensionAPI) {
       });
       signal?.removeEventListener("abort", onAbort);
 
-      // (G) Return. isError=true tells the LLM the call failed.
-      if (exitCode === 0) {
-        return {
-          content: [{ type: "text", text: stdout.trim() || "(empty)" }],
-        };
-      }
-      return {
-        content: [{
-          type: "text",
-          text: `Subagent failed (exit ${exitCode}).\nstderr:\n${stderr}\nstdout:\n${stdout}`,
-        }],
-        isError: true,
-      };
+      // (G) Build the result from parsed state.
+      return parser.toResult(exitCode, stderr);
     },
   });
 }
@@ -240,4 +234,148 @@ function replayFiltered(entry: any, dest: SessionManager): void {
 
   // user, toolResult (small), bashExecution, others: pass through.
   dest.appendMessage(m);
+}
+
+// --- json-mode parser -------------------------------------------------------
+
+/**
+ * Parses pi's `--mode json` event stream (see /usr/local/bin/pi_cli/docs/json.md).
+ * Accumulates finalized assistant messages plus the in-flight draft text
+ * so we can:
+ *   - extract the final answer (last assistant message's text content)
+ *   - stream a clean preview to the parent TUI as the child works
+ *   - sum usage across turns
+ *   - detect stopReason="error"/"length"/"aborted"
+ *   - surface stderr if the child dies before producing anything
+ */
+class JsonModeParser {
+  private buffer = "";
+  private finals: any[] = [];
+  private draftText = "";
+  private currentTool: string | null = null;
+
+  push(chunk: string, onPreview: (preview: string) => void): void {
+    this.buffer += chunk;
+    const lines = this.buffer.split("\n");
+    this.buffer = lines.pop() ?? ""; // hold partial trailing line
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let evt: any;
+      try {
+        evt = JSON.parse(line);
+      } catch {
+        continue; // non-JSON noise; harmless to ignore
+      }
+      this.handle(evt, onPreview);
+    }
+  }
+
+  private handle(evt: any, onPreview: (preview: string) => void): void {
+    if (evt.type === "message_update" && evt.message?.role === "assistant") {
+      this.draftText = textOf(evt.message);
+      onPreview(this.preview());
+      return;
+    }
+    if (evt.type === "message_end" && evt.message?.role === "assistant") {
+      this.finals.push(evt.message);
+      this.draftText = ""; // committed; clear streaming draft
+      onPreview(this.preview());
+      return;
+    }
+    if (evt.type === "tool_execution_start") {
+      this.currentTool = evt.toolName;
+      onPreview(this.preview());
+      return;
+    }
+    if (evt.type === "tool_execution_end") {
+      this.currentTool = null;
+      onPreview(this.preview());
+      return;
+    }
+  }
+
+  private preview(): string {
+    const committedTexts = this.finals.map(textOf).filter(Boolean).join("\n\n");
+    const live = [committedTexts, this.draftText].filter(Boolean).join("\n\n");
+    return this.currentTool
+      ? `${live}\n[child running tool: ${this.currentTool}]`
+      : live;
+  }
+
+  toResult(exitCode: number, stderr: string): any {
+    const last = this.finals[this.finals.length - 1];
+
+    // No assistant output at all → child died early.
+    if (!last) {
+      return {
+        content: [{
+          type: "text",
+          text: `Subagent produced no output (exit ${exitCode}).\nstderr:\n${stderr.trim() || "(empty)"}`,
+        }],
+        isError: true,
+      };
+    }
+
+    const answer = textOf(last).trim() || "(empty)";
+    const stopReason = last.stopReason;
+    const details = {
+      stopReason,
+      model: `${last.provider}/${last.model}`,
+      usage: sumUsage(this.finals),
+    };
+
+    if (exitCode !== 0 || stopReason === "error") {
+      const reason = last.errorMessage ?? `stopReason=${stopReason}, exit=${exitCode}`;
+      return {
+        content: [{
+          type: "text",
+          text: `Subagent failed: ${reason}\n\nPartial output:\n${answer}\n\nstderr:\n${stderr.trim() || "(empty)"}`,
+        }],
+        details,
+        isError: true,
+      };
+    }
+
+    if (stopReason === "length") {
+      return {
+        content: [{
+          type: "text",
+          text: `${answer}\n\n[note: subagent stopped at context limit; answer may be incomplete]`,
+        }],
+        details,
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: answer }],
+      details,
+    };
+  }
+}
+
+function textOf(msg: any): string {
+  if (!msg || !Array.isArray(msg.content)) return "";
+  return msg.content
+    .filter((c: any) => c.type === "text")
+    .map((c: any) => c.text)
+    .join("");
+}
+
+function sumUsage(msgs: any[]): {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+} {
+  let input = 0, output = 0, cacheRead = 0, cacheWrite = 0, cost = 0;
+  for (const m of msgs) {
+    const u = m.usage ?? {};
+    input += u.input ?? 0;
+    output += u.output ?? 0;
+    cacheRead += u.cacheRead ?? 0;
+    cacheWrite += u.cacheWrite ?? 0;
+    cost += u.cost?.total ?? 0;
+  }
+  return { input, output, cacheRead, cacheWrite, cost };
 }
