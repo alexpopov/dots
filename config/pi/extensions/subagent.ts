@@ -2,8 +2,19 @@ import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-age
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+
+// --- tunables ---------------------------------------------------------------
+// Defaults can be overridden by env vars (great for dotsync-wide changes) or
+// per-call via the `timeoutSeconds` / `silentForSeconds` tool parameters.
+const DEFAULT_TIMEOUT_SECONDS = Number(process.env.PI_SUBAGENT_TIMEOUT) || 600;
+const DEFAULT_SILENT_SECONDS = Number(process.env.PI_SUBAGENT_SILENCE) || 120;
+// Grace period between SIGTERM and SIGKILL when killing a hung child.
+const SIGKILL_GRACE_MS = 5_000;
+// How often to poll for liveness signals.
+const SILENCE_CHECK_INTERVAL_MS = 10_000;
+const MTIME_CHECK_INTERVAL_MS = 5_000;
 
 export default function (pi: ExtensionAPI) {
   // (A) Recursion guard: children load this file too, but the env var
@@ -31,21 +42,32 @@ export default function (pi: ExtensionAPI) {
       contextHint: Type.Optional(Type.String({
         description: "Short context line prepended to the prompt. Cheaper than mode=inherit.",
       })),
+      timeoutSeconds: Type.Optional(Type.Integer({
+        minimum: 1,
+        description: `Hard upper bound on child runtime. Defaults to ${DEFAULT_TIMEOUT_SECONDS}s. After this, the child gets SIGTERM, then SIGKILL ${SIGKILL_GRACE_MS / 1000}s later.`,
+      })),
+      silentForSeconds: Type.Optional(Type.Integer({
+        minimum: 0,
+        description: `Kill the child if it produces no stdout/stderr/session-file activity for this long. Defaults to ${DEFAULT_SILENT_SECONDS}s. Set to 0 to disable the silence check.`,
+      })),
     }),
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const mode = params.mode ?? "fresh";
+      const timeoutSeconds = params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
+      const silentForSeconds = params.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
       const fullPrompt = params.contextHint
         ? `${params.contextHint}\n\n${params.prompt}`
         : params.prompt;
 
       // (B) Build CLI args. `--mode json` emits a structured JSONL event
       // stream we can parse reliably. `--session <file>` is only added in
-      // inherit mode.
+      // inherit mode — also gives us a path to mtime-watch for liveness.
       const args: string[] = ["--mode", "json"];
+      let childSessionFile: string | undefined;
       if (mode === "inherit") {
-        const childFile = buildChildSession(ctx, toolCallId);
-        args.push("--session", childFile);
+        childSessionFile = buildChildSession(ctx, toolCallId);
+        args.push("--session", childSessionFile);
       }
       args.push("-p", fullPrompt);
 
@@ -56,32 +78,85 @@ export default function (pi: ExtensionAPI) {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
-      // (D) Forward parent abort (Esc) to the child.
-      const onAbort = () => child.kill("SIGTERM");
+      // (D) Liveness state. Any stdout/stderr chunk or session-file mtime
+      // bump counts as activity. killReason latches the first reason and
+      // is surfaced in the final tool result.
+      let lastActivity = Date.now();
+      let killReason: string | undefined;
+      const bumpActivity = () => { lastActivity = Date.now(); };
+      const killChild = (reason: string) => {
+        if (killReason) return; // already killing
+        killReason = reason;
+        child.kill("SIGTERM");
+        setTimeout(() => {
+          if (!child.killed) child.kill("SIGKILL");
+        }, SIGKILL_GRACE_MS);
+      };
+
+      // (E) Forward parent abort (Esc) to the child.
+      const onAbort = () => killChild("aborted by parent");
       signal?.addEventListener("abort", onAbort);
 
-      // (E) Parse JSONL events as they arrive. The parser keeps running
+      // (F) Parse JSONL events as they arrive. The parser keeps running
       // state for assistant messages (final + streaming draft), tool-call
       // activity, and stopReason.
       const parser = new JsonModeParser();
       let stderr = "";
       child.stdout.on("data", (chunk) => {
+        bumpActivity();
         parser.push(chunk.toString(), (preview) => {
           onUpdate?.({ content: [{ type: "text", text: preview }] });
         });
       });
       child.stderr.on("data", (chunk) => {
+        bumpActivity();
         stderr += chunk.toString();
       });
 
-      // (F) Wait for exit (stdio fully drained).
+      // (G) Hard timeout — absolute upper bound on runtime.
+      const hardTimer = setTimeout(
+        () => killChild(`timeout after ${timeoutSeconds}s`),
+        timeoutSeconds * 1000,
+      );
+
+      // (H) Silence watcher — kill if no activity for too long. Disable
+      // by setting silentForSeconds=0.
+      const silenceTimer = silentForSeconds > 0
+        ? setInterval(() => {
+            const silentMs = Date.now() - lastActivity;
+            if (silentMs > silentForSeconds * 1000) {
+              killChild(`silent for ${Math.round(silentMs / 1000)}s`);
+            }
+          }, SILENCE_CHECK_INTERVAL_MS)
+        : null;
+
+      // (I) Mtime watcher — only available in inherit mode (we know the
+      // child's session file path). Catches "working but stdout-quiet"
+      // children that are mid-tool-call but writing to their JSONL.
+      let lastMtime = 0;
+      const mtimeTimer = childSessionFile
+        ? setInterval(() => {
+            try {
+              const m = statSync(childSessionFile!).mtimeMs;
+              if (m > lastMtime) {
+                lastMtime = m;
+                bumpActivity();
+              }
+            } catch {}
+          }, MTIME_CHECK_INTERVAL_MS)
+        : null;
+
+      // (J) Wait for exit (stdio fully drained).
       const exitCode: number = await new Promise((resolve) => {
         child.on("close", (code) => resolve(code ?? -1));
       });
       signal?.removeEventListener("abort", onAbort);
+      clearTimeout(hardTimer);
+      if (silenceTimer) clearInterval(silenceTimer);
+      if (mtimeTimer) clearInterval(mtimeTimer);
 
-      // (G) Build the result from parsed state.
-      return parser.toResult(exitCode, stderr);
+      // (K) Build the result from parsed state.
+      return parser.toResult(exitCode, stderr, killReason);
     },
   });
 }
@@ -302,8 +377,31 @@ class JsonModeParser {
       : live;
   }
 
-  toResult(exitCode: number, stderr: string): any {
+  toResult(exitCode: number, stderr: string, killReason?: string): any {
     const last = this.finals[this.finals.length - 1];
+
+    // Killed by parent (timeout, silence, or abort) — surface the reason
+    // even if we got partial output.
+    if (killReason) {
+      const partial = last ? textOf(last).trim() : "";
+      return {
+        content: [{
+          type: "text",
+          text: `Subagent killed: ${killReason}.${
+            partial ? `\n\nPartial output:\n${partial}` : ""
+          }${stderr.trim() ? `\n\nstderr:\n${stderr.trim()}` : ""}`,
+        }],
+        details: last
+          ? {
+              killReason,
+              stopReason: last.stopReason,
+              model: `${last.provider}/${last.model}`,
+              usage: sumUsage(this.finals),
+            }
+          : { killReason },
+        isError: true,
+      };
+    }
 
     // No assistant output at all → child died early.
     if (!last) {
