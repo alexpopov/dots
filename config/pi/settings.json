@@ -3,7 +3,9 @@
   "defaultModel": "claude-opus-4-8",
   "theme": "alexpopov",
   "lastChangelogVersion": "0.77.0",
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
-  "skills": ["~/.claude/skills"]
+  "skills": [
+    "~/.claude/skills"
+  ]
 }

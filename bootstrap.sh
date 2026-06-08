@@ -417,6 +417,7 @@ EOF
   # churn in dots.
   mkdir -p "$HOME/.pi/agent/themes" "$HOME/.pi/agent/extensions"
   ln -sf "$DOTS_CONFIG_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json" || _fail_error "Failed to symlink pi settings"
+  ln -sf "$DOTS_CONFIG_DIR/pi/keybindings.json" "$HOME/.pi/agent/keybindings.json" || _fail_error "Failed to symlink pi keybindings"
 
   # pi themes and extensions - per-item symlinks so each dir can hold
   # dots-tracked items alongside machine-local or installed ones.
