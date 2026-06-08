@@ -4,5 +4,6 @@
   "theme": "alexpopov",
   "lastChangelogVersion": "0.77.0",
   "defaultThinkingLevel": "xhigh",
-  "hideThinkingBlock": true
+  "hideThinkingBlock": true,
+  "skills": ["~/.claude/skills"]
 }
