@@ -10,7 +10,10 @@ import { randomUUID } from "node:crypto";
 // Defaults can be overridden by env vars (great for dotsync-wide changes) or
 // per-call via the `timeoutSeconds` / `silentForSeconds` tool parameters.
 const DEFAULT_TIMEOUT_SECONDS = Number(process.env.PI_SUBAGENT_TIMEOUT) || 600;
-const DEFAULT_SILENT_SECONDS = Number(process.env.PI_SUBAGENT_SILENCE) || 120;
+// Default bumped from 120 → 300: with the active-tool deferral below, long
+// silences only happen between tool calls (LLM thinking, slow API), so 5 min
+// is a safer "something is genuinely stuck" threshold.
+const DEFAULT_SILENT_SECONDS = Number(process.env.PI_SUBAGENT_SILENCE) || 300;
 // Grace period between SIGTERM and SIGKILL when killing a hung child.
 const SIGKILL_GRACE_MS = 5_000;
 // How often to poll for liveness signals.
@@ -315,8 +318,14 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   );
 
   // (H) Silence watcher — kill if no activity for too long.
+  // Defers to the hard timeout when the child has a tool call in flight:
+  // a long-running bash subprocess (e.g. `wrig sync`) produces no events
+  // between `tool_execution_start` and `tool_execution_end`, so naive
+  // stdout-only silence detection would false-positive on real work. The
+  // hard timeoutSeconds remains the absolute backstop.
   const silenceTimer = opts.silentForSeconds > 0
     ? setInterval(() => {
+        if (parser.hasActiveTool()) return;
         const silentMs = Date.now() - lastActivity;
         if (silentMs > opts.silentForSeconds * 1000) {
           killChild(`silent for ${Math.round(silentMs / 1000)}s`);
@@ -627,6 +636,13 @@ class JsonModeParser {
     return this.currentTool
       ? `${live}\n[child running tool: ${this.currentTool}]`
       : live;
+  }
+
+  /** True while the child has a tool call in flight. Used by the silence
+   *  watcher to defer kills when the child is doing real work that just
+   *  happens to be quiet on stdout (e.g. a long bash subprocess). */
+  hasActiveTool(): boolean {
+    return this.currentTool !== null;
   }
 
   toResult(exitCode: number, stderr: string, killReason?: string): any {
