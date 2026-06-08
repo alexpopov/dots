@@ -16,11 +16,14 @@ const SIGKILL_GRACE_MS = 5_000;
 const SILENCE_CHECK_INTERVAL_MS = 10_000;
 const MTIME_CHECK_INTERVAL_MS = 5_000;
 
+// --- factory ----------------------------------------------------------------
+
 export default function (pi: ExtensionAPI) {
-  // (A) Recursion guard: children load this file too, but the env var
-  // makes them return before registering. One env var, one early-return.
+  // Recursion guard: children load this file too, but the env var makes
+  // them return before registering. One env var, one early-return.
   if (process.env.PI_AGENT_TEAM_CHILD === "1") return;
 
+  // ----- subagent: one child, optional context inheritance -----------------
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
@@ -53,112 +56,299 @@ export default function (pi: ExtensionAPI) {
     }),
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      const mode = params.mode ?? "fresh";
-      const timeoutSeconds = params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
-      const silentForSeconds = params.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
-      const fullPrompt = params.contextHint
-        ? `${params.contextHint}\n\n${params.prompt}`
-        : params.prompt;
-
-      // (B) Build CLI args. `--mode json` emits a structured JSONL event
-      // stream we can parse reliably. `--session <file>` is only added in
-      // inherit mode — also gives us a path to mtime-watch for liveness.
-      const args: string[] = ["--mode", "json"];
-      let childSessionFile: string | undefined;
-      if (mode === "inherit") {
-        childSessionFile = buildChildSession(ctx, toolCallId);
-        args.push("--session", childSessionFile);
-      }
-      args.push("-p", fullPrompt);
-
-      // (C) Spawn pi. PI_AGENT_TEAM_CHILD=1 triggers the recursion guard
-      // above when the child loads this same extension.
-      const child = spawn("pi", args, {
-        env: { ...process.env, PI_AGENT_TEAM_CHILD: "1" },
-        stdio: ["ignore", "pipe", "pipe"],
+      return runOnePi({
+        prompt: params.prompt,
+        mode: params.mode ?? "fresh",
+        contextHint: params.contextHint,
+        timeoutSeconds: params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        silentForSeconds: params.silentForSeconds ?? DEFAULT_SILENT_SECONDS,
+        ctx,
+        parentToolCallId: toolCallId,
+        signal,
+        onPreview: (preview) =>
+          onUpdate?.({ content: [{ type: "text", text: preview }] }),
       });
-
-      // (D) Liveness state. Any stdout/stderr chunk or session-file mtime
-      // bump counts as activity. killReason latches the first reason and
-      // is surfaced in the final tool result.
-      let lastActivity = Date.now();
-      let killReason: string | undefined;
-      const bumpActivity = () => { lastActivity = Date.now(); };
-      const killChild = (reason: string) => {
-        if (killReason) return; // already killing
-        killReason = reason;
-        child.kill("SIGTERM");
-        setTimeout(() => {
-          if (!child.killed) child.kill("SIGKILL");
-        }, SIGKILL_GRACE_MS);
-      };
-
-      // (E) Forward parent abort (Esc) to the child.
-      const onAbort = () => killChild("aborted by parent");
-      signal?.addEventListener("abort", onAbort);
-
-      // (F) Parse JSONL events as they arrive. The parser keeps running
-      // state for assistant messages (final + streaming draft), tool-call
-      // activity, and stopReason.
-      const parser = new JsonModeParser();
-      let stderr = "";
-      child.stdout.on("data", (chunk) => {
-        bumpActivity();
-        parser.push(chunk.toString(), (preview) => {
-          onUpdate?.({ content: [{ type: "text", text: preview }] });
-        });
-      });
-      child.stderr.on("data", (chunk) => {
-        bumpActivity();
-        stderr += chunk.toString();
-      });
-
-      // (G) Hard timeout — absolute upper bound on runtime.
-      const hardTimer = setTimeout(
-        () => killChild(`timeout after ${timeoutSeconds}s`),
-        timeoutSeconds * 1000,
-      );
-
-      // (H) Silence watcher — kill if no activity for too long. Disable
-      // by setting silentForSeconds=0.
-      const silenceTimer = silentForSeconds > 0
-        ? setInterval(() => {
-            const silentMs = Date.now() - lastActivity;
-            if (silentMs > silentForSeconds * 1000) {
-              killChild(`silent for ${Math.round(silentMs / 1000)}s`);
-            }
-          }, SILENCE_CHECK_INTERVAL_MS)
-        : null;
-
-      // (I) Mtime watcher — only available in inherit mode (we know the
-      // child's session file path). Catches "working but stdout-quiet"
-      // children that are mid-tool-call but writing to their JSONL.
-      let lastMtime = 0;
-      const mtimeTimer = childSessionFile
-        ? setInterval(() => {
-            try {
-              const m = statSync(childSessionFile!).mtimeMs;
-              if (m > lastMtime) {
-                lastMtime = m;
-                bumpActivity();
-              }
-            } catch {}
-          }, MTIME_CHECK_INTERVAL_MS)
-        : null;
-
-      // (J) Wait for exit (stdio fully drained).
-      const exitCode: number = await new Promise((resolve) => {
-        child.on("close", (code) => resolve(code ?? -1));
-      });
-      signal?.removeEventListener("abort", onAbort);
-      clearTimeout(hardTimer);
-      if (silenceTimer) clearInterval(silenceTimer);
-      if (mtimeTimer) clearInterval(mtimeTimer);
-
-      // (K) Build the result from parsed state.
-      return parser.toResult(exitCode, stderr, killReason);
     },
   });
+
+  // ----- council: N children in parallel, aggregated result ----------------
+  pi.registerTool({
+    name: "council",
+    label: "Council",
+    description:
+      "Run N subagents in parallel and return all their answers. Use for: " +
+      "multi-model comparison (ask different models the same question), " +
+      "parallelizable subtasks (split work N ways), " +
+      "multi-perspective review (one member per lens — security, perf, etc.).\n\n" +
+      "Each member runs as an independent pi subprocess with its own prompt, " +
+      "model, and mode. No coordination between members. Results are returned " +
+      "as one text block per member, headed by `## <label>`. Failures don't " +
+      "abort the council — partial success is fine.\n\n" +
+      "Always-fresh-by-default like subagent. Each member can opt into " +
+      "mode='inherit' for parent context.",
+
+    parameters: Type.Object({
+      members: Type.Array(
+        Type.Object({
+          prompt: Type.String({ description: "This member's task." }),
+          model: Type.Optional(Type.String({
+            description: "Override the default pi model for this member. " +
+              "Accepts ids, provider-prefixed ids, or patterns " +
+              "(e.g. 'claude-opus-4-8', 'anthropic/claude-opus-4-8', 'opus').",
+          })),
+          mode: Type.Optional(StringEnum(["fresh", "inherit"] as const)),
+          contextHint: Type.Optional(Type.String()),
+          label: Type.Optional(Type.String({
+            description: "Display label for this member in the result. " +
+              "Falls back to the model id, then to M<n>.",
+          })),
+        }),
+        { minItems: 1 },
+      ),
+      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1 })),
+      silentForSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
+    }),
+
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const timeoutSeconds = params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
+      const silentForSeconds = params.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
+      const N = params.members.length;
+
+      // Per-member preview state. Combined into one TUI display.
+      type MemberState = {
+        state: "pending" | "running" | "done" | "failed";
+        preview: string;
+      };
+      const states: MemberState[] = Array.from({ length: N }, () => ({
+        state: "pending",
+        preview: "",
+      }));
+
+      const flushPreview = () => {
+        const blocks = states.map((s, i) => {
+          const label = labelFor(params.members[i], i);
+          const body = s.preview || (s.state === "pending" ? "(waiting)" : "(no output yet)");
+          return `## ${label} [${s.state}]\n${body}`;
+        });
+        onUpdate?.({ content: [{ type: "text", text: blocks.join("\n\n") }] });
+      };
+
+      // Spawn all members in parallel. runOnePi handles abort/timeout/etc.
+      // per child; failures resolve as { isError: true } results, not throws.
+      const promises = params.members.map((member, idx) => {
+        states[idx].state = "running";
+        return runOnePi({
+          prompt: member.prompt,
+          mode: member.mode ?? "fresh",
+          contextHint: member.contextHint,
+          model: member.model,
+          timeoutSeconds,
+          silentForSeconds,
+          ctx,
+          parentToolCallId: toolCallId,
+          signal,
+          onPreview: (p) => {
+            states[idx].preview = p;
+            flushPreview();
+          },
+        }).then((result) => {
+          states[idx] = {
+            state: result.isError ? "failed" : "done",
+            preview: extractText(result),
+          };
+          flushPreview();
+          return { member, result, label: labelFor(member, idx) };
+        });
+      });
+
+      flushPreview(); // initial paint with everyone running
+      const completed = await Promise.all(promises);
+
+      return aggregateCouncil(completed);
+    },
+  });
+}
+
+// --- shared spawn/parse helper ----------------------------------------------
+
+interface RunOnePiOptions {
+  prompt: string;
+  mode: "fresh" | "inherit";
+  contextHint?: string;
+  model?: string;
+  timeoutSeconds: number;
+  silentForSeconds: number;
+  ctx: any;
+  parentToolCallId: string;
+  signal?: AbortSignal;
+  onPreview?: (preview: string) => void;
+}
+
+/**
+ * Spawn one pi subprocess and return a ToolResult shape. All complexity
+ * lives here: arg construction, child session snapshot, kill machinery,
+ * JSONL parsing, result aggregation. Both `subagent` and `council` use it.
+ */
+async function runOnePi(opts: RunOnePiOptions): Promise<any> {
+  const fullPrompt = opts.contextHint
+    ? `${opts.contextHint}\n\n${opts.prompt}`
+    : opts.prompt;
+
+  // (B) Build CLI args. `--mode json` for structured output; `--model`
+  // overrides default per-member; `--session` only in inherit mode (also
+  // gives us a path to mtime-watch for liveness).
+  const args: string[] = ["--mode", "json"];
+  if (opts.model) args.push("--model", opts.model);
+  let childSessionFile: string | undefined;
+  if (opts.mode === "inherit") {
+    childSessionFile = buildChildSession(opts.ctx, opts.parentToolCallId);
+    args.push("--session", childSessionFile);
+  }
+  args.push("-p", fullPrompt);
+
+  // (C) Spawn. PI_AGENT_TEAM_CHILD=1 triggers the recursion guard above.
+  const child = spawn("pi", args, {
+    env: { ...process.env, PI_AGENT_TEAM_CHILD: "1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  // (D) Liveness state. Any stdout/stderr chunk or session-file mtime
+  // bump counts as activity. killReason latches the first reason and
+  // is surfaced in the final tool result.
+  let lastActivity = Date.now();
+  let killReason: string | undefined;
+  const bumpActivity = () => { lastActivity = Date.now(); };
+  const killChild = (reason: string) => {
+    if (killReason) return; // already killing
+    killReason = reason;
+    child.kill("SIGTERM");
+    setTimeout(() => {
+      if (!child.killed) child.kill("SIGKILL");
+    }, SIGKILL_GRACE_MS);
+  };
+
+  // (E) Forward parent abort (Esc) to the child.
+  const onAbort = () => killChild("aborted by parent");
+  opts.signal?.addEventListener("abort", onAbort);
+
+  // (F) Parse JSONL events as they arrive.
+  const parser = new JsonModeParser();
+  let stderr = "";
+  child.stdout.on("data", (chunk) => {
+    bumpActivity();
+    parser.push(chunk.toString(), (preview) => {
+      opts.onPreview?.(preview);
+    });
+  });
+  child.stderr.on("data", (chunk) => {
+    bumpActivity();
+    stderr += chunk.toString();
+  });
+
+  // (G) Hard timeout — absolute upper bound on runtime.
+  const hardTimer = setTimeout(
+    () => killChild(`timeout after ${opts.timeoutSeconds}s`),
+    opts.timeoutSeconds * 1000,
+  );
+
+  // (H) Silence watcher — kill if no activity for too long.
+  const silenceTimer = opts.silentForSeconds > 0
+    ? setInterval(() => {
+        const silentMs = Date.now() - lastActivity;
+        if (silentMs > opts.silentForSeconds * 1000) {
+          killChild(`silent for ${Math.round(silentMs / 1000)}s`);
+        }
+      }, SILENCE_CHECK_INTERVAL_MS)
+    : null;
+
+  // (I) Mtime watcher — only available in inherit mode.
+  let lastMtime = 0;
+  const mtimeTimer = childSessionFile
+    ? setInterval(() => {
+        try {
+          const m = statSync(childSessionFile!).mtimeMs;
+          if (m > lastMtime) {
+            lastMtime = m;
+            bumpActivity();
+          }
+        } catch {}
+      }, MTIME_CHECK_INTERVAL_MS)
+    : null;
+
+  // (J) Wait for exit (stdio fully drained).
+  const exitCode: number = await new Promise((resolve) => {
+    child.on("close", (code) => resolve(code ?? -1));
+  });
+  opts.signal?.removeEventListener("abort", onAbort);
+  clearTimeout(hardTimer);
+  if (silenceTimer) clearInterval(silenceTimer);
+  if (mtimeTimer) clearInterval(mtimeTimer);
+
+  return parser.toResult(exitCode, stderr, killReason);
+}
+
+// --- council aggregation ----------------------------------------------------
+
+interface MemberSpec {
+  prompt: string;
+  model?: string;
+  mode?: "fresh" | "inherit";
+  contextHint?: string;
+  label?: string;
+}
+
+function labelFor(member: MemberSpec, idx: number): string {
+  return member.label ?? member.model ?? `M${idx + 1}`;
+}
+
+function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c) => c.type === "text" && c.text)
+    .map((c) => c.text!)
+    .join("\n");
+}
+
+interface CompletedMember {
+  member: MemberSpec;
+  result: any;
+  label: string;
+}
+
+function aggregateCouncil(completed: CompletedMember[]): any {
+  const successCount = completed.filter((c) => !c.result.isError).length;
+  const total = completed.length;
+
+  const blocks: string[] = [];
+  blocks.push(`## Council summary: ${successCount}/${total} succeeded`);
+  for (const c of completed) {
+    const body = extractText(c.result);
+    blocks.push(`## ${c.label}\n${body}`);
+  }
+
+  const totalCost = completed.reduce(
+    (sum, c) => sum + (c.result.details?.usage?.cost ?? 0),
+    0,
+  );
+
+  return {
+    content: [{ type: "text", text: blocks.join("\n\n") }],
+    details: {
+      members: completed.map((c) => ({
+        label: c.label,
+        model: c.member.model,
+        mode: c.member.mode ?? "fresh",
+        isError: !!c.result.isError,
+        stopReason: c.result.details?.stopReason,
+        killReason: c.result.details?.killReason,
+        usage: c.result.details?.usage,
+      })),
+      totalCost,
+      successCount,
+      totalCount: total,
+    },
+    // Only flag the whole council as failed when nobody succeeded.
+    isError: successCount === 0,
+  };
 }
 
 // --- inherit-mode helpers ---------------------------------------------------
@@ -240,9 +430,9 @@ function truncateAtToolCall(branch: any[], toolCallId: string): any[] {
 const TOOL_RESULT_TOKEN_LIMIT = 5000;
 
 // Tools that the parent has but the child won't, so we strip references
-// to them from inherited history. Currently just `subagent` (blocked in
-// the child by the PI_AGENT_TEAM_CHILD recursion guard).
-const CHILD_BLOCKED_TOOLS = new Set(["subagent"]);
+// to them from inherited history. Currently `subagent` and `council` —
+// both blocked in the child by the PI_AGENT_TEAM_CHILD recursion guard.
+const CHILD_BLOCKED_TOOLS = new Set(["subagent", "council"]);
 
 function replayFiltered(entry: any, dest: SessionManager): void {
   if (entry.type === "compaction") {
@@ -274,10 +464,9 @@ function replayFiltered(entry: any, dest: SessionManager): void {
 
   if (m.role === "assistant" && Array.isArray(m.content)) {
     // Strip thinking blocks AND any tool calls to tools the child won't
-    // have. Right now that's just `subagent` (blocked by recursion guard).
-    // Without this strip, the child sees a transcript full of subagent
-    // calls, pattern-matches "this is how I answer", and tries to call
-    // subagent itself — only to hit a "tool not found" wall.
+    // have. Without this strip, the child sees a transcript full of
+    // subagent/council calls, pattern-matches "this is how I answer", and
+    // tries to call them itself — only to hit a "tool not found" wall.
     const filtered = m.content
       .filter((c: any) => c.type !== "thinking")
       .filter((c: any) => !(c.type === "toolCall" && CHILD_BLOCKED_TOOLS.has(c.name)));
