@@ -10,6 +10,9 @@ config/lazygit/state.yml
 # Per-user ghostty overrides written by bootstrap (see create_links)
 config/ghostty/local.conf
 
+# Private location/preset overrides for any skill
+config/claude/skills/*/*.local.json
+
 # Systemd created files
 default.target.wants/
 sockets.target.wants/

@@ -1,0 +1,81 @@
+{
+  "cameras": {
+    "canon-7": {
+      "description": "Canon Model 7 Rangefinder (35mm film)",
+      "exif": {
+        "Make": "Canon",
+        "Model": "Canon Model 7"
+      }
+    },
+    "praktica-mtl-5b": {
+      "description": "Praktica MTL 5B (35mm film SLR, M42 mount)",
+      "exif": {
+        "Make": "Praktica",
+        "Model": "Praktica MTL 5B"
+      }
+    },
+    "sinar-f2": {
+      "description": "Sinar F2 (4x5 large-format view camera)",
+      "exif": {
+        "Make": "Sinar",
+        "Model": "Sinar F2"
+      }
+    }
+  },
+  "lenses": {
+    "canon-50-1.8": {
+      "description": "Canon 50mm f/1.8 LTM",
+      "exif": {
+        "LensMake": "Canon",
+        "LensModel": "Canon 50mm f/1.8",
+        "FocalLength": "50",
+        "FocalLengthIn35mmFormat": "50",
+        "MaxApertureValue": "1.8"
+      }
+    },
+    "schneider-150-5.6-symmar-s": {
+      "description": "Schneider-Kreuznach 150mm f/5.6 Symmar-S (4x5 normal lens)",
+      "exif": {
+        "LensMake": "Schneider-Kreuznach",
+        "LensModel": "Schneider-Kreuznach 150mm f/5.6 Symmar-S",
+        "FocalLength": "150",
+        "FocalLengthIn35mmFormat": "43",
+        "MaxApertureValue": "5.6"
+      }
+    }
+  },
+  "films": {
+    "portra-400": {
+      "description": "Kodak Portra 400 (35mm color negative, ISO 400)",
+      "exif": {
+        "Keywords-": "Portra 400",
+        "Keywords+": "Portra 400",
+        "UserComment": "Kodak Portra 400"
+      }
+    },
+    "colorplus-200": {
+      "description": "Kodak ColorPlus 200 (35mm color negative, ISO 200)",
+      "exif": {
+        "Keywords-": "ColorPlus 200",
+        "Keywords+": "ColorPlus 200",
+        "UserComment": "Kodak ColorPlus 200"
+      }
+    },
+    "ilford-hp5": {
+      "description": "Ilford HP5 Plus (35mm B&W negative, ISO 400)",
+      "exif": {
+        "Keywords-": "HP5 Plus",
+        "Keywords+": "HP5 Plus",
+        "UserComment": "Ilford HP5 Plus"
+      }
+    },
+    "fomapan-100": {
+      "description": "Fomapan 100 Classic (B&W negative, ISO 100)",
+      "exif": {
+        "Keywords-": "Fomapan 100",
+        "Keywords+": "Fomapan 100",
+        "UserComment": "Fomapan 100"
+      }
+    }
+  }
+}
