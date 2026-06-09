@@ -1,5 +1,6 @@
 import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -23,6 +24,27 @@ const MTIME_CHECK_INTERVAL_MS = 5_000;
 // Supervise-specific defaults.
 const DEFAULT_MAX_ITERATIONS = Number(process.env.PI_SUPERVISE_MAX_ITERATIONS) || 5;
 const ORACLE_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_ORACLE_TIMEOUT) || 300;
+
+// Render helpers used by all three tools (subagent / council / supervise) to
+// suppress per-call rendering. tool-aggregator.ts owns the consolidated
+// widget + summary; here we just opt out of the default boxed renderer.
+// Errored tool results still render inline so the user sees failure context.
+const EMPTY_COMPONENT = { render: () => [], invalidate: () => {} };
+
+function renderEmpty() {
+  return EMPTY_COMPONENT;
+}
+
+function renderResultEmptyOrError(toolName: string) {
+  return (result: any, _options: any, theme: any) => {
+    if (!result.isError) return EMPTY_COMPONENT;
+    const content = result.content;
+    const text = Array.isArray(content)
+      ? content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n")
+      : String(content ?? "");
+    return new Text(theme.fg("error", `${toolName} error: `) + (text || "(no detail)"), 0, 0);
+  };
+}
 
 // --- factory ----------------------------------------------------------------
 
@@ -77,6 +99,10 @@ export default function (pi: ExtensionAPI) {
           onUpdate?.({ content: [{ type: "text", text: preview }] }),
       });
     },
+
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("subagent"),
   });
 
   // ----- council: N children in parallel, aggregated result ----------------
@@ -174,6 +200,10 @@ export default function (pi: ExtensionAPI) {
 
       return aggregateCouncil(completed);
     },
+
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("council"),
   });
 
   // ----- supervise: dispatcher → executor → oracle → supervisor loop -------
@@ -211,6 +241,10 @@ export default function (pi: ExtensionAPI) {
       return runSupervise(params as any, ctx, signal, (preview) =>
         onUpdate?.({ content: [{ type: "text", text: preview }] }));
     },
+
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("supervise"),
   });
 
   pi.registerCommand("supervise", {
