@@ -457,7 +457,7 @@ EOF
     for skill_dir in "$DOTS_CONFIG_DIR/claude/skills"/*; do
       if [[ -d "$skill_dir" ]]; then
         local skill_name=$(basename "$skill_dir")
-        ln -sf "$skill_dir" "$HOME/.claude/skills/$skill_name" || _fail_error "Failed to symlink claude skill: $skill_name"
+        ln -sfn "$skill_dir" "$HOME/.claude/skills/$skill_name" || _fail_error "Failed to symlink claude skill: $skill_name"
       fi
     done
   fi
