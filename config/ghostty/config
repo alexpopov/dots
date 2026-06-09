@@ -6,3 +6,7 @@ copy-on-select = clipboard
 
 # Ctrl+V to paste
 keybind = ctrl+v=paste_from_clipboard
+
+# Per-user overrides written by bootstrap.sh (e.g. for $USER == cay).
+# The `?` makes it optional — no error when the file is absent.
+config-file = ?local.conf

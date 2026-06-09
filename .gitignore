@@ -7,6 +7,9 @@ config/nvim/lua/private/
 config/nvim/private/
 config/lazygit/state.yml
 
+# Per-user ghostty overrides written by bootstrap (see create_links)
+config/ghostty/local.conf
+
 # Systemd created files
 default.target.wants/
 sockets.target.wants/

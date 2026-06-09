@@ -358,6 +358,16 @@ function create_links {
   ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR" || _fail_error "Failed to symlink selinux config"
   ln -sf "$DOTS_CONFIG_DIR/ghostty" "$CONFIG_DIR" || _fail_error "Failed to symlink ghostty config"
 
+  # Per-user ghostty overrides. The main config does `config-file = ?local.conf`,
+  # so this file is optional. Written through the symlinked dir, so it lands in
+  # dots/config/ghostty/local.conf — gitignored.
+  if [[ "$USER" == "cay" ]]; then
+    cat > "$CONFIG_DIR/ghostty/local.conf" <<'EOF' || _fail_error "Failed to write ghostty local.conf"
+theme = Apple System Colors Light
+EOF
+  fi
+
+
   # tmux refuses to use XDG, this is for us to have tmux.conf
   ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR" || _fail_error "Failed to symlink tmux config dir"
   ln -sfn "$DOTS_CONFIG_DIR/tmux" "$HOME/.tmux" || _fail_error "Failed to symlink ~/.tmux"
