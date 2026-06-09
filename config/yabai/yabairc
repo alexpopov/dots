@@ -51,6 +51,7 @@ yabai -m rule --add app="Cisco" manage=off
 yabai -m rule --add app="Cisco Secure Client" manage=off
 yabai -m rule --add app="Choosy.*" manage=off
 yabai -m rule --add app="Bartender.*" manage=off
+yabai -m rule --add app="GeoTag" manage=off
 yabai -m rule --add app="Google Drive" manage=off
 yabai -m rule --add app="Calendar" manage=off
 yabai -m rule --add app="Managed Software Centre" manage=off
@@ -81,6 +82,9 @@ yabai -m rule --add app="Magic Island" manage=off
 yabai -m rule --add app="Santa" manage=off
 yabai -m rule --add app="Unity" manage=off
 yabai -m rule --add app="Gmail" manage=off
+yabai -m rule --add app="DaisyDisk" manage=off
+yabai -m rule --add app="Tailscale" manage=off
+yabai -m rule --add app="darktable" manage=off
 
 # Native-tab apps: tabs appear as new windows to yabai, which disrupts
 # BSP layout and destroys stacks. Finder is unmanaged by default.
