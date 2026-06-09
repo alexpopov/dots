@@ -191,6 +191,38 @@ function _install_package_fd {
   fi
 }
 
+function _install_package_tree-sitter {
+  # Required by nvim-treesitter `main` branch to compile parsers on-host.
+  # Note: Homebrew split the formula — bare `tree-sitter` is library-only;
+  # the CLI lives at `tree-sitter-cli` (which still installs the binary as
+  # `tree-sitter`).
+  if is_mac; then
+    _default_install_package "tree-sitter-cli"
+  elif is_fedora; then
+    _default_install_package "tree-sitter-cli"
+  elif is_ubuntu; then
+    if ubuntu_version_ge "24.04"; then
+      _default_install_package "tree-sitter-cli"
+    else
+      _log_info "Installing ${color_blue}tree-sitter${color_reset} from GitHub releases (apt tree-sitter-cli landed in 24.04)"
+      local ts_version=$(curl -s "https://api.github.com/repos/tree-sitter/tree-sitter/releases/latest" | jq -r '.tag_name | ltrimstr("v")')
+      local arch
+      case "$(uname -m)" in
+        x86_64) arch="x64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) _fail_error "Unsupported architecture for tree-sitter prebuilt: $(uname -m)" ;;
+      esac
+      local ts_url="https://github.com/tree-sitter/tree-sitter/releases/download/v${ts_version}/tree-sitter-linux-${arch}.gz"
+      curl -Lo /tmp/tree-sitter.gz "$ts_url"
+      gunzip -f /tmp/tree-sitter.gz
+      sudo install /tmp/tree-sitter -D -t /usr/local/bin/
+      rm -f /tmp/tree-sitter
+    fi
+  else
+    _default_install_package "tree-sitter-cli"
+  fi
+}
+
 function _install_package_lazygit {
   local package="lazygit"
 
@@ -564,7 +596,7 @@ export_fzf_bindings
 
 # Packages that may rely on some manual intervention or the existence of dots dirs or something
 # NOTE: write the binary name, not the package name
-_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree lazygit delta unzip zstd fd"
+_LATE_PACKAGES_TO_INSTALL="python-utils gum cmake jq git-prev tree tree-sitter lazygit delta unzip zstd fd"
 
 for package in $_LATE_PACKAGES_TO_INSTALL ; do 
   _install_package "$package"
