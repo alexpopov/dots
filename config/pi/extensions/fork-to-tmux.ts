@@ -2,7 +2,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
 
 // Intercept /fork and /clone: when running inside tmux, open the forked
 // session in a new tmux split instead of replacing the current pane.
@@ -43,23 +45,51 @@ export default function (pi: ExtensionAPI) {
     }
 
     try {
-      // Truncate parent JSONL at the selected entry.
-      //   /fork  → position="before": stop just before the entry
-      //   /clone → position="at":     include the entry itself
-      const position = event.position ?? "before";
+      // Include the picked entry AND the assistant response that follows
+      // it (the rest of that turn — assistant text, tool calls, tool
+      // results, etc.), stopping just before the next user message. Users
+      // who want less context can pick an earlier entry in the tree.
+      //
+      // The /fork "before" vs /clone "at" pi distinction is ignored on
+      // purpose — pi's "before" is optimized for "rewrite this message"
+      // (cuts entry, restores as editor draft), which doesn't translate
+      // to tmux where the new pane has no editor relationship to the
+      // picked text. For "branch from here and continue" (the actual use
+      // case for tmux forks), we always want the full picked exchange.
       const lines = readFileSync(sourceFile, "utf8")
         .split("\n")
         .filter((l) => l.length > 0);
       const kept: string[] = [];
+      let foundPicked = false;
       for (const line of lines) {
-        kept.push(line);
         let entry: any;
-        try { entry = JSON.parse(line); } catch { continue; }
-        if (entry.id === event.entryId) {
-          if (position === "before") kept.pop();
-          break;
+        try { entry = JSON.parse(line); } catch { kept.push(line); continue; }
+
+        if (!foundPicked) {
+          kept.push(line);
+          if (entry.id === event.entryId) foundPicked = true;
+          continue;
         }
+
+        // After picked: stop at the next user message to bound the turn.
+        if (entry.type === "message" && entry.message?.role === "user") break;
+        kept.push(line);
       }
+
+      // Give the fork a distinct session name so it's recognizable in
+      // /resume and not confused with its parent. Format: "<parent name>
+      // (fork N)" where N counts existing forks of the same source file.
+      const parentName = lastSessionInfoName(kept) ?? "Untitled";
+      const forkNumber = countSiblingForks(sourceFile) + 1;
+      const forkName = `${parentName} (fork ${forkNumber})`;
+      const lastEntryId = lastEntryIdOf(kept);
+      kept.push(JSON.stringify({
+        type: "session_info",
+        id: randomUUID().replace(/-/g, "").slice(0, 8),
+        parentId: lastEntryId,
+        timestamp: new Date().toISOString(),
+        name: forkName,
+      }));
 
       const newFile = sourceFile.replace(/\.jsonl$/, `_fork_${Date.now()}.jsonl`);
       writeFileSync(newFile, kept.join("\n") + "\n");
@@ -75,7 +105,7 @@ export default function (pi: ExtensionAPI) {
       proc.unref();
 
       ctx.ui.notify(
-        `Forked into new tmux pane (${dir === "-h" ? "right" : "down"}, ${position}, ${kept.length} entries)`,
+        `Forked to new pane as "${forkName}" — /name in the new pane to rename`,
         "info",
       );
       return { cancel: true };
@@ -87,6 +117,39 @@ export default function (pi: ExtensionAPI) {
       return; // don't cancel — let default behavior run
     }
   });
+}
+
+function lastSessionInfoName(jsonlLines: string[]): string | null {
+  for (let i = jsonlLines.length - 1; i >= 0; i--) {
+    try {
+      const e = JSON.parse(jsonlLines[i]);
+      if (e.type === "session_info" && typeof e.name === "string") return e.name;
+    } catch {}
+  }
+  return null;
+}
+
+function lastEntryIdOf(jsonlLines: string[]): string | null {
+  for (let i = jsonlLines.length - 1; i >= 0; i--) {
+    try {
+      const e = JSON.parse(jsonlLines[i]);
+      if (typeof e.id === "string") return e.id;
+    } catch {}
+  }
+  return null;
+}
+
+function countSiblingForks(sourceFile: string): number {
+  // Look for other files in the same dir whose name follows our fork
+  // convention: <source-without-ext>_fork_<timestamp>.jsonl.
+  try {
+    const dir = dirname(sourceFile);
+    const stem = basename(sourceFile, ".jsonl");
+    const prefix = `${stem}_fork_`;
+    return readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".jsonl")).length;
+  } catch {
+    return 0;
+  }
 }
 
 async function pickSplitDirection(ctx: any): Promise<string | null> {
@@ -114,7 +177,14 @@ async function pickSplitDirection(ctx: any): Promise<string | null> {
     return {
       render: (w: number) => container.render(w),
       invalidate: () => container.invalidate(),
-      handleInput: (data: string) => { selectList.handleInput(data); tui.requestRender(); },
+      handleInput: (data: string) => {
+        // Translate vim j/k to down/up arrow escape sequences so the
+        // SelectList (which only knows arrows) processes them as expected.
+        if (data === "j") data = "\x1b[B";
+        else if (data === "k") data = "\x1b[A";
+        selectList.handleInput(data);
+        tui.requestRender();
+      },
     };
   });
 }
