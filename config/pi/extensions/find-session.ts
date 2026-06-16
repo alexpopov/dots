@@ -39,42 +39,19 @@ function saveArchived(archived: Set<string>): void {
 //   /find-session pi widget    pre-filter by substring before showing
 
 export default function (pi: ExtensionAPI) {
-  // On quit (Ctrl+C, Ctrl+D, /exit), offer to mark the session done so
-  // it's hidden from /find-session by default. Saves the user from
-  // typing /done before every exit. Skipped if already archived,
-  // ephemeral, or the user disabled the prompt.
-  //
-  // Only fires on event.reason === "quit" — NOT on /reload, /new,
-  // /resume, /fork, which all also trigger session_shutdown but mean
-  // the user is moving to another session, not finishing.
-  //
-  // Set PI_DONE_ON_QUIT_PROMPT=0 to disable.
-  if (process.env.PI_DONE_ON_QUIT_PROMPT !== "0") {
-    pi.on("session_shutdown", async (event: any, ctx: any) => {
-      if (event?.reason !== "quit") return;
-      const file = ctx.sessionManager?.getSessionFile?.();
-      if (!file) return; // ephemeral
-      const archived = loadArchived();
-      if (archived.has(file)) return; // already done
-      try {
-        const ok = await ctx.ui.confirm(
-          "Mark session as done?",
-          "Hide it from /find-session by default. You can /done undo if you change your mind.",
-        );
-        if (ok) {
-          archived.add(file);
-          saveArchived(archived);
-        }
-      } catch {
-        // ctx.ui may be tearing down; ignore. Default = leave visible.
-      }
-    });
-  }
+  // (No quit-confirm.) An earlier version hooked session_shutdown to
+  // ask "mark done?" before exiting — broken: TUI is already tearing
+  // down by that event, ctx.ui.confirm's promise never resolves, pi
+  // hangs until force-killed. A follow-up tried /q + Ctrl+Q as a
+  // manual quit-with-confirm, but if the user has to remember /q they
+  // might as well just /done before /exit. Pi has no
+  // session_before_quit hook. Leaving this as a known gap.
 
   pi.registerCommand("done", {
     description:
-      "Mark the current session as done (archived). Hides it from " +
-      "/find-session by default. /done undo to unmark.",
+      "Mark the current session done (archived) AND quit pi. /done by " +
+      "itself = 'I'm finished with this conversation, get me out'. " +
+      "/done stay marks without quitting. /done undo unmarks (no quit).",
     handler: async (args: string, ctx: any) => {
       const file = ctx.sessionManager?.getSessionFile?.();
       if (!file) {
@@ -83,6 +60,7 @@ export default function (pi: ExtensionAPI) {
       }
       const arg = (args ?? "").trim().toLowerCase();
       const archived = loadArchived();
+
       if (arg === "undo" || arg === "unmark" || arg === "undone") {
         if (!archived.has(file)) {
           ctx.ui.notify("Session wasn't marked done.", "info");
@@ -91,15 +69,29 @@ export default function (pi: ExtensionAPI) {
         archived.delete(file);
         saveArchived(archived);
         ctx.ui.notify("Unmarked. Session will show in /find-session.", "info");
+        return; // never quit on undo
+      }
+
+      const stayAfter = arg === "stay" || arg === "keep";
+
+      if (!archived.has(file)) {
+        archived.add(file);
+        saveArchived(archived);
+      }
+
+      if (stayAfter) {
+        ctx.ui.notify("Marked done. (Staying — /done without 'stay' to quit.)", "info");
         return;
       }
-      if (archived.has(file)) {
-        ctx.ui.notify("Already marked done. /done undo to unmark.", "info");
-        return;
+
+      // Default: mark + quit. ctx.shutdown defers until idle, so any
+      // pending agent work finishes first. The archived entry is
+      // already on disk so the exit-hint extension still prints the
+      // resume command and you can /done undo if you regret it.
+      ctx.ui.notify("Marked done. Bye.", "info");
+      try { ctx.shutdown(); } catch (err: any) {
+        ctx.ui.notify(`shutdown failed: ${err?.message ?? err}`, "error");
       }
-      archived.add(file);
-      saveArchived(archived);
-      ctx.ui.notify("Marked done. Hidden from /find-session (use --all or --done to see).", "info");
     },
   });
 
