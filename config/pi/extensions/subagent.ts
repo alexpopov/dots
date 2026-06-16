@@ -4,6 +4,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -24,6 +25,101 @@ const MTIME_CHECK_INTERVAL_MS = 5_000;
 // Supervise-specific defaults.
 const DEFAULT_MAX_ITERATIONS = Number(process.env.PI_SUPERVISE_MAX_ITERATIONS) || 5;
 const ORACLE_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_ORACLE_TIMEOUT) || 300;
+
+// --- settings loading -------------------------------------------------------
+// Read ~/.pi/agent/settings.json (global) and ./.pi/settings.json (project).
+// Project keys override global keys, per-block (matches Ivan's pattern in
+// fbsource/users/iv/ivangromov/subagent/supervise.ts). Defaults are
+// preserved: with no settings present, behavior is identical to a fresh
+// install. Each call site reads settings at execute() time so /reload
+// picks up changes.
+
+interface SubagentSettings {
+  model?: string;
+  tools?: string;
+  timeoutSeconds?: number;
+  silentForSeconds?: number;
+}
+
+interface CouncilMemberSettings {
+  label?: string;
+  model?: string;
+  tools?: string;
+  mode?: "fresh" | "inherit";
+  contextHint?: string;
+}
+
+interface CouncilSettings {
+  tools?: string;
+  timeoutSeconds?: number;
+  silentForSeconds?: number;
+  members?: CouncilMemberSettings[];
+}
+
+interface SuperviseSettingsBlock {
+  dispatcherModel?: string;
+  executorModel?: string;
+  supervisorModel?: string;
+  maxIterations?: number;
+  oracleRequired?: boolean;
+  timeoutSeconds?: number;
+  silentForSeconds?: number;
+}
+
+interface AllSettings {
+  subagent: SubagentSettings;
+  council: CouncilSettings;
+  supervise: SuperviseSettingsBlock;
+  sources: Array<{ path: string; exists: boolean; blocks: string[] }>;
+}
+
+function readJsonSafe(path: string): any {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return undefined;
+  }
+}
+
+function loadSettings(cwd: string): AllSettings {
+  const globalPath = join(homedir(), ".pi", "agent", "settings.json");
+  const projectPath = join(cwd, ".pi", "settings.json");
+  const merged: AllSettings = {
+    subagent: {},
+    council: {},
+    supervise: {},
+    sources: [],
+  };
+  for (const p of [globalPath, projectPath]) {
+    const exists = existsSync(p);
+    const obj = exists ? readJsonSafe(p) : undefined;
+    const blocks: string[] = [];
+    if (obj?.subagent && typeof obj.subagent === "object") {
+      Object.assign(merged.subagent, obj.subagent);
+      blocks.push("subagent");
+    }
+    if (obj?.council && typeof obj.council === "object") {
+      // Members array: project wins entirely; don't try to merge per-member.
+      Object.assign(merged.council, obj.council);
+      blocks.push("council");
+    }
+    if (obj?.supervise && typeof obj.supervise === "object") {
+      Object.assign(merged.supervise, obj.supervise);
+      blocks.push("supervise");
+    }
+    merged.sources.push({ path: p, exists, blocks });
+  }
+  return merged;
+}
+
+// Default council roster used by /council when no settings.council.members
+// is configured. Picked for diversity: Opus (deep), Sonnet (fast/strong),
+// Haiku (cheap second opinion).
+const DEFAULT_COUNCIL_ROSTER: CouncilMemberSettings[] = [
+  { label: "opus", model: "anthropic/claude-opus-4-8" },
+  { label: "sonnet", model: "anthropic/claude-sonnet-4-6" },
+  { label: "haiku", model: "anthropic/claude-haiku-4-5" },
+];
 
 // Render helpers used by all three tools (subagent / council / supervise) to
 // suppress per-call rendering. tool-aggregator.ts owns the consolidated
@@ -75,6 +171,20 @@ export default function (pi: ExtensionAPI) {
       contextHint: Type.Optional(Type.String({
         description: "Short context line prepended to the prompt. Cheaper than mode=inherit.",
       })),
+      model: Type.Optional(Type.String({
+        description: "Override the default pi model for this subagent run. " +
+          "Accepts ids, provider-prefixed ids, or patterns " +
+          "(e.g. 'claude-opus-4-8', 'anthropic/claude-sonnet-4-6', 'sonnet'). " +
+          "Use a cheaper model like Sonnet or Haiku for simple subtasks; " +
+          "match the parent (default) for complex work.",
+      })),
+      tools: Type.Optional(Type.String({
+        description: "Comma-separated tool allowlist for the child (e.g. " +
+          "'read,grep,find,ls' for a recon-only subagent). Restricts what " +
+          "the child can do — useful when delegating a self-contained " +
+          "investigation that should not be able to edit files or run bash. " +
+          "Defaults to settings.subagent.tools, then to pi's default (all tools).",
+      })),
       timeoutSeconds: Type.Optional(Type.Integer({
         minimum: 1,
         description: `Hard upper bound on child runtime. Defaults to ${DEFAULT_TIMEOUT_SECONDS}s. After this, the child gets SIGTERM, then SIGKILL ${SIGKILL_GRACE_MS / 1000}s later.`,
@@ -86,12 +196,15 @@ export default function (pi: ExtensionAPI) {
     }),
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const s = loadSettings(ctx.cwd).subagent;
       return runOnePi({
         prompt: params.prompt,
         mode: params.mode ?? "fresh",
         contextHint: params.contextHint,
-        timeoutSeconds: params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
-        silentForSeconds: params.silentForSeconds ?? DEFAULT_SILENT_SECONDS,
+        model: params.model ?? s.model,
+        tools: params.tools ?? s.tools,
+        timeoutSeconds: params.timeoutSeconds ?? s.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        silentForSeconds: params.silentForSeconds ?? s.silentForSeconds ?? DEFAULT_SILENT_SECONDS,
         ctx,
         parentToolCallId: toolCallId,
         signal,
@@ -130,6 +243,10 @@ export default function (pi: ExtensionAPI) {
               "Accepts ids, provider-prefixed ids, or patterns " +
               "(e.g. 'claude-opus-4-8', 'anthropic/claude-opus-4-8', 'opus').",
           })),
+          tools: Type.Optional(Type.String({
+            description: "Comma-separated tool allowlist for this member " +
+              "(e.g. 'read,grep,find,ls'). Falls back to settings.council.tools.",
+          })),
           mode: Type.Optional(StringEnum(["fresh", "inherit"] as const)),
           contextHint: Type.Optional(Type.String()),
           label: Type.Optional(Type.String({
@@ -144,8 +261,9 @@ export default function (pi: ExtensionAPI) {
     }),
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      const timeoutSeconds = params.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
-      const silentForSeconds = params.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
+      const csettings = loadSettings(ctx.cwd).council;
+      const timeoutSeconds = params.timeoutSeconds ?? csettings.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
+      const silentForSeconds = params.silentForSeconds ?? csettings.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
       const N = params.members.length;
 
       // Per-member preview state. Combined into one TUI display.
@@ -176,6 +294,7 @@ export default function (pi: ExtensionAPI) {
           mode: member.mode ?? "fresh",
           contextHint: member.contextHint,
           model: member.model,
+          tools: member.tools ?? csettings.tools,
           timeoutSeconds,
           silentForSeconds,
           ctx,
@@ -267,6 +386,176 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
+
+  // ----- /council: ask the configured roster a single prompt ---------------
+  pi.registerCommand("council", {
+    description:
+      "Ask the configured council roster a single prompt. Each member runs " +
+      "in parallel; all answers are returned to the chat. Roster comes from " +
+      "settings.council.members (see /council-status); falls back to a " +
+      "Opus/Sonnet/Haiku default.",
+    handler: async (args: string, ctx: any) => {
+      const prompt = (args ?? "").trim();
+      if (!prompt) {
+        ctx.ui.notify("Usage: /council <prompt>", "error");
+        return;
+      }
+      const all = loadSettings(ctx.cwd);
+      const c = all.council;
+      const roster = c.members ?? DEFAULT_COUNCIL_ROSTER;
+      if (roster.length === 0) {
+        ctx.ui.notify("Council roster is empty. Configure settings.council.members.", "error");
+        return;
+      }
+      const timeoutSeconds = c.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
+      const silentForSeconds = c.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
+
+      // Status line while running. tool-aggregator owns the main widget; we
+      // use our own key so the two don't fight.
+      const updateStatus = (msg: string) => {
+        try { ctx.ui.setWidget("council-slash", [msg]); } catch {}
+      };
+      updateStatus(`council: ${roster.length} members starting…`);
+
+      const states = roster.map(() => "pending" as "pending" | "running" | "done" | "failed");
+      const flushStatus = () => {
+        const counts = {
+          done: states.filter((s) => s === "done").length,
+          failed: states.filter((s) => s === "failed").length,
+          running: states.filter((s) => s === "running").length,
+        };
+        updateStatus(`council: ${counts.done}/${roster.length} done, ${counts.running} running${counts.failed ? `, ${counts.failed} failed` : ""}`);
+      };
+
+      const promises = roster.map((member, idx) => {
+        const label = member.label ?? member.model ?? `M${idx + 1}`;
+        states[idx] = "running";
+        flushStatus();
+        return runOnePi({
+          prompt,
+          mode: member.mode ?? "fresh",
+          contextHint: member.contextHint,
+          model: member.model,
+          tools: member.tools ?? c.tools,
+          timeoutSeconds,
+          silentForSeconds,
+          ctx,
+          parentToolCallId: "slash-council",
+        }).then((result) => {
+          states[idx] = result.isError ? "failed" : "done";
+          flushStatus();
+          return { member, result, label };
+        });
+      });
+
+      const completed = await Promise.all(promises);
+      try { ctx.ui.setWidget("council-slash", []); } catch {}
+      const aggregated = aggregateCouncil(completed);
+      pi.sendMessage({
+        customType: "council",
+        content: extractText(aggregated),
+        display: true,
+        details: aggregated.details,
+      });
+    },
+  });
+
+  // ----- diagnostic /status commands ---------------------------------------
+  // Print resolved settings so you can debug "is my config picked up?"
+  // without restarting pi. Modeled on Ivan's /supervise-status.
+  pi.registerCommand("subagent-status", {
+    description: "Show resolved subagent settings (defaults vs overrides).",
+    handler: async (_args: string, ctx: any) => {
+      const all = loadSettings(ctx.cwd);
+      ctx.ui.notify(formatSubagentStatus(all), "info");
+    },
+  });
+  pi.registerCommand("council-status", {
+    description: "Show resolved council settings (roster + defaults).",
+    handler: async (_args: string, ctx: any) => {
+      const all = loadSettings(ctx.cwd);
+      ctx.ui.notify(formatCouncilStatus(all), "info");
+    },
+  });
+  pi.registerCommand("supervise-status", {
+    description: "Show resolved supervise settings (models, oracle, iterations).",
+    handler: async (_args: string, ctx: any) => {
+      const all = loadSettings(ctx.cwd);
+      ctx.ui.notify(formatSuperviseStatus(all), "info");
+    },
+  });
+}
+
+// --- settings formatters (used by /*-status commands) -----------------------
+
+function fmtSettingsSources(all: AllSettings): string {
+  return all.sources
+    .map((src) => {
+      if (!src.exists) return `  ${src.path}: (missing)`;
+      if (src.blocks.length === 0) return `  ${src.path}: (no relevant blocks)`;
+      return `  ${src.path}: ${src.blocks.join(", ")}`;
+    })
+    .join("\n");
+}
+
+function fmtMark(v: unknown): string {
+  return v === undefined ? "(default)" : "(settings)";
+}
+
+function formatSubagentStatus(all: AllSettings): string {
+  const s = all.subagent;
+  return [
+    "subagent — resolved settings",
+    `  model           : ${s.model ?? "(pi default)"} ${fmtMark(s.model)}`,
+    `  tools           : ${s.tools ?? "(all)"} ${fmtMark(s.tools)}`,
+    `  timeoutSeconds  : ${s.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} ${fmtMark(s.timeoutSeconds)}`,
+    `  silentForSeconds: ${s.silentForSeconds ?? DEFAULT_SILENT_SECONDS} ${fmtMark(s.silentForSeconds)}`,
+    "",
+    "sources",
+    fmtSettingsSources(all),
+  ].join("\n");
+}
+
+function formatCouncilStatus(all: AllSettings): string {
+  const c = all.council;
+  const roster = c.members ?? DEFAULT_COUNCIL_ROSTER;
+  const rosterSrc = c.members ? "(settings)" : "(default roster)";
+  const rosterLines = roster.map((m, i) => {
+    const label = m.label ?? m.model ?? `M${i + 1}`;
+    const extras = [
+      m.tools ? `tools=${m.tools}` : null,
+      m.mode ? `mode=${m.mode}` : null,
+    ].filter(Boolean).join(" ");
+    const suffix = extras ? `  [${extras}]` : "";
+    return `    ${label.padEnd(8)}: ${m.model ?? "(pi default)"}${suffix}`;
+  });
+  return [
+    "council — resolved settings",
+    `  tools           : ${c.tools ?? "(per-member or pi default)"} ${fmtMark(c.tools)}`,
+    `  timeoutSeconds  : ${c.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} ${fmtMark(c.timeoutSeconds)}`,
+    `  silentForSeconds: ${c.silentForSeconds ?? DEFAULT_SILENT_SECONDS} ${fmtMark(c.silentForSeconds)}`,
+    "",
+    `  roster ${rosterSrc}:`,
+    ...rosterLines,
+    "",
+    "sources",
+    fmtSettingsSources(all),
+  ].join("\n");
+}
+
+function formatSuperviseStatus(all: AllSettings): string {
+  const s = all.supervise;
+  return [
+    "supervise — resolved settings",
+    `  dispatcherModel : ${s.dispatcherModel ?? "(pi default)"} ${fmtMark(s.dispatcherModel)}`,
+    `  executorModel   : ${s.executorModel ?? "(pi default)"} ${fmtMark(s.executorModel)}`,
+    `  supervisorModel : ${s.supervisorModel ?? "(pi default)"} ${fmtMark(s.supervisorModel)}`,
+    `  maxIterations   : ${s.maxIterations ?? DEFAULT_MAX_ITERATIONS} ${fmtMark(s.maxIterations)}`,
+    `  oracleRequired  : ${s.oracleRequired ?? true} ${fmtMark(s.oracleRequired)}`,
+    "",
+    "sources",
+    fmtSettingsSources(all),
+  ].join("\n");
 }
 
 // --- shared spawn/parse helper ----------------------------------------------
@@ -276,6 +565,7 @@ interface RunOnePiOptions {
   mode: "fresh" | "inherit";
   contextHint?: string;
   model?: string;
+  tools?: string;
   timeoutSeconds: number;
   silentForSeconds: number;
   ctx: any;
@@ -299,6 +589,7 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   // gives us a path to mtime-watch for liveness).
   const args: string[] = ["--mode", "json"];
   if (opts.model) args.push("--model", opts.model);
+  if (opts.tools) args.push("--tools", opts.tools);
   let childSessionFile: string | undefined;
   if (opts.mode === "inherit") {
     childSessionFile = buildChildSession(opts.ctx, opts.parentToolCallId);
@@ -887,8 +1178,12 @@ async function runSupervise(
   signal?: AbortSignal,
   onPreview?: (preview: string) => void,
 ): Promise<any> {
-  const maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
-  const oracleRequired = opts.oracleRequired ?? true;
+  const ss = loadSettings(ctx.cwd).supervise;
+  const maxIterations = opts.maxIterations ?? ss.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const oracleRequired = opts.oracleRequired ?? ss.oracleRequired ?? true;
+  const dispatcherModel = opts.dispatcherModel ?? ss.dispatcherModel;
+  const executorModel = opts.executorModel ?? ss.executorModel;
+  const supervisorModel = opts.supervisorModel ?? ss.supervisorModel;
   const autoApprove = opts.autoApprove ?? !ctx.hasUI; // print/RPC mode auto-approves
 
   const runDir = makeRunDir(ctx.cwd, opts.task);
@@ -902,7 +1197,7 @@ async function runSupervise(
   let dispatcherOutput = await runRole({
     role: "dispatcher",
     prompt: buildDispatcherPrompt(opts.task, null),
-    model: opts.dispatcherModel,
+    model: dispatcherModel,
     ctx, signal,
   });
   writeFileSync(join(runDir, "dispatcher-initial.md"), dispatcherOutput);
@@ -924,7 +1219,7 @@ async function runSupervise(
         const revised = await runRole({
           role: "dispatcher",
           prompt: buildDispatcherFeedbackPrompt(opts.task, dispatcherOutput, feedback),
-          model: opts.dispatcherModel,
+          model: dispatcherModel,
           ctx, signal,
         });
         dispatcherOutput = revised;
@@ -965,7 +1260,7 @@ async function runSupervise(
       dispatcherOutput = await runRole({
         role: "dispatcher",
         prompt: buildDispatcherPrompt(opts.task, loopContext),
-        model: opts.dispatcherModel,
+        model: dispatcherModel,
         ctx, signal,
       });
       writeFileSync(join(runDir, `dispatcher-iteration-${iteration}.md`), dispatcherOutput);
@@ -975,7 +1270,7 @@ async function runSupervise(
     executionReport = await runRole({
       role: "executor",
       prompt: buildExecutorPrompt(approvedPlan, iteration, maxIterations, loopContext),
-      model: opts.executorModel,
+      model: executorModel,
       ctx, signal,
     });
     writeFileSync(join(runDir, `execution-iteration-${iteration}.md`), executionReport);
@@ -1013,7 +1308,7 @@ async function runSupervise(
         baseline: baselineEvidence,
         current: currentEvidence,
       }),
-      model: opts.supervisorModel,
+      model: supervisorModel,
       ctx, signal,
     });
     lastSupervisorReport = supervisorReport;
