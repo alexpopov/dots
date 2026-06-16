@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""
+media-add — add a movie or TV show to Radarr/Sonarr.
+
+Usage:
+  media-add movie "<title>" <year> [--no-monitor] [--4k]
+  media-add show  "<title>"        [--no-monitor]
+
+  --no-monitor   Add to library without monitoring or auto-searching.
+                 Use this when you intend to grab a release manually via media-search.
+  --4k           Use Ultra-HD quality profile (default: HD-1080p)
+
+Env vars:
+  RADARR_API_KEY, SONARR_API_KEY
+  RADARR_HOST  (default: zorn.local)
+  SONARR_HOST  (default: zorn.local)
+"""
+
+import os, sys, json, urllib.request, urllib.error
+import xml.etree.ElementTree as ET
+
+RADARR_HOST = os.environ.get("RADARR_HOST", "zorn.local")
+SONARR_HOST = os.environ.get("SONARR_HOST", "zorn.local")
+RADARR_PORT = int(os.environ.get("RADARR_PORT", "7878"))
+SONARR_PORT = int(os.environ.get("SONARR_PORT", "8989"))
+
+QUALITY_1080P = 4
+QUALITY_4K    = 5
+
+def _get_key_from_xml(path):
+    try:
+        return ET.parse(path).find("ApiKey").text
+    except Exception:
+        return None
+
+def _resolve_key(env_var, xml_path):
+    key = os.environ.get(env_var)
+    if not key:
+        key = _get_key_from_xml(xml_path)
+    if not key:
+        sys.exit(f"ERROR: {env_var} not set and could not read from {xml_path}")
+    return key
+
+def api_get(base, key, path):
+    req = urllib.request.Request(
+        f"{base}{path}",
+        headers={"X-Api-Key": key, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+
+def api_post(base, key, path, body):
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{base}{path}", data=data, method="POST",
+        headers={"X-Api-Key": key, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err = e.read().decode()
+        if "already been added" in err or "MovieExistsValidator" in err:
+            sys.exit("Already in library.")
+        sys.exit(f"API error {e.code}: {err}")
+
+def add_movie(title, year, monitor, quality_profile):
+    key  = _resolve_key("RADARR_API_KEY",
+                        "/home/alp/Containers/media-stack/config/radarr/config.xml")
+    base = f"http://{RADARR_HOST}:{RADARR_PORT}/api/v3"
+
+    results = api_get(base, key, f"/movie/lookup?term={urllib.parse.quote(title + ' ' + str(year))}")
+    m = next((x for x in results if x.get("year") == year
+               and title.lower() in x.get("title", "").lower()), None)
+    if not m:
+        print("Lookup results:")
+        for x in results[:5]:
+            print(f"  {x.get('title')} ({x.get('year')}) tmdb:{x.get('tmdbId')}")
+        sys.exit("Title/year not found — pick from above and re-run with exact year.")
+
+    print(f"Found: {m['title']} ({m['year']}) TMDB {m['tmdbId']}")
+    added = api_post(base, key, "/movie", {
+        "title": m["title"], "year": m["year"], "tmdbId": m["tmdbId"],
+        "qualityProfileId": quality_profile,
+        "rootFolderPath": "/movies",
+        "monitored": monitor,
+        "titleSlug": m["titleSlug"],
+        "images": m["images"],
+        "minimumAvailability": m.get("minimumAvailability", "released"),
+        "addOptions": {"searchForMovie": monitor},
+    })
+    status = "monitored" if added.get("monitored") else "unmonitored"
+    print(f"Added (ID {added['id']}, {status}): {added['title']}")
+    print(f"  Run: media-search movie {added['id']} --dry-run")
+
+def add_show(title, monitor):
+    key  = _resolve_key("SONARR_API_KEY",
+                        "/home/alp/Containers/media-stack/config/sonarr/config.xml")
+    base = f"http://{SONARR_HOST}:{SONARR_PORT}/api/v3"
+
+    results = api_get(base, key, f"/series/lookup?term={urllib.parse.quote(title)}")
+    if not results:
+        sys.exit("No results found.")
+
+    s = results[0]
+    print(f"Found: {s['title']} ({s.get('year','?')}) TVDB {s.get('tvdbId')}")
+    added = api_post(base, key, "/series", {
+        "title": s["title"], "tvdbId": s["tvdbId"],
+        "qualityProfileId": QUALITY_1080P,
+        "rootFolderPath": "/tv",
+        "monitored": monitor,
+        "seasonFolder": True,
+        "images": s.get("images", []),
+        "seasons": s.get("seasons", []),
+        "addOptions": {"searchForMissingEpisodes": monitor, "monitor": "all"},
+    })
+    status = "monitored" if added.get("monitored") else "unmonitored"
+    print(f"Added (ID {added['id']}, {status}): {added['title']}")
+
+def usage():
+    print(__doc__)
+    sys.exit(1)
+
+import urllib.parse
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    no_monitor = "--no-monitor" in args
+    use_4k     = "--4k" in args
+    args = [a for a in args if a not in ("--no-monitor", "--4k")]
+
+    if len(args) < 2 or args[0] not in ("movie", "show"):
+        usage()
+
+    mode = args[0]
+    monitor = not no_monitor
+
+    if mode == "movie":
+        if len(args) < 3:
+            usage()
+        title = args[1]
+        try:
+            year = int(args[2])
+        except ValueError:
+            usage()
+        quality = QUALITY_4K if use_4k else QUALITY_1080P
+        add_movie(title, year, monitor, quality)
+
+    elif mode == "show":
+        title = args[1]
+        add_show(title, monitor)

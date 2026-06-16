@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""
+media-search — manual release search for Radarr/Sonarr with intelligent ranking.
+
+Usage:
+  media-search movie <radarr-movie-id> [--dry-run]
+  media-search show  <sonarr-episode-id> [--dry-run]
+
+Env vars (required unless running on zorn where keys are auto-detected):
+  RADARR_API_KEY, SONARR_API_KEY
+  RADARR_HOST  (default: zorn.local)
+  SONARR_HOST  (default: zorn.local)
+
+Selection criteria:
+  Audio   — Sonos only supports Dolby. Rejects DTS-HD MA/X/HD, plain DTS.
+             Prefers: TrueHD Atmos > DD+ Atmos > TrueHD > DD+/EAC3 > AC3 > AAC
+  Size    — 1080p: 2–5 GB target. 4K: 8–15 GB target.
+  Source  — BluRay > WEBDL > WEBRip > HDTV
+  Seeders — minimum 5; score scales with seeders (diminishing returns > 30)
+"""
+
+import os, sys, json, math, re, urllib.request, urllib.error
+import xml.etree.ElementTree as ET
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+RADARR_HOST = os.environ.get("RADARR_HOST", "zorn.local")
+SONARR_HOST = os.environ.get("SONARR_HOST", "zorn.local")
+RADARR_PORT = int(os.environ.get("RADARR_PORT", "7878"))
+SONARR_PORT = int(os.environ.get("SONARR_PORT", "8989"))
+
+MIN_SEEDERS = 5
+
+# Size targets in GB: (min, target_low, target_high, max)
+SIZE_1080P = (1.5, 2.0, 5.0, 7.0)
+SIZE_4K    = (5.0, 8.0, 15.0, 22.0)
+
+AUDIO_BANNED = re.compile(
+    r'\b(dts[-. ]?hd|dts[-. ]?ma|dts[-. ]?x|dts[-. ]?hdma)\b', re.I)
+AUDIO_PLAIN_DTS = re.compile(r'\bdts\b(?![-. ]?(hd|ma|x))', re.I)
+
+AUDIO_WEIGHTS = [
+    (re.compile(r'truehd.{0,10}atmos', re.I),         (1.00, 'TrueHD Atmos')),
+    (re.compile(r'(eac3|dd\+|ddp).{0,10}atmos', re.I),(0.97, 'DD+ Atmos')),
+    (re.compile(r'atmos', re.I),                       (0.95, 'Atmos')),
+    (re.compile(r'truehd', re.I),                      (0.90, 'TrueHD')),
+    (re.compile(r'eac3|dd\+|ddp', re.I),               (0.85, 'DD+')),
+    (re.compile(r'ac3|dolby.{0,5}digital', re.I),      (0.75, 'AC3')),
+    (re.compile(r'\baac\b|\bopus\b', re.I),            (0.65, 'AAC/Opus')),
+]
+
+SOURCE_WEIGHTS = {
+    'bluray-2160p': 1.0, 'remux-2160p': 0.95,
+    'webdl-2160p': 0.88, 'webrip-2160p': 0.82,
+    'bluray-1080p': 1.0, 'remux-1080p': 0.95,
+    'webdl-1080p': 0.88, 'webrip-1080p': 0.82,
+    'hdtv-1080p': 0.70,
+    'bluray-720p': 0.75, 'webdl-720p': 0.68,
+}
+
+# ---------------------------------------------------------------------------
+# API helpers
+# ---------------------------------------------------------------------------
+
+def _get_key_from_xml(path):
+    try:
+        return ET.parse(path).find("ApiKey").text
+    except Exception:
+        return None
+
+def _resolve_key(env_var, xml_path):
+    key = os.environ.get(env_var)
+    if not key:
+        key = _get_key_from_xml(xml_path)
+    if not key:
+        sys.exit(f"ERROR: {env_var} not set and could not read from {xml_path}")
+    return key
+
+def api_get(base, key, path):
+    req = urllib.request.Request(
+        f"{base}{path}",
+        headers={"X-Api-Key": key, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+
+def api_post(base, key, path, body):
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{base}{path}", data=data, method="POST",
+        headers={"X-Api-Key": key, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.exit(f"API error {e.code}: {e.read().decode()}")
+
+# ---------------------------------------------------------------------------
+# Scoring
+# ---------------------------------------------------------------------------
+
+def audio_check(title):
+    """Return (banned, label). banned=True means reject this release."""
+    if AUDIO_BANNED.search(title):
+        return True, "DTS-HD/DTS-X (banned)"
+    if AUDIO_PLAIN_DTS.search(title):
+        return True, "DTS (banned)"
+    for pattern, (weight, label) in AUDIO_WEIGHTS:
+        if pattern.search(title):
+            return False, label
+    return False, "audio not in title"
+
+def size_score(size_gb, quality_name):
+    """1.0 inside target window, 0.5 at edges, 0.0 outside hard limits."""
+    q = quality_name.lower()
+    is_4k = "2160" in q or "4k" in q or "uhd" in q
+    lo, t_lo, t_hi, hi = SIZE_4K if is_4k else SIZE_1080P
+    if size_gb < lo or size_gb > hi:
+        return 0.0
+    if t_lo <= size_gb <= t_hi:
+        return 1.0
+    if size_gb < t_lo:
+        return 0.5 + 0.5 * (size_gb - lo) / (t_lo - lo)
+    return 0.5 + 0.5 * (hi - size_gb) / (hi - t_hi)
+
+def quality_key(quality_name):
+    return SOURCE_WEIGHTS.get(quality_name.lower().replace(" ", "-").replace("/", "-"), 0.60)
+
+def score_release(r):
+    """
+    Scoring approach: seeders are primary, bang-for-buck is secondary.
+    Hard filters: banned audio, size out of budget, too few seeders.
+    Score = seeders (primary) + source_quality * size_score (tiebreaker).
+    """
+    title   = r.get("title", "")
+    size_gb = r.get("size", 0) / 1e9
+    seeders = r.get("seeders", 0)
+    quality = r.get("quality", {}).get("quality", {}).get("name", "")
+
+    banned, audio_label = audio_check(title)
+    if banned:
+        return None, audio_label
+
+    sw = size_score(size_gb, quality)
+    if sw == 0.0:
+        return None, f"size {size_gb:.1f}GB outside budget for {quality}"
+
+    if seeders < MIN_SEEDERS:
+        return None, f"only {seeders} seeders (min {MIN_SEEDERS})"
+
+    qw = quality_key(quality)
+    # Seeders dominate; source quality * size score breaks ties
+    score = seeders + qw * sw * 10
+    return score, f"audio={audio_label} size={size_gb:.1f}GB src={qw:.2f} seeds={seeders}"
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def search_and_grab(mode, item_id, dry_run):
+    if mode == "movie":
+        key  = _resolve_key("RADARR_API_KEY",
+                            "/home/alp/Containers/media-stack/config/radarr/config.xml")
+        base = f"http://{RADARR_HOST}:{RADARR_PORT}/api/v3"
+        releases = api_get(base, key, f"/release?movieId={item_id}")
+    else:
+        key  = _resolve_key("SONARR_API_KEY",
+                            "/home/alp/Containers/media-stack/config/sonarr/config.xml")
+        base = f"http://{SONARR_HOST}:{SONARR_PORT}/api/v3"
+        releases = api_get(base, key, f"/release?episodeId={item_id}")
+
+    print(f"\n{'DRY RUN — ' if dry_run else ''}Evaluating {len(releases)} releases\n")
+
+    scored, rejected = [], []
+    for r in releases:
+        sc, reason = score_release(r)
+        title   = r.get("title", "")[:70]
+        size_gb = r.get("size", 0) / 1e9
+        seeds   = r.get("seeders", 0)
+        quality = r.get("quality", {}).get("quality", {}).get("name", "")
+        if sc is None:
+            rejected.append((title, reason))
+        else:
+            scored.append((sc, reason, r))
+
+    scored.sort(key=lambda x: -x[0])
+
+    print("── Ranked ──────────────────────────────────────────────────────")
+    for i, (sc, reason, r) in enumerate(scored[:10]):
+        mark = "▶" if i == 0 else f"{i+1:>1}."
+        print(f"  {mark} [{sc:.3f}] {r['title'][:65]}")
+        print(f"       {reason}")
+    if not scored:
+        print("  (none passed filters)")
+
+    print("\n── Rejected ────────────────────────────────────────────────────")
+    for title, reason in rejected[:8]:
+        print(f"  ✗ {title[:65]}")
+        print(f"    {reason}")
+    if len(rejected) > 8:
+        print(f"  … and {len(rejected)-8} more")
+
+    if not scored:
+        print("\nNo suitable release found.")
+        return
+
+    best_sc, best_reason, best = scored[0]
+    print(f"\n── Pick ────────────────────────────────────────────────────────")
+    print(f"  {best['title']}")
+    print(f"  Score {best_sc:.3f} | {best_reason}")
+
+    if dry_run:
+        print("\n[dry-run] Not grabbing.")
+        return
+
+    print("\nGrabbing…")
+    result = api_post(base, key, "/release", {
+        "guid": best["guid"], "indexerId": best["indexerId"],
+    })
+    if isinstance(result, dict) and result.get("title"):
+        print(f"✓ Sent to download client: {result['title']}")
+    else:
+        print(f"Response: {result}")
+
+def usage():
+    print(__doc__)
+    sys.exit(1)
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    dry_run = "--dry-run" in args
+    args = [a for a in args if a != "--dry-run"]
+
+    if len(args) < 2 or args[0] not in ("movie", "show"):
+        usage()
+
+    mode    = args[0]
+    item_id = args[1]
+    search_and_grab(mode, item_id, dry_run)
