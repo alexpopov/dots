@@ -56,10 +56,20 @@ interface CouncilSettings {
   members?: CouncilMemberSettings[];
 }
 
+interface SupervisorMemberConfig {
+  label?: string;
+  model?: string;
+  tools?: string;
+}
+
 interface SuperviseSettingsBlock {
   dispatcherModel?: string;
   executorModel?: string;
   supervisorModel?: string;
+  // Panel of supervisors voted-on conservatively (ASK_USER > BLOCKED >
+  // REPAIR > COMPLETE). If omitted, defaults to a single member configured
+  // by supervisorModel — i.e. behavior is identical to pre-panel days.
+  supervisorMembers?: SupervisorMemberConfig[];
   maxIterations?: number;
   oracleRequired?: boolean;
   timeoutSeconds?: number;
@@ -545,6 +555,15 @@ function formatCouncilStatus(all: AllSettings): string {
 
 function formatSuperviseStatus(all: AllSettings): string {
   const s = all.supervise;
+  const panel = s.supervisorMembers && s.supervisorMembers.length > 0
+    ? s.supervisorMembers
+    : [{ label: "supervisor", model: s.supervisorModel }];
+  const panelSrc = s.supervisorMembers ? "(settings)" : "(single supervisor)";
+  const panelLines = panel.map((m, i) => {
+    const label = m.label ?? m.model ?? `M${i + 1}`;
+    const extras = m.tools ? `  [tools=${m.tools}]` : "";
+    return `    ${label.padEnd(12)}: ${m.model ?? "(pi default)"}${extras}`;
+  });
   return [
     "supervise — resolved settings",
     `  dispatcherModel : ${s.dispatcherModel ?? "(pi default)"} ${fmtMark(s.dispatcherModel)}`,
@@ -552,6 +571,9 @@ function formatSuperviseStatus(all: AllSettings): string {
     `  supervisorModel : ${s.supervisorModel ?? "(pi default)"} ${fmtMark(s.supervisorModel)}`,
     `  maxIterations   : ${s.maxIterations ?? DEFAULT_MAX_ITERATIONS} ${fmtMark(s.maxIterations)}`,
     `  oracleRequired  : ${s.oracleRequired ?? true} ${fmtMark(s.oracleRequired)}`,
+    "",
+    `  supervisor panel ${panelSrc}:`,
+    ...panelLines,
     "",
     "sources",
     fmtSettingsSources(all),
@@ -1184,6 +1206,12 @@ async function runSupervise(
   const dispatcherModel = opts.dispatcherModel ?? ss.dispatcherModel;
   const executorModel = opts.executorModel ?? ss.executorModel;
   const supervisorModel = opts.supervisorModel ?? ss.supervisorModel;
+  // Panel: explicit array wins, else a single member from supervisorModel.
+  // The single-member fast path keeps the existing artifact format intact.
+  const supervisorPanel: SupervisorMemberConfig[] =
+    ss.supervisorMembers && ss.supervisorMembers.length > 0
+      ? ss.supervisorMembers
+      : [{ label: "supervisor", model: supervisorModel }];
   const autoApprove = opts.autoApprove ?? !ctx.hasUI; // print/RPC mode auto-approves
 
   const runDir = makeRunDir(ctx.cwd, opts.task);
@@ -1297,10 +1325,10 @@ async function runSupervise(
     writeFileSync(join(runDir, "evidence", `attempt-${iteration}-status.txt`), currentEvidence.status);
     writeFileSync(join(runDir, "evidence", `attempt-${iteration}-diff.patch`), currentEvidence.diff);
 
-    // supervisor
-    log(`iteration ${iteration}: supervisor auditing...`);
-    const supervisorReport = await runRole({
-      role: "supervisor",
+    // supervisor — panel of N if configured, else single member.
+    log(`iteration ${iteration}: supervisor${supervisorPanel.length > 1 ? ` panel (${supervisorPanel.length})` : ""} auditing...`);
+    const panel = await runSupervisorPanel({
+      members: supervisorPanel,
       prompt: buildSupervisorPrompt({
         approvedPlan,
         executionReport,
@@ -1308,12 +1336,11 @@ async function runSupervise(
         baseline: baselineEvidence,
         current: currentEvidence,
       }),
-      model: supervisorModel,
       ctx, signal,
     });
-    lastSupervisorReport = supervisorReport;
+    lastSupervisorReport = panel.combinedReport;
 
-    const verdict = parseSupervisorVerdict(supervisorReport);
+    const verdict = panel.aggregated;
     const oracleFailed = oracleRequired && oracleResult && oracleResult.exitCode !== 0;
     let decision = verdict.effectiveDecision;
     let downgrades = [...verdict.downgrades];
@@ -1324,7 +1351,7 @@ async function runSupervise(
 
     writeFileSync(
       join(runDir, `supervisor-iteration-${iteration}.md`),
-      `${supervisorReport}\n\n---\n\nverdict: decision=${decision} dod=${verdict.finalDodMet} iter=${verdict.iterationAccepted} downgrades=[${downgrades.join(", ")}]\noracle: ${
+      `${panel.combinedReport}\n\n---\n\nverdict: decision=${decision} dod=${verdict.finalDodMet} iter=${verdict.iterationAccepted} downgrades=[${downgrades.join(", ")}] panel_size=${panel.members.length}\noracle: ${
         oracleResult ? `exit=${oracleResult.exitCode} assertions=${oracleResult.assertions}` : "(none)"
       }`,
     );
@@ -1417,6 +1444,121 @@ async function runRole(args: RunRoleArgs): Promise<string> {
   });
 
   return extractText(result);
+}
+
+// --- supervisor panel -------------------------------------------------------
+// Spawn N supervisors in parallel and aggregate their verdicts conservatively.
+// When the panel is size 1 (the default), behavior is byte-identical to the
+// previous single-supervisor path: the same report, the same verdict.
+//
+// Aggregation rule (matches Ivan Gromov's aggregateLoopSupervisorVerdict in
+// fbsource/users/iv/ivangromov/subagent/supervise.ts:1074):
+//   ASK_USER > BLOCKED > REPAIR > COMPLETE.
+// Any dissent demotes COMPLETE to REPAIR. Any single NO on FINAL_DOD_MET
+// flips the panel to NO. Dissent is recorded in `downgrades` so the
+// supervisor artifact explains why a unanimous-looking COMPLETE got demoted.
+
+interface PanelMemberResult {
+  label: string;
+  report: string;
+  verdict: SupervisorVerdict;
+}
+
+interface PanelResult {
+  combinedReport: string;
+  members: PanelMemberResult[];
+  aggregated: SupervisorVerdict;
+}
+
+async function runSupervisorPanel(args: {
+  members: SupervisorMemberConfig[];
+  prompt: string;
+  ctx: any;
+  signal?: AbortSignal;
+}): Promise<PanelResult> {
+  const systemContext = SUPERVISOR_CONTEXT;
+  const results: PanelMemberResult[] = await Promise.all(
+    args.members.map(async (m, idx) => {
+      const label = m.label ?? m.model ?? `supervisor-${idx + 1}`;
+      const r = await runOnePi({
+        prompt: `${systemContext}\n\n${args.prompt}`,
+        mode: "fresh",
+        timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
+        silentForSeconds: DEFAULT_SILENT_SECONDS,
+        ctx: args.ctx,
+        parentToolCallId: `supervise-panel-${idx}`,
+        model: m.model,
+        tools: m.tools,
+        signal: args.signal,
+      });
+      const report = extractText(r);
+      return { label, report, verdict: parseSupervisorVerdict(report) };
+    }),
+  );
+
+  // Size-1 fast path: keep the artifact format identical to pre-panel days.
+  if (results.length === 1) {
+    return { combinedReport: results[0].report, members: results, aggregated: results[0].verdict };
+  }
+
+  const combinedReport = results
+    .map((r) => {
+      const dgs = r.verdict.downgrades.length > 0 ? ` (downgrades: ${r.verdict.downgrades.join(", ")})` : "";
+      return `## ${r.label} → ${r.verdict.effectiveDecision}${dgs}\n\n${r.report}`;
+    })
+    .join("\n\n---\n\n");
+
+  return { combinedReport, members: results, aggregated: aggregatePanelVerdict(results) };
+}
+
+function aggregatePanelVerdict(members: PanelMemberResult[]): SupervisorVerdict {
+  const decisions = members.map((m) => m.verdict.effectiveDecision);
+  const downgrades: string[] = [];
+
+  // Carry forward per-member downgrades labelled with the member name.
+  for (const m of members) {
+    for (const d of m.verdict.downgrades) downgrades.push(`${m.label}:${d}`);
+  }
+
+  // Conservative decision: any ASK_USER > any BLOCKED > any REPAIR > all COMPLETE.
+  let effective: SupervisorVerdict["effectiveDecision"];
+  if (decisions.includes("ASK_USER")) effective = "ASK_USER";
+  else if (decisions.includes("BLOCKED")) effective = "BLOCKED";
+  else if (decisions.includes("REPAIR")) effective = "REPAIR";
+  else if (decisions.every((d) => d === "COMPLETE")) effective = "COMPLETE";
+  else effective = "REPAIR";
+
+  // YES only if unanimous; NO if any said NO; UNKNOWN otherwise.
+  const dodMets = members.map((m) => m.verdict.finalDodMet);
+  const finalDodMet: SupervisorVerdict["finalDodMet"] =
+    dodMets.includes("NO") ? "NO" :
+    dodMets.every((d) => d === "YES") ? "YES" :
+    "UNKNOWN";
+
+  const iters = members.map((m) => m.verdict.iterationAccepted);
+  const iterationAccepted: SupervisorVerdict["iterationAccepted"] =
+    iters.includes("NO") ? "NO" :
+    iters.every((d) => d === "YES") ? "YES" :
+    "UNKNOWN";
+
+  // Demote COMPLETE if not unanimous on DoD met.
+  if (effective === "COMPLETE" && finalDodMet !== "YES") {
+    effective = "REPAIR";
+    downgrades.push("panel:complete_but_dod_not_unanimous");
+  }
+
+  // Note dissent so the artifact explains a non-unanimous panel verdict.
+  if (new Set(decisions).size > 1) {
+    downgrades.push(`panel:dissent(${decisions.join(",")})`);
+  }
+
+  return {
+    rawDecision: effective,
+    effectiveDecision: effective,
+    finalDodMet,
+    iterationAccepted,
+    downgrades,
+  };
 }
 
 // --- prompt builders --------------------------------------------------------
