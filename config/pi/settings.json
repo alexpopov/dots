@@ -3,9 +3,13 @@
   "defaultModel": "claude-opus-4-8",
   "theme": "alexpopov",
   "lastChangelogVersion": "0.77.0",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": true,
   "skills": [
     "~/.claude/skills"
-  ]
+  ],
+  "compaction": {
+    "reserveTokens": 100000,
+    "keepRecentTokens": 50000
+  }
 }
