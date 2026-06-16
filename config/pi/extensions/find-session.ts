@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 // Archived-session state. Per-machine (session file paths are local), so
@@ -39,6 +39,38 @@ function saveArchived(archived: Set<string>): void {
 //   /find-session pi widget    pre-filter by substring before showing
 
 export default function (pi: ExtensionAPI) {
+  // On quit (Ctrl+C, Ctrl+D, /exit), offer to mark the session done so
+  // it's hidden from /find-session by default. Saves the user from
+  // typing /done before every exit. Skipped if already archived,
+  // ephemeral, or the user disabled the prompt.
+  //
+  // Only fires on event.reason === "quit" — NOT on /reload, /new,
+  // /resume, /fork, which all also trigger session_shutdown but mean
+  // the user is moving to another session, not finishing.
+  //
+  // Set PI_DONE_ON_QUIT_PROMPT=0 to disable.
+  if (process.env.PI_DONE_ON_QUIT_PROMPT !== "0") {
+    pi.on("session_shutdown", async (event: any, ctx: any) => {
+      if (event?.reason !== "quit") return;
+      const file = ctx.sessionManager?.getSessionFile?.();
+      if (!file) return; // ephemeral
+      const archived = loadArchived();
+      if (archived.has(file)) return; // already done
+      try {
+        const ok = await ctx.ui.confirm(
+          "Mark session as done?",
+          "Hide it from /find-session by default. You can /done undo if you change your mind.",
+        );
+        if (ok) {
+          archived.add(file);
+          saveArchived(archived);
+        }
+      } catch {
+        // ctx.ui may be tearing down; ignore. Default = leave visible.
+      }
+    });
+  }
+
   pi.registerCommand("done", {
     description:
       "Mark the current session as done (archived). Hides it from " +
@@ -222,47 +254,80 @@ function buildItems(
   archived: Set<string>,
   flags: { showAll: boolean; showDoneOnly: boolean },
 ): SelectItem[] {
-  // Newest first.
-  const sorted = [...sessions].sort((a, b) => timestampOf(b) - timestampOf(a));
+  // Resolve file paths up front so we can sort by mtime fallback.
+  const enriched = sessions
+    .map((s) => {
+      const file = s.file ?? s.path ?? s.sessionFile;
+      return file && typeof file === "string" ? { s, file } : null;
+    })
+    .filter((x): x is { s: any; file: string } => x !== null);
+
+  // Newest first (uses the mtime fallback inside timestampOf).
+  enriched.sort((a, b) => timestampOf(b.s, b.file) - timestampOf(a.s, a.file));
+
   const items: SelectItem[] = [];
-  for (const s of sorted) {
-    const file = s.file ?? s.path ?? s.sessionFile;
-    if (!file || typeof file !== "string") continue;
+  for (const { s, file } of enriched) {
     const isDone = archived.has(file);
     if (flags.showDoneOnly && !isDone) continue;
     if (!flags.showAll && !flags.showDoneOnly && isDone) continue;
-    const rawLabel = pickLabel(s, file);
+    const { label: rawLabel, forkBadge } = pickLabel(s, file);
     const label = isDone ? `[done] ${rawLabel}` : rawLabel;
-    const desc = pickDescription(s);
+    const desc = pickDescription(s, file, forkBadge);
     if (query && !`${label} ${desc} ${file}`.toLowerCase().includes(query)) continue;
     items.push({ value: file, label, description: desc });
   }
   return items;
 }
 
-function pickLabel(s: any, file: string): string {
-  if (typeof s.name === "string" && s.name.trim()) return s.name.trim();
-  if (typeof s.displayName === "string" && s.displayName.trim()) return s.displayName.trim();
-  if (typeof s.firstMessage === "string" && s.firstMessage.trim()) {
-    return s.firstMessage.trim().slice(0, 80);
+// Extract the bare label and any "(fork N)" suffix. The fork count
+// makes forks indistinguishable when they share a parent prefix and the
+// suffix gets truncated off; we lift it into the description column
+// instead where it always survives.
+function pickLabel(s: any, file: string): { label: string; forkBadge: string | null } {
+  let raw = "";
+  if (typeof s.name === "string" && s.name.trim()) raw = s.name.trim();
+  else if (typeof s.displayName === "string" && s.displayName.trim()) raw = s.displayName.trim();
+  else if (typeof s.firstMessage === "string" && s.firstMessage.trim()) {
+    raw = s.firstMessage.trim().slice(0, 80);
+  } else {
+    raw = basename(file, ".jsonl");
   }
-  return basename(file, ".jsonl");
+  // Detect "Foo (fork 2)" or "Foo (fork 12)" suffix.
+  const forkMatch = /\s*\(fork\s+(\d+)\)\s*$/.exec(raw);
+  if (forkMatch) {
+    return { label: raw.slice(0, forkMatch.index).trim(), forkBadge: `fork ${forkMatch[1]}` };
+  }
+  // Fork-to-tmux fallback: filename contains `_fork_<ms-timestamp>`.
+  // Multiple `_fork_` segments mean fork-of-fork; show the chain depth.
+  const forkSegments = file.match(/_fork_\d+/g);
+  if (forkSegments && forkSegments.length > 0) {
+    return { label: raw, forkBadge: `fork×${forkSegments.length}` };
+  }
+  return { label: raw, forkBadge: null };
 }
 
-function pickDescription(s: any): string {
+function pickDescription(s: any, file: string, forkBadge: string | null): string {
   const parts: string[] = [];
-  const ts = timestampOf(s);
+  if (forkBadge) parts.push(forkBadge);
+  const ts = timestampOf(s, file);
   if (ts > 0) parts.push(relativeTime(ts));
   const cwd = typeof s.cwd === "string" ? s.cwd : null;
   if (cwd) parts.push(shrinkPath(cwd));
   return parts.join("  ·  ");
 }
 
-function timestampOf(s: any): number {
+// Try every plausible timestamp field listAll might expose. If none,
+// fall back to the file's mtime — the actual "last activity" signal we
+// want anyway. statSync may throw if the file vanished between listAll
+// and now; safe to ignore.
+function timestampOf(s: any, file?: string): number {
   if (typeof s.timestamp === "number") return s.timestamp;
   if (typeof s.mtime === "number") return s.mtime;
   if (typeof s.mtimeMs === "number") return s.mtimeMs;
   if (typeof s.updatedAt === "number") return s.updatedAt;
+  if (file) {
+    try { return statSync(file).mtimeMs; } catch {}
+  }
   return 0;
 }
 
