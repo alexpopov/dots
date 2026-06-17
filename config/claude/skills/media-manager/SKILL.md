@@ -21,11 +21,11 @@ On zorn the scripts can also auto-read keys from the container config files:
 
 ## Scripts
 
-Both scripts live in `~/dots/config/claude/skills/media-manager/` and work from the Mac (connecting to `zorn.local`) or directly on zorn (`localhost`).
+Both scripts live alongside this `SKILL.md` and are referenced via `${CLAUDE_SKILL_DIR}`.
 
 ```
-media-search   # find, rank, and grab a release for a movie or show
-media-add      # add a movie/show to Radarr/Sonarr library only (no search)
+${CLAUDE_SKILL_DIR}/media-search   # find, rank, and grab a release for a movie or show
+${CLAUDE_SKILL_DIR}/media-add      # add a movie/show to Radarr/Sonarr library only (no search)
 ```
 
 Set env vars before running from the Mac:
@@ -44,10 +44,10 @@ On zorn the scripts auto-detect the key from the XML config if the env var is no
 
 ```bash
 # Add monitored (Radarr will auto-search):
-media-add movie "Chinatown" 1974
+python3 ${CLAUDE_SKILL_DIR}/media-add movie "Chinatown" 1974
 
 # Add unmonitored + no auto-search (manual grab only):
-media-add movie "Chinatown" 1974 --no-monitor
+python3 ${CLAUDE_SKILL_DIR}/media-add movie "Chinatown" 1974 --no-monitor
 ```
 
 Raw curl equivalent:
@@ -71,7 +71,7 @@ curl -s -X POST "http://zorn.local:7878/api/v3/movie" \
 ## Adding a TV show (Sonarr)
 
 ```bash
-media-add show "The Bear" --no-monitor
+python3 ${CLAUDE_SKILL_DIR}/media-add show "The Bear" --no-monitor
 ```
 
 Raw curl equivalent:
@@ -86,11 +86,11 @@ curl -s "http://zorn.local:8989/api/v3/series/lookup?term=The+Bear" \
 
 ```bash
 # Search and let the script pick (prints its reasoning):
-media-search movie 83        # Radarr movie ID
-media-search show 12 --season 2 --episode 4   # Sonarr episode ID
+python3 ${CLAUDE_SKILL_DIR}/media-search movie 83        # Radarr movie ID
+python3 ${CLAUDE_SKILL_DIR}/media-search show 12         # Sonarr episode ID
 
 # Dry run — show ranked list, don't grab:
-media-search movie 83 --dry-run
+python3 ${CLAUDE_SKILL_DIR}/media-search movie 83 --dry-run
 ```
 
 ### Selection criteria
@@ -115,11 +115,10 @@ audio track is DTS-HD MA, DTS-X, DTS-HD, or plain DTS. Prefer in order:
 **Source preference (1080p):** BluRay > WEBDL > WEBRip > HDTV
 
 **Scoring algorithm:**
-1. Filter out banned audio (DTS-HD*, DTS-X, plain DTS).
-2. Filter out items outside the size budget for the detected quality tier.
-3. Score remaining: `seeders × audio_weight × source_weight` where weights
-   reflect the preferences above.
-4. Pick highest score. Log reasoning.
+1. Hard-reject: banned audio, size outside budget, fewer than 5 seeders.
+2. Sort by seeders descending (primary).
+3. Tiebreak by `source_quality × size_score` (bang-for-buck within the budget window).
+4. Pick top result. Print full ranked list and rejection reasons.
 
 **Seeder floor:** don't grab anything with fewer than 5 seeders unless nothing
 else is available.
