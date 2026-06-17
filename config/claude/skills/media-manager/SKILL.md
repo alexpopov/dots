@@ -21,7 +21,7 @@ On zorn the scripts can also auto-read keys from the container config files:
 
 ## Scripts
 
-Both scripts live in `~/dots/bin/scripts/` and work from the Mac (connecting to `zorn.local`) or directly on zorn (`localhost`).
+Both scripts live in `~/dots/config/claude/skills/media-manager/` and work from the Mac (connecting to `zorn.local`) or directly on zorn (`localhost`).
 
 ```
 media-search   # find, rank, and grab a release for a movie or show
