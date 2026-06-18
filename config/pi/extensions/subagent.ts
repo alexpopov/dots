@@ -623,10 +623,12 @@ export default function (pi: ExtensionAPI) {
     label: "Sidekick Send",
     description:
       "Send a message to a side-kick and get its reply. The side-kick remembers " +
-      "your earlier messages to it (it has its own running history). If the named " +
-      "side-kick doesn't exist yet, it's auto-created with default settings — so " +
-      "for a quick companion you can just call this directly. Use sidekick_start " +
-      "first when you want a specific role / model / tools.",
+      "your earlier messages to it (it has its own running history). Only the " +
+      "default 'sidekick' is auto-created on first use (handy for a quick " +
+      "companion); any other name must be created with sidekick_start first, and " +
+      "a side-kick that was explicitly stopped is not silently revived (the next " +
+      "send fails once, then a follow-up send starts a fresh one). Use " +
+      "sidekick_start when you want a specific role / model / tools.",
     parameters: Type.Object({
       message: Type.String({ description: "What to say to the side-kick." }),
       name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'." })),
@@ -636,7 +638,24 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, params, signal, onUpdate, ctx) {
       const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
       let entry = sidekicks.get(name);
+      let autoCreated = false;
       if (!entry) {
+        const isDefault = name === DEFAULT_SIDEKICK_NAME;
+        // Named side-kicks are never auto-created: a non-default name signals
+        // you mean a specific, already-configured side-kick, so a typo or a
+        // stale reference should fail loudly rather than silently spawn a
+        // different (default-configured) agent under that name.
+        if (!isDefault) {
+          const active = [...sidekicks.keys()];
+          return { content: [{ type: "text", text: `No side-kick named '${name}'. Named side-kicks must be created with sidekick_start first (only the default '${DEFAULT_SIDEKICK_NAME}' is auto-created).${active.length ? ` Active: ${active.join(", ")}.` : ""}` }], isError: true };
+        }
+        // The default side-kick was explicitly stopped: don't silently
+        // resurrect it as a fresh, memory-less agent. Fail once (clearing the
+        // tombstone) so a deliberate follow-up send starts a clean one.
+        if (stoppedSidekicks.has(name)) {
+          stoppedSidekicks.delete(name);
+          return { content: [{ type: "text", text: `Side-kick '${name}' was stopped — its conversation is gone. Send again to start a fresh one (no prior history), or use sidekick_start to set model/role/tools.` }], isError: true };
+        }
         const s = loadSettings(ctx.cwd).sidekick;
         try {
           entry = await startSidekick({
@@ -648,6 +667,7 @@ export default function (pi: ExtensionAPI) {
             healthTimeoutMs: (s.healthTimeoutSeconds ?? DEFAULT_SIDEKICK_HEALTH_SECONDS) * 1000,
             modelRegistry: (ctx as any).modelRegistry,
           });
+          autoCreated = true;
         } catch (err: any) {
           return { content: [{ type: "text", text: `Failed to start side-kick '${name}': ${err?.message ?? err}` }], isError: true };
         }
@@ -668,11 +688,14 @@ export default function (pi: ExtensionAPI) {
         const res = await entry.handle.prompt(text);
         entry.firstSendDone = true;
         entry.sends++;
-        const body = res.report?.trim() || "(side-kick returned no text)";
+        // Make implicit creation visible: a caller expecting an established
+        // companion should be able to tell it just got a blank-slate one.
+        const banner = autoCreated ? `(auto-started fresh side-kick '${name}' — no prior history)\n\n` : "";
+        const body = banner + (res.report?.trim() || "(side-kick returned no text)");
         return {
           content: [{ type: "text", text: body }],
           isError: !res.ok,
-          details: { name, sends: entry.sends, status: entry.handle.status, error: res.error },
+          details: { name, sends: entry.sends, status: entry.handle.status, created: autoCreated, error: res.error },
         };
       } finally {
         signal?.removeEventListener("abort", onAbort);
@@ -3017,6 +3040,12 @@ interface SidekickEntry {
 // early-returns in child sessions), so children never populate this.
 const sidekicks = new Map<string, SidekickEntry>();
 
+// Names explicitly stopped via sidekick_stop / disposeSidekick. Makes a
+// send-after-stop fail loudly once, instead of silently spawning a fresh,
+// amnesiac side-kick that masquerades as the original. Cleared when a
+// side-kick of that name is (re)created.
+const stoppedSidekicks = new Set<string>();
+
 async function startSidekick(opts: {
   name: string;
   role: string;
@@ -3059,6 +3088,7 @@ async function startSidekick(opts: {
     },
   });
   sidekicks.set(opts.name, entry);
+  stoppedSidekicks.delete(opts.name);
   return entry;
 }
 
@@ -3067,6 +3097,7 @@ function disposeSidekick(name: string): boolean {
   if (!entry) return false;
   try { entry.handle.dispose(); } catch {}
   sidekicks.delete(name);
+  stoppedSidekicks.add(name);
   return true;
 }
 
