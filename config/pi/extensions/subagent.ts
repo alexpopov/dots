@@ -1,6 +1,23 @@
-import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  AuthStorage,
+  createAgentSession,
+  DefaultResourceLoader,
+  getAgentDir,
+  ModelRegistry,
+  SessionManager,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Text } from "@earendil-works/pi-tui";
+import {
+  Box,
+  CURSOR_MARKER,
+  Key,
+  matchesKey,
+  Text,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -25,6 +42,10 @@ const MTIME_CHECK_INTERVAL_MS = 5_000;
 // Supervise-specific defaults.
 const DEFAULT_MAX_ITERATIONS = Number(process.env.PI_SUPERVISE_MAX_ITERATIONS) || 5;
 const ORACLE_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_ORACLE_TIMEOUT) || 300;
+// /supervise-loop only: an in-process SDK agent that emits no event for this
+// long is considered hung and aborted. Any streamed text / thinking / tool
+// event resets the timer, so this is wall-clock-of-silence, not total runtime.
+const DEFAULT_HEALTH_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_HEALTH_TIMEOUT) || 600;
 
 // --- settings loading -------------------------------------------------------
 // Read ~/.pi/agent/settings.json (global) and ./.pi/settings.json (project).
@@ -74,6 +95,8 @@ interface SuperviseSettingsBlock {
   oracleRequired?: boolean;
   timeoutSeconds?: number;
   silentForSeconds?: number;
+  // /supervise-loop only: per-agent health-timeout (seconds of no SDK event).
+  healthTimeoutSeconds?: number;
 }
 
 interface AllSettings {
@@ -196,8 +219,8 @@ export default function (pi: ExtensionAPI) {
           "Defaults to settings.subagent.tools, then to pi's default (all tools).",
       })),
       timeoutSeconds: Type.Optional(Type.Integer({
-        minimum: 1,
-        description: `Hard upper bound on child runtime. Defaults to ${DEFAULT_TIMEOUT_SECONDS}s. After this, the child gets SIGTERM, then SIGKILL ${SIGKILL_GRACE_MS / 1000}s later.`,
+        minimum: 0,
+        description: `Hard upper bound on child runtime. Defaults to ${DEFAULT_TIMEOUT_SECONDS}s. After this, the child gets SIGTERM, then SIGKILL ${SIGKILL_GRACE_MS / 1000}s later. Set to 0 for NO hard timeout (long-running assistant) — pair with silentForSeconds=0 to also disable the silence watcher, or keep silentForSeconds>0 as a safety net.`,
       })),
       silentForSeconds: Type.Optional(Type.Integer({
         minimum: 0,
@@ -494,6 +517,29 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify(formatSuperviseStatus(all), "info");
     },
   });
+
+  // ----- /supervise-loop: in-process SDK agents + live modal ---------------
+  // Same dispatcher → approve → executor → oracle → supervisor loop as
+  // /supervise, but roles run in-process via createAgentSession (not pi -p
+  // subprocesses), which lets us stream their text/thinking/tool events into
+  // a live modal and steer them mid-run with @tags. Use /supervise for a
+  // quick fire-and-forget run; /supervise-loop when you want to watch and
+  // course-correct.
+  pi.registerCommand("supervise-loop", {
+    description: "Supervise loop with a live modal: watch agents stream, steer with @tags mid-run.",
+    handler: async (args: string, ctx: any) => {
+      const task = (args ?? "").trim();
+      if (!task) {
+        ctx.ui.notify("Usage: /supervise-loop <task>", "error");
+        return;
+      }
+      if (!ctx.hasUI) {
+        ctx.ui.notify("/supervise-loop needs an interactive UI. Use the supervise tool or /supervise in -p mode.", "error");
+        return;
+      }
+      await runSuperviseLoop(task, ctx);
+    },
+  });
 }
 
 // --- settings formatters (used by /*-status commands) -----------------------
@@ -571,6 +617,7 @@ function formatSuperviseStatus(all: AllSettings): string {
     `  supervisorModel : ${s.supervisorModel ?? "(pi default)"} ${fmtMark(s.supervisorModel)}`,
     `  maxIterations   : ${s.maxIterations ?? DEFAULT_MAX_ITERATIONS} ${fmtMark(s.maxIterations)}`,
     `  oracleRequired  : ${s.oracleRequired ?? true} ${fmtMark(s.oracleRequired)}`,
+    `  healthTimeoutSec: ${s.healthTimeoutSeconds ?? DEFAULT_HEALTH_TIMEOUT_SECONDS} ${fmtMark(s.healthTimeoutSeconds)} (/supervise-loop only)`,
     "",
     `  supervisor panel ${panelSrc}:`,
     ...panelLines,
@@ -658,11 +705,17 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
     stderr += chunk.toString();
   });
 
-  // (G) Hard timeout — absolute upper bound on runtime.
-  const hardTimer = setTimeout(
-    () => killChild(`timeout after ${opts.timeoutSeconds}s`),
-    opts.timeoutSeconds * 1000,
-  );
+  // (G) Hard timeout — absolute upper bound on runtime. timeoutSeconds<=0
+  // disables it entirely (no hard cap), mirroring silentForSeconds=0. The
+  // child then runs until it exits, the parent aborts (Esc), or — if
+  // silentForSeconds>0 — the silence watcher trips. Use with care: a truly
+  // no-cap child can run forever if it also never goes silent.
+  const hardTimer = opts.timeoutSeconds > 0
+    ? setTimeout(
+        () => killChild(`timeout after ${opts.timeoutSeconds}s`),
+        opts.timeoutSeconds * 1000,
+      )
+    : null;
 
   // (H) Silence watcher — kill if no activity for too long.
   // Defers to the hard timeout when the child has a tool call in flight:
@@ -699,7 +752,7 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
     child.on("close", (code) => resolve(code ?? -1));
   });
   opts.signal?.removeEventListener("abort", onAbort);
-  clearTimeout(hardTimer);
+  if (hardTimer) clearTimeout(hardTimer);
   if (silenceTimer) clearInterval(silenceTimer);
   if (mtimeTimer) clearInterval(mtimeTimer);
 
@@ -1915,4 +1968,791 @@ function failResult(message: string, runDir?: string): any {
 function tail(s: string, maxChars: number): string {
   if (s.length <= maxChars) return s;
   return `[truncated leading ${s.length - maxChars} chars]\n${s.slice(-maxChars)}`;
+}
+
+// ===========================================================================
+// SUPERVISE LOOP (in-process) — /supervise-loop
+// Same dispatcher → approve → executor → oracle → supervisor loop as
+// /supervise, but each role runs in-process via createAgentSession instead
+// of a `pi -p` subprocess. That lets us stream the agents' text / thinking /
+// tool events into a live modal and steer them mid-run with @tags.
+//
+// Ported from Ivan Gromov's sdk-team.ts + supervise.ts (/supervise-loop),
+// adapted to @earendil-works and folded onto this file's existing supervise
+// machinery (oracle / evidence / prompt builders / verdict / panel).
+// ===========================================================================
+
+// --- in-process SDK agent runner --------------------------------------------
+
+type SdkAgentStatus = "idle" | "running" | "done" | "error";
+
+interface SdkEvent {
+  tag: string;
+  type: "text" | "thinking" | "tool-call" | "tool-result" | "status" | "error";
+  text: string;
+  toolName?: string;
+  isError?: boolean;
+}
+
+interface SdkAgentHandle {
+  tag: string;
+  readonly status: SdkAgentStatus;
+  readonly latestReport: string;
+  prompt(prompt: string): Promise<{ ok: boolean; report: string; error?: string }>;
+  steer(text: string): Promise<void>;
+  abort(): Promise<void>;
+  dispose(): void;
+}
+
+interface CreateSdkAgentOpts {
+  tag: string;
+  model?: string;
+  tools?: string;
+  context: string;
+  cwd: string;
+  healthTimeoutMs: number;
+  onEvent?: (e: SdkEvent) => void;
+}
+
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+
+// "anthropic/claude-opus-4-8", "plugboard-codex/gpt-5.5", "opus",
+// optionally with a trailing ":<thinking>" we strip.
+function splitModelSpec(spec: string): { provider?: string; id: string } {
+  let s = spec.trim();
+  const colon = s.lastIndexOf(":");
+  if (colon > 0 && THINKING_LEVELS.has(s.slice(colon + 1).toLowerCase())) {
+    s = s.slice(0, colon);
+  }
+  const slash = s.indexOf("/");
+  if (slash > 0) return { provider: s.slice(0, slash), id: s.slice(slash + 1) };
+  return { id: s };
+}
+
+// Resolve a model string to a Model object via the registry. Returns
+// undefined when unspecified OR unresolvable — caller then omits `model`
+// and createAgentSession falls back to the settings default.
+async function resolveModelSpec(registry: any, spec: string | undefined): Promise<any | undefined> {
+  if (!spec) return undefined;
+  const { provider, id } = splitModelSpec(spec);
+  try {
+    if (provider) {
+      const found = registry.find?.(provider, id);
+      if (found) return found;
+    }
+    const avail = (await registry.getAvailable?.()) ?? [];
+    const lc = id.toLowerCase();
+    const idOf = (m: any) => String(m?.id ?? m?.model ?? "").toLowerCase();
+    return (
+      avail.find((m: any) => idOf(m) === lc) ??
+      avail.find((m: any) => idOf(m).includes(lc)) ??
+      avail.find((m: any) => String(m?.name ?? "").toLowerCase().includes(lc))
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function parseToolsCsv(tools: string | undefined): string[] | undefined {
+  if (!tools) return undefined;
+  const arr = tools.split(",").map((t) => t.trim()).filter(Boolean);
+  return arr.length ? arr : undefined;
+}
+
+// Set PI_AGENT_TEAM_CHILD=1 around in-process session creation so our own
+// extensions early-return (no nested supervise/subagent registration) while
+// the child session's DefaultResourceLoader discovers extensions. Restored
+// immediately after — the parent's already-loaded extensions are unaffected.
+async function withAgentChildEnv<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = process.env.PI_AGENT_TEAM_CHILD;
+  process.env.PI_AGENT_TEAM_CHILD = "1";
+  try {
+    return await fn();
+  } finally {
+    if (prev === undefined) delete process.env.PI_AGENT_TEAM_CHILD;
+    else process.env.PI_AGENT_TEAM_CHILD = prev;
+  }
+}
+
+function sdkMessageText(message: any): string {
+  const c = message?.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    return c.filter((p: any) => p?.type === "text").map((p: any) => p.text ?? "").join("");
+  }
+  return "";
+}
+
+async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle> {
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+  const model = await resolveModelSpec(modelRegistry, opts.model);
+  const tools = parseToolsCsv(opts.tools);
+
+  const { session } = await withAgentChildEnv(async () => {
+    const resourceLoader = new DefaultResourceLoader({ cwd: opts.cwd, agentDir: getAgentDir() });
+    await resourceLoader.reload();
+    return await createAgentSession({
+      cwd: opts.cwd,
+      authStorage,
+      modelRegistry,
+      ...(model ? { model } : {}),
+      ...(tools ? { tools } : {}),
+      resourceLoader,
+      sessionManager: SessionManager.inMemory(opts.cwd),
+    } as any);
+  });
+
+  let status: SdkAgentStatus = "idle";
+  let latestReport = "";
+  let lastEventAt = Date.now();
+  const emit = (e: Omit<SdkEvent, "tag">) => {
+    lastEventAt = Date.now();
+    opts.onEvent?.({ ...e, tag: opts.tag });
+  };
+
+  const unsubscribe = session.subscribe((event: any) => {
+    if (event.type === "message_update") {
+      const u = event.assistantMessageEvent;
+      if (u?.type === "text_delta" && u.delta) emit({ type: "text", text: u.delta });
+      else if (u?.type === "thinking_delta" && u.delta) emit({ type: "thinking", text: u.delta });
+      return;
+    }
+    if (event.type === "tool_execution_start") {
+      emit({ type: "tool-call", toolName: event.toolName, text: `→ ${event.toolName}` });
+      return;
+    }
+    if (event.type === "tool_execution_end") {
+      emit({ type: "tool-result", toolName: event.toolName, isError: event.isError, text: `${event.isError ? "✗" : "✓"} ${event.toolName}` });
+      return;
+    }
+    if (event.type === "message_end" && event.message?.role === "assistant") {
+      const t = sdkMessageText(event.message).trim();
+      if (t) latestReport = t;
+    }
+  });
+
+  return {
+    tag: opts.tag,
+    get status() { return status; },
+    get latestReport() { return latestReport; },
+    async prompt(prompt: string) {
+      status = "running";
+      lastEventAt = Date.now();
+      emit({ type: "status", text: `started @${opts.tag}` });
+      const healthMs = Math.max(1000, opts.healthTimeoutMs);
+      const interval = Math.max(5000, Math.min(30000, Math.floor(healthMs / 6)));
+      let healthTimedOut = false;
+      const timer = setInterval(() => {
+        if (Date.now() - lastEventAt >= healthMs) {
+          healthTimedOut = true;
+          emit({ type: "error", text: `health check failed: no event for ${Math.round(healthMs / 1000)}s`, isError: true });
+          void session.abort();
+        }
+      }, interval);
+      const full = opts.context
+        ? `<role-context>\n${opts.context}\n</role-context>\n\n${prompt}`
+        : prompt;
+      try {
+        await session.prompt(full);
+        clearInterval(timer);
+        if (healthTimedOut) {
+          status = "error";
+          return { ok: false, report: latestReport, error: "health timeout" };
+        }
+        status = "done";
+        emit({ type: "status", text: `done @${opts.tag}` });
+        return { ok: true, report: latestReport };
+      } catch (err: any) {
+        clearInterval(timer);
+        status = "error";
+        const error = healthTimedOut ? "health timeout" : (err?.message ?? String(err));
+        emit({ type: "error", text: error, isError: true });
+        return { ok: false, report: latestReport, error };
+      }
+    },
+    async steer(text: string) {
+      const payload = `[User steering @${opts.tag}]\n${text}`;
+      if (session.isStreaming) await session.steer(payload);
+      else await session.prompt(payload);
+    },
+    async abort() {
+      try { await session.abort(); } catch {}
+    },
+    dispose() {
+      try { unsubscribe(); } catch {}
+      try { session.dispose(); } catch {}
+    },
+  };
+}
+
+// --- live modal state + helpers ---------------------------------------------
+
+interface LiveLoopState {
+  task: string;
+  phase: string;
+  input: string;
+  inputCursor: number;
+  completionHint: string;
+  logs: string[];
+  agents: Map<string, SdkAgentHandle>;
+  knownTags: Set<string>;
+  latestDispatcher: string;
+  latestSupervisor: string;
+  globalSteering: string[];
+  awaitingUser: boolean;
+  userReason: string;
+  userResolver?: (v: string | null) => void;
+  exitRequested: boolean;
+  cancelCurrent?: () => void;
+  requestRender?: () => void;
+  abort?: () => void;
+}
+
+function trimLiveLogs(state: LiveLoopState): void {
+  if (state.logs.length > 300) state.logs.splice(0, state.logs.length - 300);
+  state.requestRender?.();
+}
+
+function appendLiveLog(state: LiveLoopState, line: string): void {
+  state.logs.push(line);
+  trimLiveLogs(state);
+}
+
+// Coalesce consecutive text/thinking deltas from the same tag onto one line.
+function appendStreamingLog(state: LiveLoopState, tag: string, kind: "text" | "thinking", delta: string): void {
+  const prefix = kind === "thinking" ? `@${tag} thinking: ` : `@${tag} `;
+  const last = state.logs.length - 1;
+  if (last >= 0 && state.logs[last].startsWith(prefix)) state.logs[last] += delta;
+  else state.logs.push(prefix + delta);
+  trimLiveLogs(state);
+}
+
+function styleAgentTags(text: string, theme: any): string {
+  return text.replace(/(^|[^\w])(@[A-Za-z][A-Za-z0-9_-]*)\b/g, (_m, p: string, tag: string) =>
+    `${p}${theme.fg("accent", theme.bold(tag))}`);
+}
+
+function renderWrapped(lines: string[], text: string, width: number): void {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) { lines.push(""); return; }
+  for (const line of wrapTextWithAnsi(normalized, width)) lines.push(truncateToWidth(line, width));
+}
+
+function padAnsi(text: string, width: number): string {
+  const pad = Math.max(0, width - visibleWidth(text));
+  return text + " ".repeat(pad);
+}
+
+function getAgentTagCompletions(state: LiveLoopState): string[] {
+  return [...new Set(["all", "loop", ...state.knownTags, ...state.agents.keys()])].sort();
+}
+
+function formatAgentTagHelp(state: LiveLoopState): string {
+  if (state.awaitingUser) return "Type your response to continue, or /exit to stop the loop.";
+  const examples = getAgentTagCompletions(state)
+    .filter((t) => t !== "loop")
+    .slice(0, 4)
+    .map((t) => `@${t}`)
+    .join("/");
+  return `${examples || "@tag"} msg • Tab complete • Enter steer • /exit stop • Esc abort`;
+}
+
+function steeringBlock(state: LiveLoopState): string {
+  if (state.globalSteering.length === 0) return "";
+  return `\n\n## Live user steering\n${state.globalSteering.map((l) => `- ${l}`).join("\n")}`;
+}
+
+function waitForUserPrompt(state: LiveLoopState, reason: string): Promise<string | null> {
+  if (state.exitRequested) return Promise.resolve(null);
+  appendLiveLog(state, `@loop waiting for user input: ${reason}`);
+  state.awaitingUser = true;
+  state.userReason = reason;
+  state.requestRender?.();
+  return new Promise((resolve) => { state.userResolver = resolve; });
+}
+
+async function routeLiveSteer(state: LiveLoopState, raw: string): Promise<void> {
+  const trimmed = raw.trim();
+  if (!trimmed) return;
+  if (trimmed === "/exit") {
+    state.exitRequested = true;
+    appendLiveLog(state, "@loop exit requested by user");
+    const r = state.userResolver;
+    state.userResolver = undefined;
+    state.awaitingUser = false;
+    state.userReason = "";
+    r?.(null);
+    state.cancelCurrent?.();
+    for (const a of state.agents.values()) void a.abort();
+    return;
+  }
+  if (state.awaitingUser) {
+    appendLiveLog(state, `@loop user response: ${trimmed}`);
+    const r = state.userResolver;
+    state.userResolver = undefined;
+    state.awaitingUser = false;
+    state.userReason = "";
+    r?.(trimmed);
+    state.requestRender?.();
+    return;
+  }
+  const m = trimmed.match(/^@(\S+)\s+([\s\S]+)$/);
+  if (!m) {
+    state.globalSteering.push(trimmed);
+    appendLiveLog(state, `@loop queued steering for next prompts: ${trimmed}`);
+    return;
+  }
+  const target = m[1];
+  const text = m[2];
+  const targets = target === "all" || target === "loop"
+    ? [...state.agents.values()]
+    : ([state.agents.get(target)].filter(Boolean) as SdkAgentHandle[]);
+  if (targets.length === 0) {
+    state.globalSteering.push(trimmed);
+    appendLiveLog(state, `@loop queued steering for inactive @${target}: ${text}`);
+    return;
+  }
+  for (const a of targets) {
+    appendLiveLog(state, `@loop → @${a.tag}: ${text}`);
+    void a.steer(text).catch((e) => appendLiveLog(state, `@${a.tag} steer failed: ${String(e)}`));
+  }
+}
+
+function completeAgentTag(state: LiveLoopState): void {
+  const before = state.input.slice(0, state.inputCursor);
+  const m = before.match(/(^|\s)@(\S*)$/);
+  if (!m) {
+    state.completionHint = "Type @ then a tag, then Tab (e.g. @exe → @executor).";
+    return;
+  }
+  const prefix = m[2] ?? "";
+  const candidates = getAgentTagCompletions(state).filter((t) => t.startsWith(prefix));
+  if (candidates.length === 0) { state.completionHint = `No @tag for @${prefix}`; return; }
+  if (candidates.length > 1) {
+    state.completionHint = `@${prefix} → ${candidates.map((t) => `@${t}`).join(", ")}`;
+    return;
+  }
+  const start = before.length - prefix.length;
+  const replacement = candidates[0];
+  const suffix = state.input.slice(state.inputCursor);
+  state.input = state.input.slice(0, start) + replacement + (suffix.startsWith(" ") ? "" : " ") + suffix;
+  state.inputCursor = start + replacement.length + 1;
+  state.completionHint = `Completed @${replacement}`;
+}
+
+// Insert (possibly pasted) text at the cursor, stripping control chars and
+// bracketed-paste markers. Ported from Ivan's live-input.ts.
+function insertLiveInput(state: LiveLoopState, data: string): void {
+  const text = data
+    .replace(/\x1b\[200~|\x1b\[201~/g, "")
+    .replace(/\r\n|\r|\n/g, " ")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+  if (!text) return;
+  state.input = state.input.slice(0, state.inputCursor) + text + state.input.slice(state.inputCursor);
+  state.inputCursor += text.length;
+  state.completionHint = "";
+  state.requestRender?.();
+}
+
+function renderInputBox(state: LiveLoopState, theme: any, width: number): string[] {
+  const totalWidth = Math.max(24, width);
+  const innerWidth = Math.max(22, totalWidth - 2);
+  const textWidth = Math.max(1, innerWidth - 2);
+  const cursor = Math.max(0, Math.min(state.inputCursor, state.input.length));
+  let start = 0;
+  if (cursor > textWidth - 1) start = cursor - textWidth + 1;
+  let display = state.input.slice(start, start + textWidth);
+  if (start > 0 && display.length > 0) display = "…" + display.slice(1);
+  const cursorInDisplay = Math.max(0, Math.min(display.length, cursor - start));
+  const raw = `> ${display}`;
+  const cursorIndex = 2 + cursorInDisplay;
+  const before = raw.slice(0, cursorIndex);
+  const cursorChar = cursorIndex < raw.length ? raw[cursorIndex] : " ";
+  const after = cursorIndex < raw.length ? raw.slice(cursorIndex + 1) : "";
+  const content = `${before}${CURSOR_MARKER}\x1b[7m${cursorChar}\x1b[27m${after}`;
+  const border = (s: string) => theme.fg("accent", s);
+  return [
+    border(`╭${"─".repeat(innerWidth)}╮`),
+    border("│") + padAnsi(content, innerWidth) + border("│"),
+    border(`╰${"─".repeat(innerWidth)}╯`),
+  ];
+}
+
+function buildLiveLoopComponent(state: LiveLoopState, theme: any): any {
+  const component: any = {
+    focused: true,
+    render(width: number): string[] {
+      const lines: string[] = [];
+      const w = Math.max(20, width - 2);
+      lines.push(theme.fg("toolTitle", theme.bold("supervise-loop")) + theme.fg("muted", ` — ${state.phase}`));
+      renderWrapped(lines, theme.fg("dim", state.task), w);
+      if (state.awaitingUser) {
+        lines.push("");
+        renderWrapped(lines, theme.fg("warning", styleAgentTags(`@loop needs input: ${state.userReason}`, theme)), w);
+      }
+      lines.push("");
+      const agentRows = [...state.agents.values()].map((a) => {
+        const icon = a.status === "running" ? "…" : a.status === "done" ? "✓" : a.status === "error" ? "✗" : "·";
+        return `${icon} ${styleAgentTags(`@${a.tag}`, theme)}`;
+      });
+      renderWrapped(lines, `agents: ${agentRows.join("  ") || "(starting…)"}`, w);
+      lines.push("");
+      lines.push(theme.fg("accent", "latest dispatcher"));
+      for (const l of (state.latestDispatcher || "(none yet)").split(/\r?\n/).slice(0, 6)) {
+        renderWrapped(lines, theme.fg("dim", styleAgentTags(l, theme)), w);
+      }
+      lines.push("");
+      lines.push(theme.fg("accent", "latest supervisor"));
+      for (const l of (state.latestSupervisor || "(none yet)").split(/\r?\n/).slice(0, 6)) {
+        renderWrapped(lines, theme.fg("dim", styleAgentTags(l, theme)), w);
+      }
+      lines.push("");
+      lines.push(theme.fg("accent", "live log"));
+      for (const l of state.logs.slice(-8)) renderWrapped(lines, styleAgentTags(l, theme), w);
+      lines.push("");
+      renderWrapped(lines, theme.fg("muted", styleAgentTags(formatAgentTagHelp(state), theme)), w);
+      if (state.completionHint) renderWrapped(lines, theme.fg("dim", styleAgentTags(state.completionHint, theme)), w);
+      lines.push(...renderInputBox(state, theme, width));
+      return lines;
+    },
+    invalidate(): void {},
+    handleInput(data: string): void {
+      if (matchesKey(data, Key.escape)) { state.abort?.(); return; }
+      if (matchesKey(data, Key.enter)) {
+        const text = state.input;
+        state.input = "";
+        state.inputCursor = 0;
+        state.completionHint = "";
+        void routeLiveSteer(state, text);
+        state.requestRender?.();
+        return;
+      }
+      if (matchesKey(data, Key.tab)) { completeAgentTag(state); state.requestRender?.(); return; }
+      if (matchesKey(data, Key.left)) { state.inputCursor = Math.max(0, state.inputCursor - 1); state.requestRender?.(); return; }
+      if (matchesKey(data, Key.right)) { state.inputCursor = Math.min(state.input.length, state.inputCursor + 1); state.requestRender?.(); return; }
+      if (matchesKey(data, Key.home)) { state.inputCursor = 0; state.requestRender?.(); return; }
+      if (matchesKey(data, Key.end)) { state.inputCursor = state.input.length; state.requestRender?.(); return; }
+      if (matchesKey(data, Key.delete)) {
+        if (state.inputCursor < state.input.length) {
+          state.input = state.input.slice(0, state.inputCursor) + state.input.slice(state.inputCursor + 1);
+        }
+        state.requestRender?.();
+        return;
+      }
+      if (matchesKey(data, Key.backspace)) {
+        if (state.inputCursor > 0) {
+          state.input = state.input.slice(0, state.inputCursor - 1) + state.input.slice(state.inputCursor);
+          state.inputCursor--;
+        }
+        state.requestRender?.();
+        return;
+      }
+      insertLiveInput(state, data);
+    },
+  };
+  return component;
+}
+
+async function runLiveModal(ctx: any, state: LiveLoopState, work: () => Promise<void>): Promise<void> {
+  let error: unknown;
+  await ctx.ui.custom<void>((tui: any, theme: any, _kb: any, done: () => void) => {
+    state.requestRender = () => tui.requestRender();
+    state.abort = () => {
+      state.exitRequested = true;
+      appendLiveLog(state, "@loop abort requested");
+      const r = state.userResolver;
+      state.userResolver = undefined;
+      state.awaitingUser = false;
+      state.userReason = "";
+      r?.(null);
+      state.cancelCurrent?.();
+      for (const a of state.agents.values()) void a.abort();
+    };
+    setImmediate(() => {
+      work()
+        .catch((err: any) => { error = err; appendLiveLog(state, `@loop error: ${err?.message ?? String(err)}`); })
+        .finally(() => done());
+    });
+    return buildLiveLoopComponent(state, theme);
+  });
+  if (error) throw error;
+}
+
+interface SdkRoleMember { tag: string; model?: string; tools?: string; }
+
+// Spawn one role's agents (1 for dispatcher/executor, N for supervisor panel),
+// stream their events into the modal, prompt them all, return their reports.
+async function runSdkRole(args: {
+  state: LiveLoopState;
+  role: string;
+  members: SdkRoleMember[];
+  context: string;
+  prompt: string;
+  cwd: string;
+  healthTimeoutMs: number;
+}): Promise<{ tag: string; ok: boolean; report: string; error?: string }[]> {
+  const { state } = args;
+  state.phase = args.role;
+  state.agents.clear();
+  state.requestRender?.();
+  const handles: SdkAgentHandle[] = [];
+  const prevCancel = state.cancelCurrent;
+  state.cancelCurrent = () => { prevCancel?.(); for (const h of handles) void h.abort(); };
+  try {
+    for (const m of args.members) {
+      let handle: SdkAgentHandle;
+      handle = await createSdkAgent({
+        tag: m.tag,
+        model: m.model,
+        tools: m.tools,
+        context: args.context,
+        cwd: args.cwd,
+        healthTimeoutMs: args.healthTimeoutMs,
+        onEvent: (e) => {
+          if (e.type === "text" || e.type === "thinking") appendStreamingLog(state, e.tag, e.type, e.text);
+          else appendLiveLog(state, `@${e.tag} ${e.text}`);
+          if (e.type === "text") {
+            if (args.role.includes("dispatcher")) state.latestDispatcher = handle.latestReport || state.latestDispatcher;
+            if (args.role.includes("supervisor")) state.latestSupervisor = handle.latestReport || state.latestSupervisor;
+          }
+        },
+      });
+      handles.push(handle);
+      state.agents.set(handle.tag, handle);
+    }
+    state.requestRender?.();
+    const steer = steeringBlock(state);
+    const results = await Promise.all(
+      handles.map((h) => h.prompt(`${args.prompt}${steer}`).then((r) => ({ tag: h.tag, ...r }))),
+    );
+    for (const h of handles) {
+      if (args.role.includes("dispatcher")) state.latestDispatcher = h.latestReport;
+      if (args.role.includes("supervisor")) state.latestSupervisor = h.latestReport;
+    }
+    return results;
+  } finally {
+    state.cancelCurrent = prevCancel;
+    for (const h of handles) h.dispose();
+    state.requestRender?.();
+  }
+}
+
+// --- main entrypoint --------------------------------------------------------
+
+async function runSuperviseLoop(task: string, ctx: any): Promise<{ summary: string; details: any } | null> {
+  const ss = loadSettings(ctx.cwd).supervise;
+  const maxIterations = ss.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const oracleRequired = ss.oracleRequired ?? true;
+  const healthTimeoutMs = (ss.healthTimeoutSeconds ?? DEFAULT_HEALTH_TIMEOUT_SECONDS) * 1000;
+  const dispatcherModel = ss.dispatcherModel;
+  const executorModel = ss.executorModel;
+  const supervisorPanel: SupervisorMemberConfig[] =
+    ss.supervisorMembers && ss.supervisorMembers.length > 0
+      ? ss.supervisorMembers
+      : [{ label: "supervisor", model: ss.supervisorModel }];
+  const supMembers: SdkRoleMember[] = supervisorPanel.map((m, i) => ({
+    tag: m.label ?? `supervisor-${i + 1}`,
+    model: m.model,
+    tools: m.tools,
+  }));
+
+  const runDir = makeRunDir(ctx.cwd, task);
+  mkdirSync(join(runDir, "oracle", "state"), { recursive: true });
+  mkdirSync(join(runDir, "oracle", "runs"), { recursive: true });
+  mkdirSync(join(runDir, "evidence"), { recursive: true });
+
+  const state: LiveLoopState = {
+    task,
+    phase: "starting",
+    input: "",
+    inputCursor: 0,
+    completionHint: "",
+    logs: [],
+    agents: new Map(),
+    knownTags: new Set(["dispatcher", "executor", "oracle", ...supMembers.map((m) => m.tag)]),
+    latestDispatcher: "",
+    latestSupervisor: "",
+    globalSteering: [],
+    awaitingUser: false,
+    userReason: "",
+    exitRequested: false,
+  };
+
+  // Phase A — initial dispatcher plan (in the modal).
+  let dispatcherOutput = "";
+  await runLiveModal(ctx, state, async () => {
+    appendLiveLog(state, `@loop planning: ${task}`);
+    const res = await runSdkRole({
+      state, role: "dispatcher initial",
+      members: [{ tag: "dispatcher", model: dispatcherModel }],
+      context: DISPATCHER_CONTEXT, prompt: buildDispatcherPrompt(task, null),
+      cwd: ctx.cwd, healthTimeoutMs,
+    });
+    dispatcherOutput = res[0]?.report ?? "";
+    writeFileSync(join(runDir, "dispatcher-initial.md"), dispatcherOutput);
+  });
+  if (state.exitRequested) {
+    ctx.ui.notify(`supervise-loop stopped before approval. Artifacts: ${runDir}`, "warning");
+    return null;
+  }
+
+  // Phase B — user approval (editor, outside the modal). Feedback re-runs the
+  // dispatcher in a fresh modal pass.
+  const approval = await promptForApprovedPlan(task, dispatcherOutput, ctx, oracleRequired, async (feedback) => {
+    let revised = dispatcherOutput;
+    await runLiveModal(ctx, state, async () => {
+      const res = await runSdkRole({
+        state, role: "dispatcher feedback",
+        members: [{ tag: "dispatcher", model: dispatcherModel }],
+        context: DISPATCHER_CONTEXT,
+        prompt: buildDispatcherFeedbackPrompt(task, dispatcherOutput, feedback),
+        cwd: ctx.cwd, healthTimeoutMs,
+      });
+      revised = res[0]?.report ?? dispatcherOutput;
+      writeFileSync(join(runDir, `dispatcher-feedback-${Date.now()}.md`), revised);
+    });
+    dispatcherOutput = revised;
+    return revised;
+  });
+  if (!approval) {
+    ctx.ui.notify("supervise-loop canceled before execution.", "info");
+    return null;
+  }
+  const approvedPlan = approval.approvedPackage;
+  const approvedOracleCode = approval.oracleCode;
+  writeFileSync(join(runDir, "user-approved-plan.md"), approvedPlan);
+
+  // Freeze oracle.
+  const frozenOracleFile = join(runDir, "oracle", "oracle.sh");
+  writeFileSync(frozenOracleFile, approvedOracleCode || "", { mode: 0o400 });
+  try { chmodSync(frozenOracleFile, 0o400); } catch {}
+
+  // Baseline evidence.
+  const baseline = collectVcsEvidence(ctx.cwd);
+  writeFileSync(join(runDir, "evidence", "attempt-0-status.txt"), baseline.status);
+  writeFileSync(join(runDir, "evidence", "attempt-0-diff.patch"), baseline.diff);
+
+  // Phase C — the loop (in the modal).
+  let finalDecision = "REPAIR";
+  let lastSupervisorReport = "";
+  let finalIteration = 0;
+  let oracleResult: { exitCode: number; output: string; assertions: number } | null = null;
+  let loopContext = "";
+
+  await runLiveModal(ctx, state, async () => {
+    for (let iteration = 1; iteration <= maxIterations; iteration++) {
+      if (state.exitRequested) break;
+      finalIteration = iteration;
+
+      if (iteration > 1) {
+        const res = await runSdkRole({
+          state, role: `dispatcher iteration ${iteration}`,
+          members: [{ tag: "dispatcher", model: dispatcherModel }],
+          context: DISPATCHER_CONTEXT, prompt: buildDispatcherPrompt(task, loopContext),
+          cwd: ctx.cwd, healthTimeoutMs,
+        });
+        if (state.exitRequested) break;
+        dispatcherOutput = res[0]?.report ?? dispatcherOutput;
+        writeFileSync(join(runDir, `dispatcher-iteration-${iteration}.md`), dispatcherOutput);
+      }
+
+      const execRes = await runSdkRole({
+        state, role: `execution iteration ${iteration}`,
+        members: [{ tag: "executor", model: executorModel }],
+        context: EXECUTOR_CONTEXT,
+        prompt: buildExecutorPrompt(approvedPlan, iteration, maxIterations, loopContext),
+        cwd: ctx.cwd, healthTimeoutMs,
+      });
+      if (state.exitRequested) break;
+      const executionReport = execRes[0]?.report ?? "";
+      writeFileSync(join(runDir, `execution-iteration-${iteration}.md`), executionReport);
+
+      state.phase = `oracle iteration ${iteration}`;
+      state.requestRender?.();
+      if (approvedOracleCode) appendLiveLog(state, `@oracle running iteration ${iteration}`);
+      oracleResult = approvedOracleCode
+        ? runOracle({ frozenOracleFile, runDir, iteration, requireAssertion: oracleRequired })
+        : null;
+      if (oracleResult) {
+        writeFileSync(
+          join(runDir, "oracle", "runs", `oracle-iteration-${iteration}.txt`),
+          `exit=${oracleResult.exitCode} assertions=${oracleResult.assertions}\n${oracleResult.output}`,
+        );
+        appendLiveLog(state, `@oracle exit ${oracleResult.exitCode}${oracleResult.exitCode === 0 ? "" : " (fail)"}`);
+      }
+      if (state.exitRequested) break;
+
+      const current = collectVcsEvidence(ctx.cwd);
+      writeFileSync(join(runDir, "evidence", `attempt-${iteration}-status.txt`), current.status);
+      writeFileSync(join(runDir, "evidence", `attempt-${iteration}-diff.patch`), current.diff);
+
+      const supRes = await runSdkRole({
+        state, role: `supervisor iteration ${iteration}`,
+        members: supMembers,
+        context: SUPERVISOR_CONTEXT,
+        prompt: buildSupervisorPrompt({ approvedPlan, executionReport, oracleResult, baseline, current }),
+        cwd: ctx.cwd, healthTimeoutMs,
+      });
+      if (state.exitRequested) break;
+
+      const memberVerdicts: PanelMemberResult[] = supRes.map((r) => ({
+        label: r.tag, report: r.report, verdict: parseSupervisorVerdict(r.report),
+      }));
+      const verdict = memberVerdicts.length === 1 ? memberVerdicts[0].verdict : aggregatePanelVerdict(memberVerdicts);
+      const combinedReport = memberVerdicts.length === 1
+        ? memberVerdicts[0].report
+        : memberVerdicts.map((m) => `## ${m.label} → ${m.verdict.effectiveDecision}\n\n${m.report}`).join("\n\n---\n\n");
+      lastSupervisorReport = combinedReport;
+      state.latestSupervisor = combinedReport;
+
+      let decision = verdict.effectiveDecision;
+      const downgrades = [...verdict.downgrades];
+      const oracleFailed = oracleRequired && oracleResult && (oracleResult as any).exitCode !== 0;
+      if (oracleFailed && decision === "COMPLETE") {
+        decision = "REPAIR";
+        downgrades.push("oracle_failed_overrides_complete");
+      }
+      writeFileSync(
+        join(runDir, `supervisor-iteration-${iteration}.md`),
+        `${combinedReport}\n\n---\n\nverdict: decision=${decision} dod=${verdict.finalDodMet} iter=${verdict.iterationAccepted} downgrades=[${downgrades.join(", ")}] panel_size=${memberVerdicts.length}`,
+      );
+      finalDecision = decision;
+      appendLiveLog(state, `@loop iteration ${iteration}: ${decision}`);
+
+      if (decision === "COMPLETE") break;
+      if (decision === "ASK_USER" || decision === "BLOCKED") {
+        const answer = await waitForUserPrompt(state, `${decision}: answer to continue, or /exit to stop`);
+        if (!answer) break;
+        writeFileSync(join(runDir, `user-response-iteration-${iteration}.md`), answer);
+        loopContext = `## Previous supervisor verdict (${decision})\n${combinedReport}\n\n## User response\n${answer}`;
+        finalDecision = "REPAIR";
+        continue;
+      }
+      loopContext = `## Previous supervisor verdict\n${combinedReport}\n\n## Repair instructions\nSee the supervisor report above.`;
+    }
+
+    if (state.exitRequested) {
+      finalDecision = "STOPPED";
+    } else if (finalDecision === "REPAIR" && finalIteration >= maxIterations) {
+      finalDecision = "ASK_USER";
+      lastSupervisorReport = `Max iterations (${maxIterations}) exhausted.\n\nLast supervisor report:\n${lastSupervisorReport}`;
+      appendLiveLog(state, `@loop max iterations (${maxIterations}) exhausted`);
+    }
+    state.phase = `done: ${finalDecision}`;
+    state.requestRender?.();
+  });
+
+  const summary = buildSupervisorSummary({
+    runDir, task, finalDecision, finalIteration, maxIterations, lastSupervisorReport, oracleResult,
+  });
+  writeFileSync(join(runDir, "summary.md"), summary);
+  ctx.ui.notify(
+    `supervise-loop: ${finalDecision} after ${finalIteration} iteration(s). Artifacts: ${runDir}`,
+    finalDecision === "COMPLETE" ? "info" : "warning",
+  );
+  return {
+    summary,
+    details: { runDir, finalDecision, iterations: finalIteration, maxIterations },
+  };
 }
