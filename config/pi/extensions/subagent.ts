@@ -47,6 +47,19 @@ const ORACLE_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_ORACLE_TIMEOUT) |
 // event resets the timer, so this is wall-clock-of-silence, not total runtime.
 const DEFAULT_HEALTH_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_HEALTH_TIMEOUT) || 600;
 
+// Side-kick defaults. A side-kick is a long-lived in-process agent the main
+// agent can talk to repeatedly across tool calls. The health-timeout bounds a
+// single send (no SDK event for this long → that send is aborted; the
+// side-kick stays alive for the next send).
+const DEFAULT_SIDEKICK_HEALTH_SECONDS = Number(process.env.PI_SIDEKICK_HEALTH_TIMEOUT) || 600;
+const DEFAULT_SIDEKICK_NAME = "sidekick";
+const DEFAULT_SIDEKICK_ROLE =
+  "You are a side-kick agent working alongside a primary agent in the same " +
+  "project. The primary agent delegates focused work to you and will talk to " +
+  "you repeatedly, so remember what you've done across messages. Be concise, " +
+  "do the work concretely (use your tools), and end each reply with the " +
+  "result the primary agent needs — not a restatement of the request.";
+
 // --- settings loading -------------------------------------------------------
 // Read ~/.pi/agent/settings.json (global) and ./.pi/settings.json (project).
 // Project keys override global keys, per-block (matches Ivan's pattern in
@@ -99,10 +112,19 @@ interface SuperviseSettingsBlock {
   healthTimeoutSeconds?: number;
 }
 
+interface SidekickSettings {
+  model?: string;
+  tools?: string;
+  // Per-send health-timeout (seconds of no SDK event) before that send is
+  // aborted. The side-kick survives — only the in-flight send is killed.
+  healthTimeoutSeconds?: number;
+}
+
 interface AllSettings {
   subagent: SubagentSettings;
   council: CouncilSettings;
   supervise: SuperviseSettingsBlock;
+  sidekick: SidekickSettings;
   sources: Array<{ path: string; exists: boolean; blocks: string[] }>;
 }
 
@@ -121,6 +143,7 @@ function loadSettings(cwd: string): AllSettings {
     subagent: {},
     council: {},
     supervise: {},
+    sidekick: {},
     sources: [],
   };
   for (const p of [globalPath, projectPath]) {
@@ -139,6 +162,10 @@ function loadSettings(cwd: string): AllSettings {
     if (obj?.supervise && typeof obj.supervise === "object") {
       Object.assign(merged.supervise, obj.supervise);
       blocks.push("supervise");
+    }
+    if (obj?.sidekick && typeof obj.sidekick === "object") {
+      Object.assign(merged.sidekick, obj.sidekick);
+      blocks.push("sidekick");
     }
     merged.sources.push({ path: p, exists, blocks });
   }
@@ -539,6 +566,174 @@ export default function (pi: ExtensionAPI) {
       }
       await runSuperviseLoop(task, ctx);
     },
+  });
+
+  // ----- side-kick: a long-lived agent the main agent talks to repeatedly ---
+  // Unlike `subagent` (one-shot subprocess), a side-kick is an in-process
+  // session kept alive in a registry across tool calls, so it accumulates its
+  // own history and remembers prior exchanges.
+  pi.registerTool({
+    name: "sidekick_start",
+    label: "Sidekick Start",
+    description:
+      "Start a long-lived side-kick agent you can talk to repeatedly with " +
+      "sidekick_send. Unlike `subagent` (one-shot), a side-kick keeps its own " +
+      "conversation history across sends, so it remembers what it has done — a " +
+      "companion for a sustained sub-thread (e.g. a researcher that builds up " +
+      "knowledge, or a worker that owns one module).\n\n" +
+      "All params optional: name (default 'sidekick'; use distinct names to run " +
+      "several at once), role (standing instructions), model, tools allowlist. " +
+      "You can also skip this and call sidekick_send directly — it auto-starts " +
+      "a default side-kick.",
+    parameters: Type.Object({
+      name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'. Use distinct names to run several." })),
+      role: Type.Optional(Type.String({ description: "Standing instructions / persona. Delivered once, with the first message." })),
+      model: Type.Optional(Type.String({ description: "Model override (e.g. 'sonnet', 'anthropic/claude-opus-4-8'). Defaults to settings.sidekick.model, then pi default." })),
+      tools: Type.Optional(Type.String({ description: "Comma-separated tool allowlist (e.g. 'read,grep,find,ls'). Defaults to settings.sidekick.tools, then pi default." })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
+      const existing = sidekicks.get(name);
+      if (existing) {
+        return { content: [{ type: "text", text: `Side-kick '${name}' already exists (${existing.handle.status}). Use sidekick_send to talk to it, or sidekick_stop to replace it.` }], isError: true };
+      }
+      const s = loadSettings(ctx.cwd).sidekick;
+      try {
+        await startSidekick({
+          name,
+          role: (params.role ?? "").trim() || DEFAULT_SIDEKICK_ROLE,
+          model: params.model ?? s.model,
+          tools: params.tools ?? s.tools,
+          cwd: ctx.cwd,
+          healthTimeoutMs: (s.healthTimeoutSeconds ?? DEFAULT_SIDEKICK_HEALTH_SECONDS) * 1000,
+        });
+        return { content: [{ type: "text", text: `Side-kick '${name}' started. Talk to it: sidekick_send({ name: "${name}", message: ... }).` }] };
+      } catch (err: any) {
+        return { content: [{ type: "text", text: `Failed to start side-kick '${name}': ${err?.message ?? err}` }], isError: true };
+      }
+    },
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("sidekick_start"),
+  });
+
+  pi.registerTool({
+    name: "sidekick_send",
+    label: "Sidekick Send",
+    description:
+      "Send a message to a side-kick and get its reply. The side-kick remembers " +
+      "your earlier messages to it (it has its own running history). If the named " +
+      "side-kick doesn't exist yet, it's auto-created with default settings — so " +
+      "for a quick companion you can just call this directly. Use sidekick_start " +
+      "first when you want a specific role / model / tools.",
+    parameters: Type.Object({
+      message: Type.String({ description: "What to say to the side-kick." }),
+      name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'." })),
+      model: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created; ignored if it already exists." })),
+      tools: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created." })),
+    }),
+    async execute(_id, params, signal, onUpdate, ctx) {
+      const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
+      let entry = sidekicks.get(name);
+      if (!entry) {
+        const s = loadSettings(ctx.cwd).sidekick;
+        try {
+          entry = await startSidekick({
+            name,
+            role: DEFAULT_SIDEKICK_ROLE,
+            model: params.model ?? s.model,
+            tools: params.tools ?? s.tools,
+            cwd: ctx.cwd,
+            healthTimeoutMs: (s.healthTimeoutSeconds ?? DEFAULT_SIDEKICK_HEALTH_SECONDS) * 1000,
+          });
+        } catch (err: any) {
+          return { content: [{ type: "text", text: `Failed to start side-kick '${name}': ${err?.message ?? err}` }], isError: true };
+        }
+      }
+      if (entry.handle.status === "running") {
+        return { content: [{ type: "text", text: `Side-kick '${name}' is still working on a previous message. Wait for it to finish before sending another.` }], isError: true };
+      }
+      // The role rides along with the first message only; after that the
+      // side-kick remembers it, so later sends are bare user turns.
+      const text = entry.firstSendDone
+        ? params.message
+        : `You are operating as a side-kick agent. Your standing role:\n${entry.role}\n\nFirst message from the primary agent:\n${params.message}`;
+      entry.streamBuf = "";
+      entry.onPreview = (t) => onUpdate?.({ content: [{ type: "text", text: t }] });
+      const onAbort = () => { void entry!.handle.abort(); };
+      signal?.addEventListener("abort", onAbort);
+      try {
+        const res = await entry.handle.prompt(text);
+        entry.firstSendDone = true;
+        entry.sends++;
+        const body = res.report?.trim() || "(side-kick returned no text)";
+        return {
+          content: [{ type: "text", text: body }],
+          isError: !res.ok,
+          details: { name, sends: entry.sends, status: entry.handle.status, error: res.error },
+        };
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
+        entry.onPreview = undefined;
+      }
+    },
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("sidekick_send"),
+  });
+
+  pi.registerTool({
+    name: "sidekick_stop",
+    label: "Sidekick Stop",
+    description: "Stop a side-kick and free its resources. Its conversation is discarded. Default name 'sidekick'.",
+    parameters: Type.Object({
+      name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'." })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
+      const ok = disposeSidekick(name);
+      if (!ok) {
+        const active = [...sidekicks.keys()];
+        return { content: [{ type: "text", text: `No side-kick named '${name}'.${active.length ? ` Active: ${active.join(", ")}.` : " None active."}` }], isError: true };
+      }
+      return { content: [{ type: "text", text: `Side-kick '${name}' stopped.` }] };
+    },
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("sidekick_stop"),
+  });
+
+  pi.registerCommand("sidekick", {
+    description: "Inspect side-kicks: /sidekick (list), /sidekick stop <name>, /sidekick stop-all.",
+    handler: async (args: string, ctx: any) => {
+      const a = (args ?? "").trim();
+      if (!a || a === "list") {
+        if (sidekicks.size === 0) { ctx.ui.notify("No active side-kicks.", "info"); return; }
+        ctx.ui.notify(["active side-kicks:", ...[...sidekicks.values()].map((e) => "  " + sidekickSummaryLine(e))].join("\n"), "info");
+        return;
+      }
+      if (a === "stop-all") {
+        const n = sidekicks.size;
+        for (const name of [...sidekicks.keys()]) disposeSidekick(name);
+        ctx.ui.notify(`Stopped ${n} side-kick(s).`, "info");
+        return;
+      }
+      const m = a.match(/^stop\s+(.+)$/);
+      if (m) {
+        const name = m[1].trim();
+        const ok = disposeSidekick(name);
+        ctx.ui.notify(ok ? `Stopped '${name}'.` : `No side-kick '${name}'.`, ok ? "info" : "warning");
+        return;
+      }
+      ctx.ui.notify("Usage: /sidekick [list | stop <name> | stop-all]", "warning");
+    },
+  });
+
+  // Tear down all side-kicks when the session ends so in-process sessions
+  // don't linger. Registered in the parent only (factory early-returns in
+  // children).
+  pi.on("session_shutdown", () => {
+    for (const name of [...sidekicks.keys()]) disposeSidekick(name);
   });
 }
 
@@ -2755,4 +2950,84 @@ async function runSuperviseLoop(task: string, ctx: any): Promise<{ summary: stri
     summary,
     details: { runDir, finalDecision, iterations: finalIteration, maxIterations },
   };
+}
+
+// ===========================================================================
+// SIDE-KICK — a long-lived in-process agent the main agent talks to repeatedly
+// Reuses the createSdkAgent runner, but keeps the handle alive in a registry
+// across tool calls instead of disposing it after one prompt. Each sidekick_send
+// calls prompt() on the SAME session, so the side-kick accumulates its own
+// conversation history and remembers prior exchanges — the "dynamic duo".
+// ===========================================================================
+
+interface SidekickEntry {
+  name: string;
+  handle: SdkAgentHandle;
+  role: string;
+  model?: string;
+  tools?: string;
+  cwd: string;
+  createdAt: number;
+  sends: number;
+  firstSendDone: boolean;
+  streamBuf: string;
+  onPreview?: (text: string) => void;
+}
+
+// Module-level: persists across tool calls for the life of the pi session.
+// Only the parent factory registers the tools that touch it (the factory
+// early-returns in child sessions), so children never populate this.
+const sidekicks = new Map<string, SidekickEntry>();
+
+async function startSidekick(opts: {
+  name: string;
+  role: string;
+  model?: string;
+  tools?: string;
+  cwd: string;
+  healthTimeoutMs: number;
+}): Promise<SidekickEntry> {
+  const entry: SidekickEntry = {
+    name: opts.name,
+    handle: null as any,
+    role: opts.role,
+    model: opts.model,
+    tools: opts.tools,
+    cwd: opts.cwd,
+    createdAt: Date.now(),
+    sends: 0,
+    firstSendDone: false,
+    streamBuf: "",
+  };
+  // context: "" — the role is injected into the first send instead of being
+  // re-prepended to every prompt (createSdkAgent would otherwise repeat it).
+  entry.handle = await createSdkAgent({
+    tag: opts.name,
+    model: opts.model,
+    tools: opts.tools,
+    context: "",
+    cwd: opts.cwd,
+    healthTimeoutMs: opts.healthTimeoutMs,
+    onEvent: (e) => {
+      if (e.type === "text") {
+        entry.streamBuf += e.text;
+        entry.onPreview?.(entry.streamBuf);
+      }
+    },
+  });
+  sidekicks.set(opts.name, entry);
+  return entry;
+}
+
+function disposeSidekick(name: string): boolean {
+  const entry = sidekicks.get(name);
+  if (!entry) return false;
+  try { entry.handle.dispose(); } catch {}
+  sidekicks.delete(name);
+  return true;
+}
+
+function sidekickSummaryLine(e: SidekickEntry): string {
+  const age = Math.round((Date.now() - e.createdAt) / 1000);
+  return `${e.name} [${e.handle.status}] model=${e.model ?? "(default)"} sends=${e.sends} age=${age}s`;
 }
