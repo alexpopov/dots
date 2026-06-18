@@ -606,6 +606,7 @@ export default function (pi: ExtensionAPI) {
           tools: params.tools ?? s.tools,
           cwd: ctx.cwd,
           healthTimeoutMs: (s.healthTimeoutSeconds ?? DEFAULT_SIDEKICK_HEALTH_SECONDS) * 1000,
+          modelRegistry: (ctx as any).modelRegistry,
         });
         return { content: [{ type: "text", text: `Side-kick '${name}' started. Talk to it: sidekick_send({ name: "${name}", message: ... }).` }] };
       } catch (err: any) {
@@ -645,6 +646,7 @@ export default function (pi: ExtensionAPI) {
             tools: params.tools ?? s.tools,
             cwd: ctx.cwd,
             healthTimeoutMs: (s.healthTimeoutSeconds ?? DEFAULT_SIDEKICK_HEALTH_SECONDS) * 1000,
+            modelRegistry: (ctx as any).modelRegistry,
           });
         } catch (err: any) {
           return { content: [{ type: "text", text: `Failed to start side-kick '${name}': ${err?.message ?? err}` }], isError: true };
@@ -2207,6 +2209,14 @@ interface CreateSdkAgentOpts {
   cwd: string;
   healthTimeoutMs: number;
   onEvent?: (e: SdkEvent) => void;
+  // Reuse the PARENT session's authenticated registry/auth. Critical at Meta:
+  // auth flows through the AI Gateway via a runtime API key the parent fetches
+  // (auth.json is empty and ANTHROPIC_API_KEY is a placeholder). A fresh
+  // AuthStorage.create() would not have that runtime key and every model call
+  // would 401 ("invalid x-api-key"). Pass ctx.modelRegistry here so the child
+  // in-process session shares the parent's credentials.
+  modelRegistry?: any;
+  authStorage?: any;
 }
 
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
@@ -2279,8 +2289,10 @@ function sdkMessageText(message: any): string {
 }
 
 async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle> {
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage);
+  // Prefer the parent's authenticated objects (see CreateSdkAgentOpts note).
+  // Fall back to fresh instances only when no parent registry was threaded in.
+  const authStorage = opts.authStorage ?? opts.modelRegistry?.authStorage ?? AuthStorage.create();
+  const modelRegistry = opts.modelRegistry ?? ModelRegistry.create(authStorage);
   const model = await resolveModelSpec(modelRegistry, opts.model);
   const tools = parseToolsCsv(opts.tools);
 
@@ -2300,6 +2312,12 @@ async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle>
 
   let status: SdkAgentStatus = "idle";
   let latestReport = "";
+  // Provider errors (e.g. a 401 from the gateway) are not thrown by
+  // session.prompt(); the SDK records them on the assistant message as
+  // stopReason=="error" with an errorMessage and resolves "successfully" with
+  // empty content. Capture that so prompt() can surface it instead of the
+  // misleading "(side-kick returned no text)".
+  let lastError: string | undefined;
   let lastEventAt = Date.now();
   const emit = (e: Omit<SdkEvent, "tag">) => {
     lastEventAt = Date.now();
@@ -2321,9 +2339,12 @@ async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle>
       emit({ type: "tool-result", toolName: event.toolName, isError: event.isError, text: `${event.isError ? "✗" : "✓"} ${event.toolName}` });
       return;
     }
-    if (event.type === "message_end" && event.message?.role === "assistant") {
+    if ((event.type === "message_end" || event.type === "turn_end") && event.message?.role === "assistant") {
       const t = sdkMessageText(event.message).trim();
       if (t) latestReport = t;
+      if (event.message.stopReason === "error" && event.message.errorMessage) {
+        lastError = String(event.message.errorMessage);
+      }
     }
   });
 
@@ -2333,6 +2354,10 @@ async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle>
     get latestReport() { return latestReport; },
     async prompt(prompt: string) {
       status = "running";
+      // Reset per-send capture: the handle is reused across sends (side-kick),
+      // so a new prompt must not inherit the previous reply or a stale error.
+      latestReport = "";
+      lastError = undefined;
       lastEventAt = Date.now();
       emit({ type: "status", text: `started @${opts.tag}` });
       const healthMs = Math.max(1000, opts.healthTimeoutMs);
@@ -2355,13 +2380,20 @@ async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle>
           status = "error";
           return { ok: false, report: latestReport, error: "health timeout" };
         }
+        // Provider errors are swallowed into the assistant message rather than
+        // thrown, so an empty report + captured error means the call failed.
+        if (!latestReport && lastError) {
+          status = "error";
+          emit({ type: "error", text: lastError, isError: true });
+          return { ok: false, report: "", error: lastError };
+        }
         status = "done";
         emit({ type: "status", text: `done @${opts.tag}` });
-        return { ok: true, report: latestReport };
+        return { ok: true, report: latestReport, error: lastError };
       } catch (err: any) {
         clearInterval(timer);
         status = "error";
-        const error = healthTimedOut ? "health timeout" : (err?.message ?? String(err));
+        const error = healthTimedOut ? "health timeout" : (err?.message ?? String(err) ?? lastError);
         emit({ type: "error", text: error, isError: true });
         return { ok: false, report: latestReport, error };
       }
@@ -2402,6 +2434,10 @@ interface LiveLoopState {
   cancelCurrent?: () => void;
   requestRender?: () => void;
   abort?: () => void;
+  // Parent's authenticated registry (carries the runtime gateway API key), so
+  // in-process role agents share the parent's credentials instead of building
+  // a fresh unauthenticated AuthStorage. See CreateSdkAgentOpts.
+  modelRegistry?: any;
 }
 
 function trimLiveLogs(state: LiveLoopState): void {
@@ -2704,6 +2740,7 @@ async function runSdkRole(args: {
         context: args.context,
         cwd: args.cwd,
         healthTimeoutMs: args.healthTimeoutMs,
+        modelRegistry: args.state.modelRegistry,
         onEvent: (e) => {
           if (e.type === "text" || e.type === "thinking") appendStreamingLog(state, e.tag, e.type, e.text);
           else appendLiveLog(state, `@${e.tag} ${e.text}`);
@@ -2772,6 +2809,7 @@ async function runSuperviseLoop(task: string, ctx: any): Promise<{ summary: stri
     awaitingUser: false,
     userReason: "",
     exitRequested: false,
+    modelRegistry: ctx.modelRegistry,
   };
 
   // Phase A — initial dispatcher plan (in the modal).
@@ -2986,6 +3024,9 @@ async function startSidekick(opts: {
   tools?: string;
   cwd: string;
   healthTimeoutMs: number;
+  // Parent's authenticated registry (carries the runtime gateway API key).
+  modelRegistry?: any;
+  authStorage?: any;
 }): Promise<SidekickEntry> {
   const entry: SidekickEntry = {
     name: opts.name,
@@ -3008,6 +3049,8 @@ async function startSidekick(opts: {
     context: "",
     cwd: opts.cwd,
     healthTimeoutMs: opts.healthTimeoutMs,
+    modelRegistry: opts.modelRegistry,
+    authStorage: opts.authStorage,
     onEvent: (e) => {
       if (e.type === "text") {
         entry.streamBuf += e.text;
