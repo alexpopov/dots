@@ -1,11 +1,18 @@
 ---
 name: notion-recipes
-description: Use this skill when adding, querying, or updating recipes in Cay's Notion (the `notion-wife` MCP). Covers the Recipes data source schema, tag conventions, the `recipes-helper.sh` script for fast tag/recipe operations via curl, and the rule that new tags must be confirmed with the user before creation.
+description: Use this skill when adding, querying, or updating recipes in Cay's Notion (the `notion-wife` MCP, OR the OAuth `mcp__notion__*` MCP when $USER is cay). Covers the Recipes data source schema, tag conventions, the `recipes-helper.sh` script for fast tag/recipe operations via curl, and the rule that new tags must be confirmed with the user before creation.
 ---
 
 # Cay's Notion Recipes
 
-For working with Cayleigh's Notion workspace via the token-based `notion-wife` MCP. Pair with **notion-rest-tricks** for the underlying API patterns.
+For working with Cayleigh's Notion workspace. Pair with **notion-rest-tricks** for the underlying API patterns when using the token-based MCP.
+
+## Which MCP to use
+
+- **If `$USER` is `cay`**: she connects to her own Notion via the **OAuth** `mcp__notion__*` server. Use those tools (`mcp__notion__notion-search`, `notion-fetch`, `notion-create-pages`, `notion-update-page`, `notion-create-comment`, etc.). The schema, tag conventions, and "ask before creating new tags" rule below all still apply — only the transport changes.
+- **Otherwise** (e.g. Alex driving from his account): use the token-based `mcp__notion-wife__API-*` MCP and `recipes-helper.sh` (which depends on `NOTION_TOKEN_WIFE`).
+
+The schema/tag/workflow content below is workspace-specific and applies regardless of transport. Tool-name examples are written for the token MCP; translate to OAuth equivalents when `$USER=cay`. The `recipes-helper.sh` script and `notion-rest-tricks` skill are token-only — skip them under OAuth.
 
 ## The Recipes database
 
@@ -43,6 +50,13 @@ Tags fall into rough buckets — pick liberally from existing tags. Common group
 
 Be aware some tags have typos (`Potatoe`, `Alochol`, `suace`). Use them as-is — don't rename them; that risks losing the relation on existing recipes.
 
+## **RULE: don't use the `Made` tag**
+
+**Do not add the `Made` tag to recipes.** To mark a recipe as cooked, set the `Recipe Cooked` checkbox property to true instead.
+
+- **Why**: `Made` and `Recipe Cooked` are redundant; Cay tracks cooked-status via the checkbox, and the tag is legacy/noise. Per-user preference (Cay, 2026-05-07).
+- **How to apply**: When tagging a recipe Cay has cooked, omit `Made` from the Tags list and set `Recipe Cooked: __YES__` (token API) / `"Recipe Cooked": "__YES__"` (OAuth update_properties). Same applies to retroactive cleanup if you spot `Made` on a recipe you're editing — drop it.
+
 ## **RULE: new tags require user permission**
 
 **Do not create new tags without asking the user first.** Assigning *existing* tags to recipes is fine.
@@ -71,8 +85,18 @@ Color must be one of: `default, gray, brown, orange, yellow, green, blue, purple
 
 ## Workflow: adding a recipe
 
+### Token MCP (Alex / non-cay user)
+
 1. **Search first** — `recipes-helper.sh find-recipe <name>` to confirm it doesn't already exist.
 2. **Pick tags** — start from the conventions above; use `list-tags <substring>` to verify spellings. If a needed tag is missing, **stop and ask the user** before adding.
 3. **Create the page** via `mcp__notion-wife__API-post-page` with parent `{type: "database_id", database_id: "9730ecb7-e605-4da8-989c-5e95edd423fa"}`, an emoji icon, Name + Tags + (optionally Link, Status).
 4. **Append the body** via `mcp__notion-wife__API-patch-block-children` — ingredients as `bulleted_list_item`, method as bullets or paragraphs, notes section at the end.
+5. **Return the URL** so the user can review/edit.
+
+### OAuth MCP (`$USER=cay`)
+
+1. **Search first** — `mcp__notion__notion-search` for the recipe name to confirm it doesn't already exist. To list/check existing tags, `mcp__notion__notion-fetch` the Recipes data source URL/ID and inspect the `Tags` schema (or use the search-within-data-source flow).
+2. **Pick tags** — same conventions as above. If a needed tag is missing, **stop and ask the user** before adding (and use `mcp__notion__notion-update-data-source` with the *full* options list to add it — same wipe-existing-tags trap as the token API).
+3. **Create the page** via `mcp__notion__notion-create-pages` with the Recipes data source as parent. The OAuth server accepts Markdown-frontmatter style properties — set Name, Tags, Link, Status there.
+4. **Body content** can be passed as Markdown in the same `notion-create-pages` call (the OAuth server speaks Notion-flavoured Markdown), or appended afterward with `notion-update-page`.
 5. **Return the URL** so the user can review/edit.

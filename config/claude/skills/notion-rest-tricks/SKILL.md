@@ -1,6 +1,6 @@
 ---
 name: notion-rest-tricks
-description: Use this skill when working with the token-based Notion MCP servers (e.g. `mcp__notion-wife__API-*`) that wrap the raw Notion REST API — distinct from the OAuth `mcp__notion__*` server covered by notion-tricks. Covers native API JSON property shapes, the two-step page-then-content creation flow, and using `curl` with the `NOTION_TOKEN_*` env var to bypass MCP entirely for bulk/precise operations.
+description: Use this skill when working with the token-based Notion MCP servers (e.g. `mcp__notion-wife__API-*`) that wrap the raw Notion REST API — distinct from the OAuth `mcp__notion__*` server covered by notion-tricks. Covers native API JSON property shapes, the two-step page-then-content creation flow, and using `curl` with the `NOTION_TOKEN_*` env var to bypass MCP entirely for bulk/precise operations. Skip when `$USER=cay` and only the OAuth `mcp__notion__*` server is connected.
 ---
 
 # Notion REST MCP Tricks
@@ -8,6 +8,8 @@ description: Use this skill when working with the token-based Notion MCP servers
 For token-based MCP servers built on `@notionhq/notion-mcp-server` (e.g. `notion-wife`). These expose the raw Notion REST API: tools are named `API-post-page`, `API-query-data-source`, `API-patch-block-children`, etc.
 
 If you're using the OAuth `mcp__notion__*` server (which speaks Notion-flavoured Markdown), see **notion-tricks** instead. The two skills overlap deliberately — pick the one that matches the server you're calling.
+
+**When `$USER=cay`**: she connects to her own Notion (the same workspace `notion-wife` would target) via the OAuth `mcp__notion__*` server. Skip this skill — none of the `API-*` tool names or `NOTION_TOKEN_WIFE`-based curl commands apply unless she's explicitly invoked the token MCP. For her recipe/Notion work, use **notion-recipes** + OAuth tools.
 
 ## Property shape: native Notion API JSON, not Markdown
 
