@@ -381,11 +381,18 @@ function create_links {
   ln -sf "$DOTS_CONFIG_DIR/bash" "$CONFIG_DIR" || _fail_error "Failed to symlink bash config"
   ln -sf "$DOTS_CONFIG_DIR/claude-mcp" "$CONFIG_DIR" || _fail_error "Failed to symlink claude-mcp config"
   ln -sf "$DOTS_CONFIG_DIR/input" "$CONFIG_DIR" || _fail_error "Failed to symlink input config"
-  ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR" || _fail_error "Failed to symlink lazygit config"
+  if [[ "$USER" != "cay" ]]; then
+    ln -sf "$DOTS_CONFIG_DIR/lazygit" "$CONFIG_DIR" || _fail_error "Failed to symlink lazygit config"
+  fi
   ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR" || _fail_error "Failed to symlink karabiner config"
   ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR" || _fail_error "Failed to symlink nvim config"
-  ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
-  ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR" || _fail_error "Failed to symlink systemd config"
+  ln -sf "$DOTS_CONFIG_DIR/opencode" "$CONFIG_DIR" || _fail_error "Failed to symlink opencode config"
+  if [[ "$USER" != "cay" ]]; then
+    ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
+  fi
+  if [[ "$USER" != "cay" ]]; then
+    ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR" || _fail_error "Failed to symlink systemd config"
+  fi
   ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR" || _fail_error "Failed to symlink selinux config"
   ln -sf "$DOTS_CONFIG_DIR/ghostty" "$CONFIG_DIR" || _fail_error "Failed to symlink ghostty config"
 
