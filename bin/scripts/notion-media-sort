@@ -1,0 +1,524 @@
+#!/usr/bin/env python3
+"""notion-media-sort — interactive priority sorter for Notion Media List
+
+Sorts "To Do" items using binary insertion sort. Items only compare against
+others of the same Type (Books vs Books, Movies vs Movies, etc.).
+
+Usage:
+  notion-media-sort           sort items that have no priority yet
+  notion-media-sort --reset   wipe all priorities (backs up first), sort everything
+  notion-media-sort --push    write current sorted order to Notion without prompting
+  notion-media-sort --refresh re-fetch metadata (name/artist/info/tags) from Notion,
+                              preserving sorted order and unsorted queue
+
+Keys:
+  h   left item first (higher priority)
+  l   right item first (higher priority)
+  s   skip (deferred to end of queue)
+  d   mark done & remove
+  q   quit and save progress
+
+Requires: NOTION_TOKEN env var
+State:    ~/.local/share/notion-media-sort/state.json
+Backup:   ~/.local/share/notion-media-sort/backup-priorities.json
+"""
+
+import sys, os, json, random, termios, tty, time, urllib.request, urllib.error
+
+STATE_DIR   = os.path.expanduser("~/.local/share/notion-media-sort")
+STATE_FILE  = os.path.join(STATE_DIR, "state.json")
+BACKUP_FILE = os.path.join(STATE_DIR, "backup-priorities.json")
+
+DB_ID = "ec9650e3-40fe-4cac-977b-a37e7b34d22e"
+NOTION_VERSION = "2022-06-28"
+
+
+# ── Notion API ────────────────────────────────────────────────────────────────
+
+def notion(method, path, body=None):
+    token = os.environ.get("NOTION_TOKEN") or sys.exit("NOTION_TOKEN not set")
+    req = urllib.request.Request(
+        f"https://api.notion.com/v1{path}",
+        data=json.dumps(body).encode() if body else None,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Notion-Version": NOTION_VERSION,
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Notion API {e.code}: {e.read().decode()}")
+
+
+def fetch_todo_entries():
+    entries, cursor = {}, None
+    print("Fetching To Do entries from Notion…", flush=True)
+    while True:
+        body = {"filter": {"property": "Status", "select": {"equals": "To Do"}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        result = notion("POST", f"/databases/{DB_ID}/query", body)
+        for page in result["results"]:
+            pid   = page["id"]
+            props = page["properties"]
+            name       = (props["Name"]["title"] or [{}])[0].get("text", {}).get("content", "(untitled)")
+            artist_ids = [r["id"] for r in props.get("👨‍🎨 Artists", {}).get("relation", [])]
+            info       = (props.get("Info") or {}).get("url") or ""
+            ptype      = ((props.get("Type") or {}).get("select") or {}).get("name", "")
+            priority   = (props.get("Priority") or {}).get("number")
+            tags       = [t["name"] for t in props.get("Tags", {}).get("multi_select", [])]
+            entries[pid] = {
+                "name": name, "artist_ids": artist_ids, "artist": "",
+                "info": info, "type": ptype, "priority": priority, "tags": tags,
+            }
+        if not result.get("has_more"):
+            break
+        cursor = result["next_cursor"]
+    return entries
+
+
+def fetch_artists(entries):
+    ids = {aid for e in entries.values() for aid in e["artist_ids"]}
+    names, total = {}, len(ids)
+    for i, aid in enumerate(ids):
+        print(f"  Fetching artist names… {i+1}/{total}", end="\r", flush=True)
+        try:
+            page = notion("GET", f"/pages/{aid}")
+            names[aid] = (page["properties"]["Name"]["title"] or [{}])[0].get("text", {}).get("content", "")
+        except Exception:
+            names[aid] = ""
+    if total:
+        print()
+    for e in entries.values():
+        e["artist"] = ", ".join(filter(None, (names.get(a, "") for a in e["artist_ids"])))
+
+
+def push_priorities(state):
+    by_type = state.get("sorted_by_type", {})
+    total   = sum(len(v) for v in by_type.values())
+    print(f"Pushing priorities to Notion ({total} items across {len(by_type)} type(s))…")
+    done = 0
+    for type_name, pids in by_type.items():
+        for i, pid in enumerate(pids):
+            notion("PATCH", f"/pages/{pid}", {"properties": {"Priority": {"number": i + 1}}})
+            done += 1
+            print(f"  {done}/{total}  [{type_name}] #{i+1}  {state['entries'][pid]['name']}", flush=True)
+
+    current_item = (state.get("current") or {}).get("item")
+    unranked = state.get("unsorted", []) + ([current_item] if current_item else [])
+    if unranked:
+        print(f"Clearing priority on {len(unranked)} unranked item(s)…")
+        for pid in unranked:
+            notion("PATCH", f"/pages/{pid}", {"properties": {"Priority": {"number": None}}})
+
+
+# ── State ─────────────────────────────────────────────────────────────────────
+
+def save_state(state):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+def load_state():
+    if not os.path.exists(STATE_FILE):
+        return None
+    with open(STATE_FILE) as f:
+        state = json.load(f)
+    # migrate old flat-sorted format
+    if "sorted" in state and "sorted_by_type" not in state:
+        state["sorted_by_type"] = {}
+        del state["sorted"]
+        save_state(state)
+    return state
+
+
+def save_backup(entries):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(BACKUP_FILE, "w") as f:
+        json.dump({pid: e["priority"] for pid, e in entries.items()}, f, indent=2)
+    print(f"Backed up existing priorities → {BACKUP_FILE}")
+
+
+# ── TUI ───────────────────────────────────────────────────────────────────────
+
+def getch():
+    fd  = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        return sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def trunc(s, n=44):
+    return s if len(s) <= n else s[:n - 1] + "…"
+
+
+def osc8(url, label):
+    return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
+
+
+def render(state, item_id, pivot_id, item_type, mid, sorted_for_type,
+           filter_type=None, filter_tag=None):
+    a  = state["entries"][item_id]
+    b  = state["entries"][pivot_id]
+    by_type       = state.get("sorted_by_type", {})
+    n_type_sorted = len(by_type.get(item_type, []))
+
+    def matches(pid):
+        e = state["entries"].get(pid, {})
+        if filter_type and e.get("type") != filter_type:
+            return False
+        if filter_tag and filter_tag not in e.get("tags", []):
+            return False
+        return True
+
+    n_remaining = sum(1 for pid in state["unsorted"] if matches(pid)) + 1
+
+    type_label = item_type
+    if filter_tag:
+        type_label = f"{item_type} ({filter_tag})"
+
+    def fmt_url(url):
+        if not url:
+            return ""
+        label = trunc(url.replace("https://", "").replace("http://", ""), 44)
+        return osc8(url, label)
+
+    def neighbor_name(idx):
+        if 0 <= idx < len(sorted_for_type):
+            e = state["entries"].get(sorted_for_type[idx], {})
+            return trunc(e.get("name", ""), 44)
+        return ""
+
+    above = neighbor_name(mid - 1)
+    below = neighbor_name(mid + 1)
+
+    rows = [
+        (f"\033[1m{trunc(a['name'])}\033[0m", f"\033[1m{trunc(b['name'])}\033[0m"),
+        (trunc(a["artist"]),                   trunc(b["artist"])),
+        (fmt_url(a["info"]),                   fmt_url(b["info"])),
+    ]
+
+    pad = " " * 52  # align right column (matches "  [h] " + 44-char left + "  ")
+    os.system("clear")
+    print(f"\033[1mMedia Sort\033[0m  ·  \033[2m{type_label}: {n_type_sorted} sorted  ·  {n_remaining} remaining in queue\033[0m\n")
+    print("  Which do you want to \033[1mread/watch first\033[0m?\n")
+
+    if above:
+        print(f"{pad}\033[2m↑ {above}\033[0m")
+
+    first = True
+    for ca, cb in rows:
+        if ca or cb:
+            if first:
+                print(f"  \033[32m[h]\033[0m {ca:<48} {cb} \033[32m[l]\033[0m")
+                first = False
+            else:
+                print(f"      {ca:<48} {cb}")
+
+    if below:
+        print(f"{pad}\033[2m↓ {below}\033[0m")
+
+    print(f"\n  \033[2ms = skip   d = mark done & remove   q = quit & save\033[0m")
+
+
+# ── Filter picker ─────────────────────────────────────────────────────────────
+
+def pick_filter(state):
+    """Ask the user what they want to sort. Returns (filter_type, filter_tag)."""
+    from collections import Counter
+    entries  = state.get("entries", {})
+    unsorted = state.get("unsorted", [])
+    current  = state.get("current")
+
+    type_counts = Counter()
+    for pid in unsorted:
+        t = entries.get(pid, {}).get("type", "")
+        if t:
+            type_counts[t] += 1
+    if current:
+        t = entries.get(current.get("item", ""), {}).get("type", "")
+        if t:
+            type_counts[t] += 1
+
+    total = sum(type_counts.values())
+    if not total:
+        return None, None
+
+    options = sorted(type_counts.items(), key=lambda x: -x[1])
+
+    os.system("clear")
+    print("\033[1mMedia Sort\033[0m\n")
+    print("  What would you like to sort?\n")
+    for i, (t, count) in enumerate(options):
+        print(f"  [{i+1}] {t}  \033[2m({count} unsorted)\033[0m")
+    print(f"\n  [a] All types  \033[2m({total} unsorted)\033[0m\n")
+
+    while True:
+        ch = getch().lower()
+        if ch == "a":
+            return None, None
+        if ch.isdigit():
+            idx = int(ch) - 1
+            if 0 <= idx < len(options):
+                chosen_type = options[idx][0]
+                break
+
+    if chosen_type != "Book":
+        return chosen_type, None
+
+    # Sub-menu for books: Fiction / Non-fiction / All
+    fiction_count    = sum(1 for pid in unsorted
+                           if entries.get(pid, {}).get("type") == "Book"
+                           and "Fiction" in entries.get(pid, {}).get("tags", []))
+    nonfiction_count = sum(1 for pid in unsorted
+                           if entries.get(pid, {}).get("type") == "Book"
+                           and "Non-fiction" in entries.get(pid, {}).get("tags", []))
+    book_total = type_counts.get("Book", 0)
+
+    os.system("clear")
+    print("\033[1mMedia Sort\033[0m\n")
+    print("  Which books?\n")
+    print(f"  [f] Fiction      \033[2m({fiction_count})\033[0m")
+    print(f"  [n] Non-fiction  \033[2m({nonfiction_count})\033[0m")
+    print(f"  [a] All books    \033[2m({book_total})\033[0m\n")
+
+    while True:
+        ch = getch().lower()
+        if ch == "f":
+            return "Book", "Fiction"
+        elif ch == "n":
+            return "Book", "Non-fiction"
+        elif ch == "a":
+            return "Book", None
+
+
+# ── Sort loop ─────────────────────────────────────────────────────────────────
+
+def run_sort(state, filter_type=None, filter_tag=None):
+    def matches(pid):
+        e = state["entries"].get(pid, {})
+        if filter_type and e.get("type") != filter_type:
+            return False
+        if filter_tag and filter_tag not in e.get("tags", []):
+            return False
+        return True
+
+    skip_streak = 0
+
+    while True:
+        if state.get("current") is None:
+            # Find the next unsorted item that matches the filter
+            next_idx = next((i for i, pid in enumerate(state["unsorted"]) if matches(pid)), None)
+            if next_idx is None:
+                break
+            item_id   = state["unsorted"].pop(next_idx)
+            item_type = state["entries"][item_id]["type"]
+            sorted_for_type = state.setdefault("sorted_by_type", {}).setdefault(item_type, [])
+            state["current"] = {"item": item_id, "type": item_type, "lo": 0, "hi": len(sorted_for_type)}
+            save_state(state)
+
+        matching_remaining = sum(1 for pid in state["unsorted"] if matches(pid))
+        queue_size = matching_remaining + 1  # +1 for current
+        if skip_streak >= queue_size:
+            print(f"\n\033[33mAll remaining {queue_size} item(s) skipped — leaving unranked.\033[0m")
+            break
+
+        cur       = state["current"]
+        item_id   = cur["item"]
+        item_type = cur.get("type") or state["entries"][item_id]["type"]
+        cur["type"] = item_type
+        sorted_for_type = state["sorted_by_type"].setdefault(item_type, [])
+        lo, hi    = cur["lo"], cur["hi"]
+
+        if lo >= hi:
+            sorted_for_type.insert(lo, item_id)
+            state["current"] = None
+            skip_streak = 0
+            save_state(state)
+            continue
+
+        mid      = random.randint(lo, hi - 1)
+        pivot_id = sorted_for_type[mid]
+        render(state, item_id, pivot_id, item_type, mid, sorted_for_type,
+               filter_type, filter_tag)
+
+        while True:
+            ch = getch().lower()
+            if ch == "h":
+                cur["hi"] = mid
+                break
+            elif ch == "l":
+                cur["lo"] = mid + 1
+                break
+            elif ch == "s":
+                state["unsorted"].append(item_id)
+                state["current"] = None
+                skip_streak += 1
+                save_state(state)
+                break
+            elif ch == "d":
+                notion("PATCH", f"/pages/{item_id}", {
+                    "properties": {"Status": {"select": {"name": "Done"}}}
+                })
+                state["current"] = None
+                skip_streak = 0
+                save_state(state)
+                break
+            elif ch in ("q", "\x03", "\x04"):
+                save_state(state)
+                print("\n\nProgress saved. Run notion-media-sort to resume.")
+                sys.exit(0)
+
+    os.system("clear")
+    total_sorted = sum(len(v) for v in state.get("sorted_by_type", {}).values())
+    print(f"\033[1mSort complete!\033[0m  {total_sorted} items ranked.\n")
+    push_priorities(state)
+    if os.path.exists(STATE_FILE):
+        os.remove(STATE_FILE)
+    print("\nDone! Run again any time to sort newly added items.")
+
+
+# ── Refresh ───────────────────────────────────────────────────────────────────
+
+def refresh_state():
+    state = load_state()
+    if not state:
+        sys.exit("No saved state found. Nothing to refresh.")
+
+    # 1. Back up the current state before touching anything
+    os.makedirs(STATE_DIR, exist_ok=True)
+    ts = int(time.time())
+    backup_path = os.path.join(STATE_DIR, f"state-backup-{ts}.json")
+    with open(backup_path, "w") as f:
+        json.dump(state, f, indent=2)
+    print(f"Backed up state → {backup_path}")
+
+    n_sorted    = sum(len(v) for v in state.get("sorted_by_type", {}).values())
+    n_remaining = len(state["unsorted"]) + (1 if state.get("current") else 0)
+    print(f"Current: {n_sorted} sorted, {n_remaining} remaining in queue.")
+
+    # 2. Re-fetch metadata for every entry in state (one GET per page)
+    all_ids = list(state["entries"].keys())
+    total = len(all_ids)
+    new_artist_ids: set = set()
+    failed = []
+
+    for i, pid in enumerate(all_ids):
+        print(f"  Refreshing entries… {i+1}/{total}", end="\r", flush=True)
+        try:
+            page  = notion("GET", f"/pages/{pid}")
+            props = page["properties"]
+            name       = (props["Name"]["title"] or [{}])[0].get("text", {}).get("content", "(untitled)")
+            artist_ids = [r["id"] for r in props.get("👨‍🎨 Artists", {}).get("relation", [])]
+            info       = (props.get("Info") or {}).get("url") or ""
+            ptype      = ((props.get("Type") or {}).get("select") or {}).get("name", "")
+            # Patch entry in-place; keep priority/other fields untouched
+            e = state["entries"][pid]
+            tags       = [t["name"] for t in props.get("Tags", {}).get("multi_select", [])]
+            e["name"]       = name
+            e["artist_ids"] = artist_ids
+            e["info"]       = info
+            e["type"]       = ptype
+            e["tags"]       = tags
+            new_artist_ids.update(artist_ids)
+        except Exception as exc:
+            failed.append((pid, str(exc)))
+
+    print(f"  Refreshed {total - len(failed)}/{total} entries.  ", flush=True)
+    if failed:
+        for pid, err in failed:
+            print(f"  Warning: could not refresh {pid}: {err}")
+
+    # 3. Re-fetch artist display names for all IDs now referenced
+    artist_names: dict = {}
+    total_a = len(new_artist_ids)
+    for i, aid in enumerate(new_artist_ids):
+        print(f"  Fetching artist names… {i+1}/{total_a}", end="\r", flush=True)
+        try:
+            page = notion("GET", f"/pages/{aid}")
+            artist_names[aid] = (page["properties"]["Name"]["title"] or [{}])[0].get("text", {}).get("content", "")
+        except Exception:
+            artist_names[aid] = ""
+    if total_a:
+        print(f"  Fetched {total_a} artist name(s).          ")
+
+    # 4. Rebuild artist display strings
+    for e in state["entries"].values():
+        e["artist"] = ", ".join(filter(None, (artist_names.get(a, "") for a in e["artist_ids"])))
+
+    # 5. Save — sorted_by_type / unsorted / current are untouched
+    save_state(state)
+    print(f"Refresh complete. {n_sorted} sorted, {n_remaining} remaining. Run notion-media-sort to resume.")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    args  = set(sys.argv[1:])
+    reset = "--reset"   in args
+    push  = "--push"    in args
+    refresh = "--refresh" in args
+
+    if push:
+        state = load_state() or sys.exit("No saved state found.")
+        push_priorities(state)
+        return
+
+    if refresh:
+        refresh_state()
+        return
+
+    state = load_state()
+
+    if reset or state is None:
+        entries = fetch_todo_entries()
+        fetch_artists(entries)
+        save_backup(entries)
+        print(f"Found {len(entries)} To Do items.")
+
+        if reset:
+            unsorted      = list(entries.keys())
+            sorted_by_type = {}
+            print("Reset mode: all items queued for sorting.")
+        else:
+            # Pre-load items that already have priorities into sorted_by_type
+            sorted_by_type = {}
+            unsorted = []
+            prioritized = sorted(
+                [(pid, e) for pid, e in entries.items() if e["priority"] is not None],
+                key=lambda x: x[1]["priority"],
+            )
+            for pid, e in prioritized:
+                sorted_by_type.setdefault(e["type"], []).append(pid)
+            unsorted = [pid for pid, e in entries.items() if e["priority"] is None]
+            already  = sum(len(v) for v in sorted_by_type.values())
+            print(f"  {already} already ranked  ·  {len(unsorted)} to sort")
+
+        state = {"entries": entries, "sorted_by_type": sorted_by_type, "unsorted": unsorted, "current": None}
+        save_state(state)
+
+        if not unsorted:
+            print("Nothing new to sort!")
+            return
+
+        random.shuffle(state["unsorted"])
+        save_state(state)
+
+    filter_type, filter_tag = pick_filter(state)
+    run_sort(state, filter_type, filter_tag)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+        sys.exit(0)
