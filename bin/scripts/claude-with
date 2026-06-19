@@ -4,6 +4,11 @@
 # a JSON object mapping server name -> server config (same shape as the value side
 # of `mcpServers`). Selected servers are written to a temp file and passed to
 # `claude --strict-mcp-config --mcp-config`, so nothing else leaks in.
+#
+# If the current project has a local `.mcp.json` (cwd, else git root), its servers
+# are offered as ONE extra choice. Picking it merges them all in alongside the
+# global picks — necessary because --strict-mcp-config otherwise drops the
+# project's own MCP config (e.g. a repo's `unity` server).
 
 set -euo pipefail
 
@@ -20,10 +25,40 @@ if [[ -z "$available" ]]; then
     exit 1
 fi
 
-selected=$(printf '%s\n' "$available" | gum choose --no-limit --header "MCP servers for this session" || true)
+# Discover a project-local .mcp.json (cwd first, then the git root) and offer its
+# servers as a single bundled choice rather than individually.
+PROJECT_MCP=""
+if [[ -f .mcp.json ]]; then
+    PROJECT_MCP="$(pwd)/.mcp.json"
+elif git_root=$(git rev-parse --show-toplevel 2>/dev/null) && [[ -f "$git_root/.mcp.json" ]]; then
+    PROJECT_MCP="$git_root/.mcp.json"
+fi
+
+LOCAL_LABEL=""
+if [[ -n "$PROJECT_MCP" ]]; then
+    local_names=$(jq -r '(.mcpServers // {}) | keys | join(", ")' "$PROJECT_MCP" 2>/dev/null || true)
+    [[ -n "$local_names" ]] && LOCAL_LABEL="[project .mcp.json] $local_names"
+fi
+
+choices="$available"
+[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$available" "$LOCAL_LABEL")
+
+selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
+
+# Pull the project-local bundle out of the selection (it isn't a DEFINITIONS key).
+want_local=false
+if [[ -n "$LOCAL_LABEL" ]] && grep -qxF "$LOCAL_LABEL" <<< "$selected"; then
+    want_local=true
+    selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" || true)
+fi
 
 keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
 config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
+
+# Merge the project-local servers in if chosen (project keys win on collision).
+if [[ "$want_local" == true ]]; then
+    config=$(printf '%s' "$config" | jq --slurpfile loc "$PROJECT_MCP" '.mcpServers += ($loc[0].mcpServers // {})')
+fi
 
 # Substitute ${VAR} references in the assembled config (e.g. NOTION_TOKEN_*).
 # Source a tokens file first so we don't depend on the parent shell sourcing it.
