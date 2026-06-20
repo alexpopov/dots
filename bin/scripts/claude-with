@@ -41,7 +41,7 @@ if [[ -n "$PROJECT_MCP" ]]; then
 fi
 
 choices="$available"
-[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$available" "$LOCAL_LABEL")
+[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$LOCAL_LABEL" "$available")
 
 selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
 
@@ -52,7 +52,7 @@ if [[ -n "$LOCAL_LABEL" ]] && grep -qxF "$LOCAL_LABEL" <<< "$selected"; then
     selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" || true)
 fi
 
-if [[ -z "${selected//[[:space:]]/}" ]]; then
+if [[ -z "${selected//[[:space:]]/}" ]] && [[ "$want_local" == false ]]; then
     echo "claude-with: no servers selected — did you forget to hit space?" >&2
     exit 1
 fi
