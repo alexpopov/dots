@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+#
+# eos-fix — recover Canon EOS Utility when it freezes or won't detect the camera.
+#
+# The Canon R5 (like all EOS bodies) allows only ONE PTP host session at a time.
+# After an EOS Utility crash/force-quit, macOS's ptpcamerad re-grabs the camera's
+# session, so a fresh EOS Utility launch hangs trying to open one it can't get.
+# This quits EOS Utility, releases macOS's grab, and relaunches into a clean state.
+#
+# If detection still fails afterward, power-cycle the camera (off -> on) to reset
+# its side of the PTP session, then run eos-fix again.
+
+set -euo pipefail
+
+if [[ "$OSTYPE" != darwin* ]]; then
+  echo "eos-fix: macOS only (EOS Utility / ptpcamerad don't exist here)." >&2
+  exit 1
+fi
+
+EOS_APP="/Applications/Canon Utilities/EOS Utility/EOS Utility.app"
+
+echo "==> Quitting any running EOS Utility..."
+pkill -f "EOS Utility" 2>/dev/null && echo "    stopped" || echo "    (none running)"
+
+echo "==> Releasing macOS's grab on the camera (ptpcamerad)..."
+# ptpcamerad runs as the current user and respawns on demand — safe to kill.
+pkill -f ptpcamerad 2>/dev/null && echo "    released" || echo "    (not holding it)"
+
+if [[ ! -d "$EOS_APP" ]]; then
+  echo "eos-fix: EOS Utility not found at:" >&2
+  echo "         $EOS_APP" >&2
+  echo "         Install it, or fix EOS_APP in this script." >&2
+  exit 1
+fi
+
+echo "==> Relaunching EOS Utility..."
+open "$EOS_APP"
+
+echo "Done. If the camera still isn't detected, power-cycle it (off -> on) and rerun."

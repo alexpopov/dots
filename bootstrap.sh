@@ -539,6 +539,20 @@ Host github.com
 }
 
 # print packages as words
+function configure_macos_defaults {
+  is_mac || return 0
+
+  # Stop Photos / Image Capture from auto-launching and grabbing a tethered
+  # camera's single PTP session on connect — the main cause of EOS Utility
+  # freezing or failing to detect the R5. Per-host (does not sync via iCloud),
+  # so it must be set once on each Mac. See bin/scripts/eos-fix for recovery.
+  if defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool YES; then
+    _log_info "Disabled camera hot-plug auto-launch (Image Capture)"
+  else
+    _log_warn "Could not set Image Capture disableHotPlug"
+  fi
+}
+
 function platform_specific_packages {
   local packages=()
   if is_mac; then
@@ -615,6 +629,8 @@ done
 
 create_links
 ensure_shell_sources_dots
+
+configure_macos_defaults  # no-op on non-macOS
 
 setup_neovim_venv
 
