@@ -77,11 +77,15 @@ export default function (pi: ExtensionAPI) {
       }
 
       // Give the fork a distinct session name so it's recognizable in
-      // /resume and not confused with its parent. Format: "<parent name>
-      // (fork N)" where N counts existing forks of the same source file.
-      const parentName = lastSessionInfoName(kept) ?? "Untitled";
-      const forkNumber = countSiblingForks(sourceFile) + 1;
-      const forkName = `${parentName} (fork ${forkNumber})`;
+      // /resume and not confused with its parent. Format: "<base name>
+      // (fork N)". We strip any existing "(fork N)" suffix from the parent
+      // name first — otherwise forking a fork produced the dumb
+      // "X (fork 1) (fork 1)". N counts the whole fork family (every
+      // descendant of the original session), so a fork of a fork becomes
+      // "(fork 2)" and sibling forks get distinct numbers.
+      const baseName = stripForkSuffix(lastSessionInfoName(kept) ?? "Untitled");
+      const forkNumber = countFamilyForks(sourceFile) + 1;
+      const forkName = `${baseName} (fork ${forkNumber})`;
       const lastEntryId = lastEntryIdOf(kept);
       kept.push(JSON.stringify({
         type: "session_info",
@@ -139,14 +143,35 @@ function lastEntryIdOf(jsonlLines: string[]): string | null {
   return null;
 }
 
-function countSiblingForks(sourceFile: string): number {
-  // Look for other files in the same dir whose name follows our fork
-  // convention: <source-without-ext>_fork_<timestamp>.jsonl.
+// Strip a trailing " (fork N)" suffix (or a chain of them) so we recover the
+// original session title. "X (fork 1) (fork 2)" -> "X".
+function stripForkSuffix(name: string): string {
+  let base = name;
+  const re = /\s*\(fork\s+\d+\)\s*$/i;
+  while (re.test(base)) base = base.replace(re, "");
+  return base.trim() || "Untitled";
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The original session stem, with every "_fork_<ts>" segment removed.
+// "X_fork_111_fork_222" -> "X".
+function originalStem(sourceFile: string): string {
+  return basename(sourceFile, ".jsonl").replace(/(?:_fork_\d+)+$/, "");
+}
+
+// Count every descendant fork of the original session in the same dir —
+// "<orig>_fork_<ts>(_fork_<ts>)*.jsonl" — regardless of how deep this fork is
+// in the chain. +1 (added by the caller) is the next family-wide fork number,
+// so chains increment (fork 1 -> fork 2 -> ...) and siblings stay distinct.
+function countFamilyForks(sourceFile: string): number {
   try {
     const dir = dirname(sourceFile);
-    const stem = basename(sourceFile, ".jsonl");
-    const prefix = `${stem}_fork_`;
-    return readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".jsonl")).length;
+    const orig = originalStem(sourceFile);
+    const re = new RegExp(`^${escapeRegExp(orig)}(?:_fork_\\d+)+\\.jsonl$`);
+    return readdirSync(dir).filter((f) => re.test(f)).length;
   } catch {
     return 0;
   }
