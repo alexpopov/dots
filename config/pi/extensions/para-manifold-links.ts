@@ -6,8 +6,15 @@ import * as path from "node:path";
 // --------------------
 // Any reference to a file under ~/para (or the underlying
 // ~/persistent/workspace tree) gets the resolved Manifold explorer URL
-// appended after it, so the path is clickable / shareable straight from
-// the terminal.
+// appended after it as "<path> -> <url>", so the path is clickable /
+// shareable straight from the terminal.
+//
+// Format note: the URL is appended bare after a " -> " separator rather
+// than wrapped in parens. ")" is a valid URL character, so a trailing
+// ")" can get swallowed into the link by naive linkifiers (or by balanced
+// paren heuristics when a filename itself contains parens). A bare
+// trailing URL avoids that; any leftover sentence punctuation (.,;:!?) is
+// universally stripped from URLs by linkifiers, so it stays safe.
 //
 // Why this works: ~/para is a symlink to ~/persistent/workspace/para, and
 // ~/persistent/workspace is a manifoldfs FUSE mount whose root maps to the
@@ -94,7 +101,7 @@ function annotate(text: string): string {
     // Idempotency: never append a URL that is already in the text.
     if (text.includes(url)) return token;
     annotated.add(url);
-    return `${clean} (${url})${trailing}`;
+    return `${clean} \u2192 ${url}${trailing}`;
   });
 }
 
