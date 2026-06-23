@@ -5,6 +5,7 @@
   "lastChangelogVersion": "0.77.0",
   "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": true,
+  "showHardwareCursor": true,
   "skills": [
     "~/.claude/skills"
   ],
