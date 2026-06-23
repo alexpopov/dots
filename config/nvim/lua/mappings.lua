@@ -63,4 +63,8 @@ wk.add({
   -- Localleader: tabs
   { "<localleader>t",  group = "tabs" },
   { "<localleader>tn", ":tabnew<CR>", desc = "new tab" },
+
+  -- Localleader: yank to system clipboard (+ register, synced via OSC52)
+  { "<localleader>y", "\"+y",  desc = "yank to system clipboard", mode = { "n", "v" } },
+  { "<localleader>Y", "\"+yy", desc = "yank whole line to system clipboard" },
 })
