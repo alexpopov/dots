@@ -16,8 +16,13 @@ import { spawn } from "node:child_process";
 //   - Frequency drops by half each time → cost stays O(log N) of turns.
 //
 // The renamer subprocess sees the current name (so it can refine, not
-// just replace) and the recent conversation, then returns a short name
-// of at most 6 words.
+// just replace), the session's ORIGINAL request (so the name reflects the
+// overall arc, not just the last action), and the recent conversation, then
+// returns a short name of at most 6 words.
+//
+// It will NOT override a human-supplied name: the automatic timer only renames
+// when the current name is empty or one this extension generated itself. An
+// explicit `/rename auto` always regenerates (it's a deliberate request).
 //
 // Configurable via env:
 //   PI_AUTO_RENAME_DISABLE=1   — skip the entire extension.
@@ -43,6 +48,10 @@ const RECENT_N = Number(process.env.PI_AUTO_RENAME_RECENT_N) || 6;
 // Per-session turn count. session_start resets it. agent_end increments.
 let turnCount = 0;
 
+// The last name THIS extension set automatically. Lets us tell our own
+// auto-names (safe to refine) apart from human-supplied names (leave alone).
+let lastAutoName: string | null = null;
+
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_AUTO_RENAME_DISABLE === "1") {
     // Even with auto-fire disabled, still register the manual /rename
@@ -58,11 +67,16 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", () => {
     turnCount = 0;
+    lastAutoName = null;
   });
 
   pi.on("agent_end", (_event: any, ctx: any) => {
     turnCount++;
     if (!TURNS.has(turnCount)) return;
+    // Never clobber a human-supplied name (or one carried in from a resumed
+    // session). Only auto-rename when the name is empty or one we set ourselves.
+    const currentName = pi.getSessionName?.() ?? null;
+    if (currentName && currentName !== lastAutoName) return;
     triggerLlmRename(pi, ctx, "auto-renamed");
   });
 }
@@ -90,6 +104,7 @@ function registerRenameCommand(pi: ExtensionAPI) {
         return;
       }
       pi.setSessionName(name);
+      lastAutoName = null; // human owns the name now; the timer won't override it
       ctx.ui.notify(`Renamed to "${name}"`, "info");
     },
   });
@@ -102,25 +117,35 @@ function triggerLlmRename(pi: ExtensionAPI, ctx: any, verb: string) {
     return;
   }
   const currentName = pi.getSessionName?.() ?? null;
-  const recent = extractRecent(ctx.sessionManager.getBranch(), RECENT_N);
+  const { firstUser, recent } = extractContext(ctx.sessionManager.getBranch(), RECENT_N);
   if (!recent) {
     try { ctx.ui.notify("Can't rename: no message history yet.", "warning"); } catch {}
     return;
   }
-  const prompt = buildRenamePrompt(currentName, turnCount, recent);
+  const prompt = buildRenamePrompt(currentName, turnCount, firstUser, recent);
   spawnRenamer(prompt, (newName) => {
     if (!newName) {
       try { ctx.ui.notify("Rename failed (no name returned).", "warning"); } catch {}
       return;
     }
     pi.setSessionName(newName);
+    lastAutoName = newName; // remember our own auto-name so we can refine it later
     try { ctx.ui.notify(`${verb}: "${newName}"`, "info"); } catch {}
   });
 }
 
 // --- helpers ---------------------------------------------------------------
 
-function extractRecent(branch: any[], n: number): string {
+function extractContext(branch: any[], n: number): { firstUser: string; recent: string } {
+  // The first user message anchors the session's overall theme / original intent.
+  let firstUser = "";
+  for (let i = 0; i < branch.length; i++) {
+    const entry = branch[i];
+    if (entry.type !== "message" || entry.message.role !== "user") continue;
+    firstUser = extractText(entry.message).slice(0, 600);
+    if (firstUser) break;
+  }
+  // The most recent messages capture where the session is right now.
   const collected: string[] = [];
   for (let i = branch.length - 1; i >= 0 && collected.length < n; i--) {
     const entry = branch[i];
@@ -134,7 +159,7 @@ function extractRecent(branch: any[], n: number): string {
       if (t) collected.push(`ASSISTANT: ${t}`);
     }
   }
-  return collected.reverse().join("\n\n");
+  return { firstUser, recent: collected.reverse().join("\n\n") };
 }
 
 function extractText(m: any): string {
@@ -146,25 +171,29 @@ function extractText(m: any): string {
     .join("\n");
 }
 
-function buildRenamePrompt(currentName: string | null, turn: number, recent: string): string {
+function buildRenamePrompt(currentName: string | null, turn: number, firstUser: string, recent: string): string {
   const nameContext = currentName
-    ? `The session is currently named: "${currentName}". You may keep it as-is, refine it, or replace it entirely if the topic has shifted significantly.`
+    ? `The session is currently named: "${currentName}". Prefer to KEEP or lightly refine it; only replace it if the session's core purpose has genuinely changed.`
     : `The session has no name yet.`;
+  const origin = firstUser
+    ? `How the session began (its original request — this anchors the overall theme):\n${firstUser}\n\n`
+    : "";
   return `You are auto-renaming a pi.dev coding session at turn ${turn}.
 
 ${nameContext}
 
-Recent conversation:
+${origin}Recent activity:
 ${recent}
 
-Produce a SHORT, specific name (max 6 words) that captures the current topic. Reply with ONLY the name — no quotes, no preamble, no markdown, no explanation, no trailing punctuation. Just the words.
+Name the session after its OVERALL theme — the throughline of the whole session, what it is fundamentally about — NOT just the latest step or last action. A long session that began on one task and is still pursuing it should keep that name even when the current sub-task differs. Favor a stable name that stays accurate as the work evolves.
+
+Produce a SHORT, specific name (max 6 words). Reply with ONLY the name — no quotes, no preamble, no markdown, no explanation, no trailing punctuation. Just the words.
 
 Good examples:
+- a16 stanley bring-up
 - fix nvim treesitter bug
-- review aosp build errors
 - implement pi subagent extension
-- debug devvm DNS
-- port supervise loop from ivan`;
+- debug devvm DNS`;
 }
 
 function spawnRenamer(prompt: string, onResult: (newName: string | null) => void): void {
