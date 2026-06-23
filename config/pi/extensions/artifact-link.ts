@@ -2,44 +2,26 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-// Link a Phabricator task (T<num>) or diff (D<num>) to the current chat.
-// The linked ID shows in a dedicated row directly below the input editor
-// so you don't have to keep it in the session title or remember it
-// manually.
+// Link Phabricator tasks (T<num>), diffs (D<num>), and SEVs (S<num>) to the
+// current chat. Linked IDs show in a dedicated row directly below the input
+// editor so you don't have to keep them in the session title or remember
+// them manually.
 //
-// Stored as a custom session entry (NOT in LLM context — agents don't
-// need to re-read it; the agent already knows what it linked). Restored
-// on session_start so it survives /resume.
+// MULTIPLE artifacts can be linked at once — e.g. a task AND its diff. Each
+// link_artifact / `/link` call ADDS to the set (it does not replace). Remove
+// one with unlink_artifact({id}) / `/link remove <id>`, or clear all with
+// unlink_artifact() / `/link clear`.
+//
+// Stored as a custom session entry (NOT in LLM context — the agent already
+// knows what it linked). Each mutation writes a full snapshot of the id list;
+// the latest snapshot wins. Restored on session_start so it survives /resume.
 //
 // Two surfaces:
-//   link_artifact tool      — agent-invocable. Use when the conversation
-//                             is about a specific T/D artifact.
-//   /link [id|clear]        — manual: `/link T123`, `/link clear`,
-//                             `/link` (shows current)
+//   link_artifact / unlink_artifact tools — agent-invocable.
+//   /link [<id>... | remove <id>... | clear] — manual.
 
 const WIDGET_KEY = "artifact-link";
 const ENTRY_TYPE = "artifact-link";
-
-// Show the link as a dedicated row directly below the input editor.
-// Style: dim "link →", followed by the type and bold id.
-function showLink(ctx: any, id: string): void {
-  const text = formatStatus(id);
-  try {
-    ctx.ui.setWidget(WIDGET_KEY, (_tui: any, theme: any) => ({
-      render: () => {
-        const line = `  ${theme.fg("muted", "link")} ${theme.fg("accent", "→")} ${theme.bold(text)}`;
-        // Pi crashes if any rendered line exceeds terminal width; truncate
-        // defensively even though this line is short by construction.
-        return [truncateToWidth(line, process.stdout.columns ?? 80, "…")];
-      },
-      invalidate: () => {},
-    }), { placement: "belowEditor" });
-  } catch {}
-}
-
-function hideLink(ctx: any): void {
-  try { ctx.ui.setWidget(WIDGET_KEY, undefined); } catch {}
-}
 
 interface Classified {
   type: "task" | "diff" | "sev" | null;
@@ -58,36 +40,81 @@ function formatStatus(id: string): string {
   return type ? `${type}: ${id}` : id;
 }
 
-function lastArtifactId(entries: any[]): string | null {
-  // Walk entries in reverse; latest wins. Treat null as "unlinked"
-  // (so /link clear properly stops restoring the previous link).
+function dedupe(ids: string[]): string[] {
+  return [...new Set(ids)];
+}
+
+// Walk entries in reverse; the latest snapshot wins. Normalizes legacy
+// single-id entries ({id} / {id:null}) written before multi-link support.
+function currentIds(entries: any[]): string[] {
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i];
     if (e?.type === "custom" && e?.customType === ENTRY_TYPE) {
-      return e.data?.id ?? null;
+      const d = e.data ?? {};
+      if (Array.isArray(d.ids)) return dedupe(d.ids.filter((x: any) => typeof x === "string"));
+      return d.id ? [d.id] : []; // legacy
     }
   }
-  return null;
+  return [];
+}
+
+// Render all linked artifacts on one row below the editor:
+//   link  → task: T123
+//   links → task: T123 · diff: D456
+// Empty list hides the row.
+function renderLinks(ctx: any, ids: string[]): void {
+  if (ids.length === 0) {
+    try { ctx.ui.setWidget(WIDGET_KEY, undefined); } catch {}
+    return;
+  }
+  try {
+    ctx.ui.setWidget(WIDGET_KEY, (_tui: any, theme: any) => ({
+      render: () => {
+        const label = ids.length === 1 ? "link" : "links";
+        const body = ids.map((id) => theme.bold(formatStatus(id))).join(theme.fg("muted", " · "));
+        const line = `  ${theme.fg("muted", label)} ${theme.fg("accent", "→")} ${body}`;
+        // Pi crashes if any rendered line exceeds terminal width; truncate
+        // defensively (the list can grow when several artifacts are linked).
+        return [truncateToWidth(line, process.stdout.columns ?? 80, "…")];
+      },
+      invalidate: () => {},
+    }), { placement: "belowEditor" });
+  } catch {}
+}
+
+function summarize(ids: string[]): string {
+  return ids.length ? ids.map(formatStatus).join(" · ") : "(none)";
 }
 
 export default function (pi: ExtensionAPI) {
+  // Persist the new id set AND repaint the row. All mutations go through here.
+  const commit = (ctx: any, ids: string[]): string[] => {
+    const next = dedupe(ids);
+    pi.appendEntry(ENTRY_TYPE, { ids: next });
+    renderLinks(ctx, next);
+    return next;
+  };
+
   pi.registerTool({
     name: "link_artifact",
     label: "Link Artifact",
     description:
-      "Link a Phabricator task (T<num>), diff (D<num>), or SEV (S<num>) " +
-      "to this chat. Shows the ID on a dedicated row below the editor so " +
-      "the user can see at a glance which artifact this conversation is " +
-      "about. Re-call to swap to a different artifact.",
+      "Link a Phabricator task (T<num>), diff (D<num>), or SEV (S<num>) to " +
+      "this chat. Shows it on a dedicated row below the editor so the user " +
+      "can see at a glance which artifacts this conversation is about.\n\n" +
+      "ADDITIVE: multiple artifacts can be linked at once (e.g. a task and " +
+      "its diff). Each call adds one ID; it does NOT replace existing links. " +
+      "Use unlink_artifact to remove one or clear them.",
     promptSnippet:
-      "Link a Phabricator task / diff / SEV to the chat (displays below the editor).",
+      "Link a Phabricator task / diff / SEV to the chat (additive; shows below the editor).",
     promptGuidelines: [
       "Whenever YOU create a new Phabricator task (T<num>), diff (D<num>), or " +
       "SEV (S<num>) — via `meta`, `arc diff`, `jf submit`, or any other path — " +
       "immediately call link_artifact with the newly-created ID. This is what " +
       "stops new artifacts from getting lost in chat history. Don't ask first; " +
-      "just link as soon as you know the ID. If you create multiple, link the " +
-      "one that's now the primary focus.",
+      "just link as soon as you know the ID. Linking is additive, so if you " +
+      "create several (e.g. a task and its diff), link each one — they all " +
+      "stay shown.",
     ],
     parameters: Type.Object({
       id: Type.String({
@@ -107,11 +134,12 @@ export default function (pi: ExtensionAPI) {
           isError: true,
         };
       }
-      pi.appendEntry(ENTRY_TYPE, { id });
-      showLink(ctx, id);
-      return {
-        content: [{ type: "text", text: `Linked ${cls.type} ${id} (displayed below the editor).` }],
-      };
+      const ids = currentIds(ctx.sessionManager.getEntries());
+      if (ids.includes(id)) {
+        return { content: [{ type: "text", text: `${cls.type} ${id} is already linked. Linked: ${summarize(ids)}.` }] };
+      }
+      const next = commit(ctx, [...ids, id]);
+      return { content: [{ type: "text", text: `Linked ${cls.type} ${id}. Linked: ${summarize(next)}.` }] };
     },
   });
 
@@ -119,86 +147,115 @@ export default function (pi: ExtensionAPI) {
     name: "unlink_artifact",
     label: "Unlink Artifact",
     description:
-      "Clear the artifact link from this chat. Use when you linked the " +
-      "wrong artifact, or when the current work no longer relates to any " +
-      "specific task/diff/SEV. After unlinking, the row below the editor " +
-      "disappears.",
+      "Remove a linked artifact. Pass an `id` to remove just that one " +
+      "(the others stay linked); call with no arguments to clear ALL links. " +
+      "Use when you linked the wrong artifact or the work no longer relates " +
+      "to it.",
     promptSnippet:
-      "Clear the currently-linked Phabricator artifact from the chat footer.",
-    parameters: Type.Object({}),
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      pi.appendEntry(ENTRY_TYPE, { id: null });
-      hideLink(ctx);
-      return { content: [{ type: "text", text: "Artifact link cleared." }] };
+      "Remove one linked Phabricator artifact (by id) or clear all.",
+    parameters: Type.Object({
+      id: Type.Optional(Type.String({
+        description: "Artifact ID to remove (T/D/S<num>). Omit to clear all links.",
+      })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const ids = currentIds(ctx.sessionManager.getEntries());
+      const id = params.id?.trim();
+      if (id) {
+        if (!ids.includes(id)) {
+          return { content: [{ type: "text", text: `${id} isn't linked. Linked: ${summarize(ids)}.` }] };
+        }
+        const next = commit(ctx, ids.filter((x) => x !== id));
+        return { content: [{ type: "text", text: `Unlinked ${id}. Linked: ${summarize(next)}.` }] };
+      }
+      commit(ctx, []);
+      return { content: [{ type: "text", text: "Cleared all artifact links." }] };
     },
   });
 
   pi.registerCommand("link", {
     description:
-      "Link an artifact to this chat. /link T123 or /link D456 sets it; " +
-      "/link clear unlinks; /link with no arg shows the current link.",
+      "Link artifacts to this chat (additive). /link T123 D456 adds; " +
+      "/link remove T123 removes one; /link clear removes all; /link shows current.",
     handler: async (args: string, ctx: any) => {
       const arg = (args ?? "").trim();
+      const ids = currentIds(ctx.sessionManager.getEntries());
 
       if (!arg) {
-        const entries = ctx.sessionManager.getEntries();
-        const latest = lastArtifactId(entries);
-        if (latest) {
-          ctx.ui.notify(`Current link: ${formatStatus(latest)}`, "info");
-        } else {
-          ctx.ui.notify("No artifact linked. /link T<num>, /link D<num>, /link S<num>.", "info");
+        ctx.ui.notify(
+          ids.length ? `Linked: ${summarize(ids)}` : "No artifacts linked. /link T<num> D<num> S<num> to add.",
+          "info",
+        );
+        return;
+      }
+
+      const tokens = arg.split(/\s+/);
+      const head = tokens[0].toLowerCase();
+
+      if (head === "clear" || head === "none") {
+        const rest = tokens.slice(1);
+        if (rest.length === 0) {
+          commit(ctx, []);
+          ctx.ui.notify("Cleared all artifact links.", "info");
+          return;
         }
+        const next = commit(ctx, ids.filter((x) => !rest.includes(x)));
+        ctx.ui.notify(`Removed ${rest.join(", ")}. Linked: ${summarize(next)}.`, "info");
         return;
       }
 
-      if (arg === "clear" || arg === "unlink" || arg === "none") {
-        pi.appendEntry(ENTRY_TYPE, { id: null });
-        hideLink(ctx);
-        ctx.ui.notify("Artifact link cleared.", "info");
+      if (head === "remove" || head === "unlink") {
+        const rest = tokens.slice(1);
+        if (rest.length === 0) {
+          ctx.ui.notify("Usage: /link remove <id>... (or /link clear to remove all).", "warning");
+          return;
+        }
+        const next = commit(ctx, ids.filter((x) => !rest.includes(x)));
+        ctx.ui.notify(`Removed ${rest.join(", ")}. Linked: ${summarize(next)}.`, "info");
         return;
       }
 
-      const cls = classifyId(arg);
-      if (!cls.valid) {
+      // Otherwise: treat every token as an id to add.
+      const valid: string[] = [];
+      const invalid: string[] = [];
+      for (const t of tokens) (classifyId(t).valid ? valid : invalid).push(t);
+      if (valid.length === 0) {
         ctx.ui.notify(`Invalid: "${arg}". Expected T<num>, D<num>, or S<num>.`, "warning");
         return;
       }
-      pi.appendEntry(ENTRY_TYPE, { id: arg });
-      showLink(ctx, arg);
-      ctx.ui.notify(`Linked ${cls.type} ${arg}`, "info");
+      const next = commit(ctx, [...ids, ...valid]);
+      const note = invalid.length ? ` (ignored: ${invalid.join(", ")})` : "";
+      ctx.ui.notify(`Linked ${valid.join(", ")}${note}. Linked: ${summarize(next)}.`, "info");
     },
   });
 
-  // Restore the chip on session_start so it persists across /resume,
-  // /fork, /new, and full pi restarts.
+  // Restore the row on session_start so it persists across /resume, /fork,
+  // /new, and full pi restarts.
   pi.on("session_start", (_event: any, ctx: any) => {
     const entries = ctx.sessionManager?.getEntries?.() ?? [];
-    const latest = lastArtifactId(entries);
-    if (latest) showLink(ctx, latest);
-    else hideLink(ctx);
+    renderLinks(ctx, currentIds(entries));
   });
 
-  // Auto-detect: when a tool result contains a clear "this artifact was
-  // just created" signal, auto-link the new ID. Belt-and-suspenders for
-  // when the LLM forgets to call link_artifact after creating something.
+  // Auto-detect: when a tool result looks like an artifact was just CREATED
+  // (not merely referenced), add it to the linked set. Belt-and-suspenders
+  // for when the LLM forgets to call link_artifact. Additive — a created
+  // task then a created diff both get picked up.
   //
-  // Only fires when nothing's currently linked — so the LLM's explicit
-  // tool calls always win, and we don't flap as the LLM creates a series
-  // of artifacts. If the LLM wants to swap, it can explicitly re-link.
-  //
+  // Gated on a creation/submit signal in the text so browsing or describing
+  // existing artifacts (which also print T/D URLs) does NOT auto-link them.
   // Set PI_ARTIFACT_AUTOLINK=0 to disable.
   if (process.env.PI_ARTIFACT_AUTOLINK !== "0") {
     pi.on("tool_execution_end", (event: any, ctx: any) => {
       if (event.isError) return;
-      const entries = ctx.sessionManager?.getEntries?.() ?? [];
-      if (lastArtifactId(entries) !== null) return; // already linked
       const text = extractResultText(event.result);
       if (!text) return;
+      if (!/\bcreat(?:e|ed|ing)\b/i.test(text) && !/\bdifferential\s+revision\b/i.test(text)) return;
       const id = detectCreatedArtifact(text);
       if (!id) return;
-      pi.appendEntry(ENTRY_TYPE, { id });
-      showLink(ctx, id);
-      try { ctx.ui.notify(`Auto-linked ${formatStatus(id)} (detected creation)`, "info"); } catch {}
+      const ids = currentIds(ctx.sessionManager?.getEntries?.() ?? []);
+      if (ids.includes(id)) return;
+      const next = commit(ctx, [...ids, id]);
+      try { ctx.ui.notify(`Auto-linked ${formatStatus(id)} (detected creation). Linked: ${summarize(next)}.`, "info"); } catch {}
     });
   }
 }
