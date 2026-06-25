@@ -84,4 +84,14 @@ printf '%s\n' "$config" > "$tmp"
 # verbatim, e.g. `claude-with claude --resume <id>`.
 [[ "${1:-}" == "claude" ]] && shift
 
-exec claude --strict-mcp-config --mcp-config "$tmp" "$@"
+# Extract --yolo from remaining args before forwarding.
+yolo=false
+rest=()
+for arg in "$@"; do
+    [[ "$arg" == "--yolo" ]] && yolo=true || rest+=("$arg")
+done
+
+extra_flags=()
+[[ "$yolo" == true ]] && extra_flags+=(--dangerously-skip-permissions)
+
+exec claude --strict-mcp-config --mcp-config "$tmp" "${extra_flags[@]}" "${rest[@]}"

@@ -21,5 +21,13 @@
       "git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp",
       "blender-mcp"
     ]
+  },
+  "xcode": {
+    "command": "xcrun",
+    "args": ["mcpbridge"]
+  },
+  "xcodebuild": {
+    "command": "npx",
+    "args": ["-y", "xcodebuildmcp@latest", "mcp"]
   }
 }
