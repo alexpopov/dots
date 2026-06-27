@@ -40,29 +40,38 @@ if [[ -n "$PROJECT_MCP" ]]; then
     [[ -n "$local_names" ]] && LOCAL_LABEL="[project .mcp.json] $local_names"
 fi
 
-choices="$available"
-[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$LOCAL_LABEL" "$available")
+NONE_LABEL="[none]"
+choices="$available"$'\n'"$NONE_LABEL"
+[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$LOCAL_LABEL" "$choices")
 
 selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
 
-# Pull the project-local bundle out of the selection (it isn't a DEFINITIONS key).
+# Pull special labels out of the selection.
+want_none=false
 want_local=false
+if grep -qxF "$NONE_LABEL" <<< "$selected"; then
+    want_none=true
+fi
 if [[ -n "$LOCAL_LABEL" ]] && grep -qxF "$LOCAL_LABEL" <<< "$selected"; then
     want_local=true
-    selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" || true)
 fi
 
-if [[ -z "${selected//[[:space:]]/}" ]] && [[ "$want_local" == false ]]; then
+if [[ -z "${selected//[[:space:]]/}" ]]; then
     echo "claude-with: no servers selected — did you forget to hit space?" >&2
     exit 1
 fi
 
-keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
-config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
+if [[ "$want_none" == true ]]; then
+    config='{"mcpServers": {}}'
+else
+    selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" 2>/dev/null || true)
+    keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
+    config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
 
-# Merge the project-local servers in if chosen (project keys win on collision).
-if [[ "$want_local" == true ]]; then
-    config=$(printf '%s' "$config" | jq --slurpfile loc "$PROJECT_MCP" '.mcpServers += ($loc[0].mcpServers // {})')
+    # Merge the project-local servers in if chosen (project keys win on collision).
+    if [[ "$want_local" == true ]]; then
+        config=$(printf '%s' "$config" | jq --slurpfile loc "$PROJECT_MCP" '.mcpServers += ($loc[0].mcpServers // {})')
+    fi
 fi
 
 # Substitute ${VAR} references in the assembled config (e.g. NOTION_TOKEN_*).
@@ -80,18 +89,20 @@ done
 tmp=$(mktemp "${TMPDIR:-/tmp}/claude-mcp.XXXXXX").json
 printf '%s\n' "$config" > "$tmp"
 
-# Drop a leading literal "claude" so an existing invocation can be prefixed
-# verbatim, e.g. `claude-with claude --resume <id>`.
-[[ "${1:-}" == "claude" ]] && shift
-
-# Extract --yolo from remaining args before forwarding.
+# Extract --yolo and drop any literal "claude" arg (any position) before
+# forwarding, so an existing invocation can be prefixed verbatim, e.g.
+# `claude-with claude --resume <id>` or `claude-with --yolo claude --resume <id>`.
 yolo=false
 rest=()
 for arg in "$@"; do
-    [[ "$arg" == "--yolo" ]] && yolo=true || rest+=("$arg")
+    case "$arg" in
+        --yolo) yolo=true ;;
+        claude) ;;
+        *) rest+=("$arg") ;;
+    esac
 done
 
 extra_flags=()
 [[ "$yolo" == true ]] && extra_flags+=(--dangerously-skip-permissions)
 
-exec claude --strict-mcp-config --mcp-config "$tmp" "${extra_flags[@]}" "${rest[@]}"
+exec claude --strict-mcp-config --mcp-config "$tmp" "${extra_flags[@]+"${extra_flags[@]}"}" "${rest[@]+"${rest[@]}"}"

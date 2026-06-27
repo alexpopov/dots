@@ -3,6 +3,13 @@
     "command": "uvx",
     "args": ["things-mcp"]
   },
+  "anki": {
+    "command": "npx",
+    "args": ["-y", "@ankimcp/anki-mcp-server", "--stdio"],
+    "env": {
+      "ANKI_CONNECT_URL": "http://localhost:8765"
+    }
+  },
   "notion": {
     "type": "http",
     "url": "https://mcp.notion.com/mcp"
