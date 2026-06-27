@@ -124,14 +124,48 @@ for b in sorted(books, key=lambda x: x.get('authors','')):
     --progress
 }
 
+# Export Calibre books to iCloud, incrementally.
+#
+# calibredb export has no skip-existing mode: `export --all` re-writes every
+# epub every run, and since the dest is an iCloud Drive file-provider folder,
+# each write is re-uploaded (even unchanged books, whose re-zipped bytes differ
+# anyway). So instead we ask Calibre which books changed since the last run
+# (via last_modified) and export only those ids. First run still exports all.
+#
+# Note: Calibre must be closed (the library is single-writer), and deletions
+# are not propagated to the iCloud folder.
 function calibre_export_to_icloud {
   local calibredb="/Applications/calibre.app/Contents/MacOS/calibredb"
+  local lib="/Users/alp/Calibre Library"
   local dest="/Users/alp/Library/Mobile Documents/com~apple~CloudDocs/Books"
-  "$calibredb" export --all \
-    --to-dir "$dest" \
-    --formats epub \
-    --dont-save-extra-files \
-    --progress
+  local stamp="$HOME/.cache/calibre_export_stamp"
+
+  if [[ -f "$stamp" ]]; then
+    local since ids
+    since="$(cat "$stamp")"
+    ids="$("$calibredb" list --with-library "$lib" \
+            --search "last_modified:>=$since" --fields id --for-machine 2>/dev/null \
+          | python3 -c 'import sys,json; print(",".join(str(b["id"]) for b in json.load(sys.stdin)))')"
+    if [[ -z "$ids" ]]; then
+      echo "Nothing changed since $since"
+      return 0
+    fi
+    echo "Exporting changed books: $ids"
+    "$calibredb" export $ids --with-library "$lib" \
+      --to-dir "$dest" \
+      --formats epub \
+      --dont-save-extra-files \
+      --progress
+  else
+    echo "First run — exporting everything"
+    "$calibredb" export --all --with-library "$lib" \
+      --to-dir "$dest" \
+      --formats epub \
+      --dont-save-extra-files \
+      --progress
+  fi
+
+  date '+%Y-%m-%d' > "$stamp"
 }
 
 # Backup Kobo eReader to iCloud
