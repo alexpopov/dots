@@ -2,10 +2,11 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-8",
   "theme": "alexpopov",
-  "lastChangelogVersion": "0.77.0",
+  "lastChangelogVersion": "0.80.3",
   "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": true,
   "showHardwareCursor": true,
+  "outputPad": 0,
   "skills": [
     "~/.claude/skills"
   ],
