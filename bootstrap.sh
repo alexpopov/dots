@@ -386,7 +386,6 @@ function create_links {
   fi
   ln -sf "$DOTS_CONFIG_DIR/karabiner" "$CONFIG_DIR" || _fail_error "Failed to symlink karabiner config"
   ln -sf "$DOTS_CONFIG_DIR/nvim" "$CONFIG_DIR" || _fail_error "Failed to symlink nvim config"
-  ln -sf "$DOTS_CONFIG_DIR/opencode" "$CONFIG_DIR" || _fail_error "Failed to symlink opencode config"
   if [[ "$USER" != "cay" ]]; then
     ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
   fi
