@@ -401,7 +401,7 @@ function create_links {
   # dots/config/ghostty/local.conf — gitignored.
   if [[ "$USER" == "cay" ]]; then
     cat > "$CONFIG_DIR/ghostty/local.conf" <<'EOF' || _fail_error "Failed to write ghostty local.conf"
-theme = Apple System Colors Light
+theme = TokyoNight Storm
 EOF
   fi
 
