@@ -467,6 +467,17 @@ EOF
       fi
     done
   fi
+
+  # Claude slash commands - symlink each command file individually
+  mkdir -p "$HOME/.claude/commands"
+  if [[ -d "$DOTS_CONFIG_DIR/claude/commands" ]]; then
+    for command_file in "$DOTS_CONFIG_DIR/claude/commands"/*.md; do
+      if [[ -f "$command_file" ]]; then
+        local command_name=$(basename "$command_file")
+        ln -sfn "$command_file" "$HOME/.claude/commands/$command_name" || _fail_error "Failed to symlink claude command: $command_name"
+      fi
+    done
+  fi
 }
 
 function ensure_shell_sources_dots {
