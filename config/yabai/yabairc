@@ -87,6 +87,7 @@ yabai -m rule --add app="Tailscale" manage=off
 yabai -m rule --add app="darktable" manage=off
 yabai -m rule --add app="EOS Utility 3" manage=off
 yabai -m rule --add app="Developer" manage=off
+yabai -m rule --add app="Xcode" manage=off
 
 # Native-tab apps: tabs appear as new windows to yabai, which disrupts
 # BSP layout and destroys stacks. Finder is unmanaged by default.
