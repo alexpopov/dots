@@ -13,5 +13,8 @@
   "compaction": {
     "reserveTokens": 100000,
     "keepRecentTokens": 50000
-  }
+  },
+  "packages": [
+    "../../dotfiles/ponytail"
+  ]
 }
