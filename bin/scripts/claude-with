@@ -14,18 +14,6 @@ set -euo pipefail
 
 DEFINITIONS="${CLAUDE_MCP_DEFINITIONS:-$HOME/.config/claude-mcp/servers.json}"
 
-# Resolve this script's real location (it may be symlinked onto PATH, e.g. via
-# ~/.local/bin/scripts) so we can find sibling repo assets like the ponytail
-# persona ruleset that lives in the agent-orchestra-wizard skill.
-_src="${BASH_SOURCE[0]}"
-while [[ -L "$_src" ]]; do
-    _dir=$(cd -P "$(dirname "$_src")" && pwd)
-    _src=$(readlink "$_src")
-    [[ "$_src" != /* ]] && _src="$_dir/$_src"
-done
-SCRIPT_DIR=$(cd -P "$(dirname "$_src")" && pwd)
-PONYTAIL_RULESET="$SCRIPT_DIR/../../config/claude/skills/agent-orchestra-wizard/ponytail/ruleset.txt"
-
 if [[ ! -f "$DEFINITIONS" ]]; then
     echo "claude-with: definitions file not found: $DEFINITIONS" >&2
     exit 1
@@ -56,26 +44,16 @@ NONE_LABEL="[none]"
 choices="$available"$'\n'"$NONE_LABEL"
 [[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$LOCAL_LABEL" "$choices")
 
-# Offer the ponytail persona as an opt-in list item at the END (only if its
-# ruleset exists). Picking it enables the anti-overengineering persona via
-# SessionStart + SubagentStart hooks — so it survives delegation into subagents.
-PONYTAIL_LABEL="[persona] ponytail"
-[[ -f "$PONYTAIL_RULESET" ]] && choices=$(printf '%s\n%s' "$choices" "$PONYTAIL_LABEL")
-
 selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
 
 # Pull special labels out of the selection.
 want_none=false
 want_local=false
-want_ponytail=false
 if grep -qxF "$NONE_LABEL" <<< "$selected"; then
     want_none=true
 fi
 if [[ -n "$LOCAL_LABEL" ]] && grep -qxF "$LOCAL_LABEL" <<< "$selected"; then
     want_local=true
-fi
-if grep -qxF "$PONYTAIL_LABEL" <<< "$selected"; then
-    want_ponytail=true
 fi
 
 if [[ -z "${selected//[[:space:]]/}" ]]; then
@@ -86,7 +64,7 @@ fi
 if [[ "$want_none" == true ]]; then
     config='{"mcpServers": {}}'
 else
-    selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" 2>/dev/null | grep -vxF "$PONYTAIL_LABEL" 2>/dev/null || true)
+    selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" 2>/dev/null || true)
     keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
     config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
 
@@ -126,19 +104,5 @@ done
 
 extra_flags=()
 [[ "$yolo" == true ]] && extra_flags+=(--dangerously-skip-permissions)
-
-# Ponytail persona: inject the ruleset at SessionStart AND SubagentStart (the
-# latter is what carries it into delegated subagents) via an extra --settings
-# file. Merges with the user's normal settings; doesn't replace them.
-if [[ "$want_ponytail" == true ]]; then
-    ponytail_settings=$(mktemp "${TMPDIR:-/tmp}/claude-ponytail.XXXXXX").json
-    jq -n --arg cmd "cat \"$PONYTAIL_RULESET\"" '{
-        hooks: {
-            SessionStart:  [ { hooks: [ { type: "command", command: $cmd } ] } ],
-            SubagentStart: [ { hooks: [ { type: "command", command: $cmd } ] } ]
-        }
-    }' > "$ponytail_settings"
-    extra_flags+=(--settings "$ponytail_settings")
-fi
 
 exec claude --strict-mcp-config --mcp-config "$tmp" "${extra_flags[@]+"${extra_flags[@]}"}" "${rest[@]+"${rest[@]}"}"

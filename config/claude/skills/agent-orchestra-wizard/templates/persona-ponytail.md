@@ -25,25 +25,21 @@ with a `ponytail:` comment naming the ceiling you stopped at and the upgrade pat
 The canonical ruleset text lives at `../ponytail/ruleset.txt` (this skill) — one
 source of truth shared by every wiring option below. Edit it there.
 
-## Option A — the `claude-with` launcher toggle (already wired)
+## Option A — the `/ponytail` slash command (on demand, easiest)
 
-Alp's `dots/bin/scripts/claude-with` offers **`[persona] ponytail`** as an
-opt-in item in its session picker. Selecting it passes an extra `--settings`
-file that registers `SessionStart` + `SubagentStart` hooks which `cat` the
-ruleset. Nothing to install; per-session; survives delegation. This is the quick
-global opt-in.
+`dots/config/claude/commands/ponytail.md` (symlinked into `~/.claude/commands/`
+by bootstrap) defines `/ponytail`. Type it in any session and the persona loads
+into the main conversation for the rest of that session — no launch-time setup.
+It also asks Claude to fold the rules into any subagent briefs it writes, but
+that propagation is best-effort (soft). For guaranteed enforcement across every
+delegate, use Option B.
 
-> **Gotcha:** `/hooks` will show "No hooks configured" even when this is active —
-> that command only lists hooks from on-disk settings files, not ones supplied at
-> launch via `--settings`. The hooks still fire (verified: SessionStart stdout
-> reaches the model). To confirm it loaded, just ask the session to recite its
-> ponytail rules.
-
-## Option B — commit the hooks into a project (persistent per-repo)
+## Option B — commit the hooks into a project (persistent, survives delegation)
 
 Add to the project's `.claude/settings.json` a `SessionStart` hook AND a
 `SubagentStart` hook that both `cat` the ruleset (absolute path). The
-SubagentStart half is what makes it survive delegation. For per-project
+SubagentStart half is what deterministically carries the persona into delegates
+(what the soft `/ponytail` propagation can't guarantee). For per-project
 strictness `{{PERSONA_STRICTNESS}}`, copy the ruleset into the repo and tune it.
 
 ```json
