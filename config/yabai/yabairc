@@ -44,50 +44,52 @@ yabai -m rule --add label="Calculator" app="^Calculator$" manage=off
 yabai -m rule --add label="Dictionary" app="^Dictionary$" manage=off
 yabai -m rule --add label="Software Update" title="Software Update" manage=off
 yabai -m rule --add label="About This Mac" app="System Information" title="About This Mac" manage=off
-yabai -m rule --add app="Karabiner-Elements" manage=off
-yabai -m rule --add app="QuickTime Player" manage=off
-yabai -m rule --add app="Captin" manage=off
-yabai -m rule --add app="Cisco" manage=off
-yabai -m rule --add app="Cisco Secure Client" manage=off
-yabai -m rule --add app="Choosy.*" manage=off
-yabai -m rule --add app="Bartender.*" manage=off
-yabai -m rule --add app="GeoTag" manage=off
-yabai -m rule --add app="Google Drive" manage=off
-yabai -m rule --add app="Calendar" manage=off
-yabai -m rule --add app="Managed Software Centre" manage=off
-yabai -m rule --add app="Archive Utility" manage=off
-yabai -m rule --add app=".*sicht" manage=off
-yabai -m rule --add app="Steam" manage=off
-yabai -m rule --add app="Paradox Launcher" manage=off
-yabai -m rule --add app="Problem Reporter" manage=off
-yabai -m rule --add app="FaceTime" manage=off
-yabai -m rule --add app="Rocket" manage=off
-yabai -m rule --add app="Meta Quest Remote Desktop" manage=off
-yabai -m rule --add app="Digital Colo(u)?r Meter" manage=off
-yabai -m rule --add app="Android Studio" manage=off
-# Generic file-opening dialog (checked only with Numbers)
-yabai -m rule --add app="Calibre" manage=off
-yabai -m rule --add app="Maccy" manage=off
-yabai -m rule --add app="Keymapp" manage=off
-yabai -m rule --add app="Buckets" manage=off
-yabai -m rule --add app="Logic Pro" manage=off
-yabai -m rule --add app="Hammerspoon" manage=off
-yabai -m rule --add app="SilverFast 9" manage=off
-yabai -m rule --add app="Final Cut Pro" manage=off
-yabai -m rule --add app="GarageBand" manage=off
-yabai -m rule --add app="Logic Pr.*" manage=off
-yabai -m rule --add app="Alfred.*" manage=off
-yabai -m rule --add app="Shortcat.*" manage=off
-yabai -m rule --add app="Magic Island" manage=off
-yabai -m rule --add app="Santa" manage=off
-yabai -m rule --add app="Unity" manage=off
-yabai -m rule --add app="Gmail" manage=off
-yabai -m rule --add app="DaisyDisk" manage=off
-yabai -m rule --add app="Tailscale" manage=off
-yabai -m rule --add app="darktable" manage=off
-yabai -m rule --add app="EOS Utility 3" manage=off
-yabai -m rule --add app="Developer" manage=off
-yabai -m rule --add app="Xcode" manage=off
+for app in \
+    "Karabiner-Elements" \
+    "QuickTime Player" \
+    "Captin" \
+    "Cisco" \
+    "Cisco Secure Client" \
+    "Choosy.*" \
+    "Bartender.*" \
+    "GeoTag" \
+    "Google Drive" \
+    "Calendar" \
+    "Managed Software Centre" \
+    "Archive Utility" \
+    ".*sicht" \
+    "Steam" \
+    "Paradox Launcher" \
+    "Problem Reporter" \
+    "FaceTime" \
+    "Rocket" \
+    "Meta Quest Remote Desktop" \
+    "Digital Colo(u)?r Meter" \
+    "Android Studio" \
+    "Calibre" \
+    "Maccy" \
+    "Keymapp" \
+    "Buckets" \
+    "Logic Pr.*" \
+    "Hammerspoon" \
+    "SilverFast 9" \
+    "Final Cut Pro" \
+    "GarageBand" \
+    "Alfred.*" \
+    "Shortcat.*" \
+    "Magic Island" \
+    "Santa" \
+    "Unity" \
+    "Gmail" \
+    "DaisyDisk" \
+    "Tailscale" \
+    "darktable" \
+    "EOS Utility 3" \
+    "Developer" \
+    "Xcode" \
+; do
+    yabai -m rule --add app="$app" manage=off
+done
 
 # Native-tab apps: tabs appear as new windows to yabai, which disrupts
 # BSP layout and destroys stacks. Finder is unmanaged by default.
