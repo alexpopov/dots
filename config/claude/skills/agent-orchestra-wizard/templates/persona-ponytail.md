@@ -22,16 +22,40 @@ with a `ponytail:` comment naming the ceiling you stopped at and the upgrade pat
 <!-- strict for infra/AOSP; loose for a project where premature minimalism would
      cost future modularity (e.g. a game core). -->
 
-## Option A — the real plugin (least effort)
+The canonical ruleset text lives at `../ponytail/ruleset.txt` (this skill) — one
+source of truth shared by every wiring option below. Edit it there.
+
+## Option A — the `claude-with` launcher toggle (already wired)
+
+Alp's `dots/bin/scripts/claude-with` offers **`[persona] ponytail`** as an
+opt-in item in its session picker. Selecting it passes an extra `--settings`
+file that registers `SessionStart` + `SubagentStart` hooks which `cat` the
+ruleset. Nothing to install; per-session; survives delegation. This is the quick
+global opt-in.
+
+> **Gotcha:** `/hooks` will show "No hooks configured" even when this is active —
+> that command only lists hooks from on-disk settings files, not ones supplied at
+> launch via `--settings`. The hooks still fire (verified: SessionStart stdout
+> reaches the model). To confirm it loaded, just ask the session to recite its
+> ponytail rules.
+
+## Option B — commit the hooks into a project (persistent per-repo)
+
+Add to the project's `.claude/settings.json` a `SessionStart` hook AND a
+`SubagentStart` hook that both `cat` the ruleset (absolute path). The
+SubagentStart half is what makes it survive delegation. For per-project
+strictness `{{PERSONA_STRICTNESS}}`, copy the ruleset into the repo and tune it.
+
+```json
+{ "hooks": {
+  "SessionStart":  [ { "hooks": [ { "type": "command", "command": "cat /abs/path/ruleset.txt" } ] } ],
+  "SubagentStart": [ { "hooks": [ { "type": "command", "command": "cat /abs/path/ruleset.txt" } ] } ]
+} }
+```
+
+## Option C — the third-party plugin (unverified marketplace)
 
 ```
 /plugin marketplace add DietrichGebert/ponytail
 /plugin install ponytail@ponytail
 ```
-
-## Option B — your own hook pair (no external dependency)
-
-Add to the project's `.claude/settings.json` a `SessionStart` hook AND a
-`SubagentStart` hook that both inject the ruleset above (as text). The SubagentStart
-half is what makes it survive delegation. Statusline can show the active mode.
-Adjust the ladder's strictness to `{{PERSONA_STRICTNESS}}` in the injected text.
