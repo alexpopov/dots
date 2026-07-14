@@ -8,7 +8,8 @@
   "showHardwareCursor": true,
   "outputPad": 0,
   "skills": [
-    "~/.claude/skills"
+    "~/.claude/skills",
+    "~/.claude/agent-market/plugins/aosp-upgrade/skills"
   ],
   "compaction": {
     "reserveTokens": 100000,
