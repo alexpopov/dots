@@ -13,16 +13,23 @@
  * survives across later `trigger_build` / `get_build_result` calls in the same chat.
  *
  * Config: reads `mcpServers` from ~/.claude.json (the same place Claude Code keeps them —
- * one source of truth for both). Optional ~/.pi/agent/mcp.json can add/override servers
- * and set an `autoConnect` list. Server shape (stdio): { command, args?, env? }.
+ * one source of truth for both). Optional ~/.pi/agent/mcp.json can add/override servers,
+ * set an `autoConnect` list, and mark servers `agentConnect: true` (allowlist — see below).
+ * Server shape (stdio): { command, args?, env?, agentConnect?, hint? }.
  *
- * Usage in chat:
+ * Usage in chat (human):
  *   /mcp list                  — list configured servers
  *   /mcp connect <name>        — spawn + register a server's tools (persists for the session)
  *   /mcp connect all           — connect every configured server
  *   /mcp status                — show connected servers + tool counts
  *   /mcp disconnect <name>     — kill a server process
  * Tools then appear as `<server>__<tool>` and the model can call them immediately.
+ *
+ * Agent-driven (lazy, allowlisted): the `mcp_connect` TOOL lets the model itself load a
+ * server on demand — but ONLY servers marked `"agentConnect": true` in ~/.pi/agent/mcp.json.
+ * This keeps startup fast (nothing spawned until needed) while bounding what the agent can
+ * launch. The tool's description lists the allowlisted servers + their `hint`, so the model
+ * knows when to reach for them (e.g. EyePatch topic/migration tools).
  *
  * Heavy servers (aosp-build-server, message-passing run `buck2 run …`) can take minutes
  * to spawn the first time, so by default NOTHING auto-connects (fast startup, no breakage
@@ -41,6 +48,13 @@ interface ServerCfg {
   args?: string[];
   env?: Record<string, string>;
   type?: string; // only "stdio" supported here
+  // Allowlist flag: when true, the AGENT may connect this server itself via the
+  // `mcp_connect` tool (not just the human via /mcp connect). Off by default so a
+  // server is never agent-spawnable unless explicitly blessed.
+  agentConnect?: boolean;
+  // One-line summary of what this server's tools are for; shown to the model in the
+  // mcp_connect tool description so it knows when to load them.
+  hint?: string;
 }
 
 interface BridgeConfig {
@@ -272,6 +286,52 @@ export default function mcpBridge(pi: ExtensionAPI) {
       ctx.ui.notify("Usage: /mcp list | connect <name|all> | disconnect <name> | status", "info");
     },
   });
+
+  // Agent-driven, allowlisted connect. Register a tool the MODEL can call to load a
+  // server on demand (lazy: keeps startup fast, tools appear only when needed). Only
+  // servers with `agentConnect: true` in ~/.pi/agent/mcp.json are connectable this way;
+  // everything else stays human-only via /mcp connect. Runtime pi.registerTool means the
+  // freshly-registered <server>__<tool> tools are callable on the next turn.
+  {
+    const { servers } = loadConfig();
+    const allow = Object.entries(servers).filter(([, c]) => c.agentConnect);
+    const menu = allow.length
+      ? allow.map(([n, c]) => `- ${n}${c.hint ? `: ${c.hint}` : ""}`).join("\n")
+      : "(none configured — set \"agentConnect\": true on a server in ~/.pi/agent/mcp.json)";
+    pi.registerTool({
+      name: "mcp_connect",
+      label: "Connect MCP server",
+      description:
+        "Load an allowlisted MCP server on demand. Spawns it and registers its tools as " +
+        "`<server>__<tool>`, which become callable immediately (same session). Call this when " +
+        "you need one of these tool groups:\n" +
+        menu +
+        "\nPass the server name. Only allowlisted servers can be connected; anything else is refused.",
+      parameters: Type.Object({
+        server: Type.String({ description: "Allowlisted MCP server name to connect" }),
+      }),
+      async execute(_id, params: { server: string }) {
+        const server = String(params?.server ?? "").trim();
+        const { servers: cur } = loadConfig();
+        const cfg = cur[server];
+        if (!cfg) {
+          const names = Object.entries(cur).filter(([, c]) => c.agentConnect).map(([n]) => n);
+          return {
+            content: [{ type: "text", text: `Unknown server "${server}". Agent-connectable: ${names.join(", ") || "(none)"}.` }],
+            details: { isError: true },
+          };
+        }
+        if (!cfg.agentConnect) {
+          return {
+            content: [{ type: "text", text: `Server "${server}" is not on the agent allowlist (needs "agentConnect": true in ~/.pi/agent/mcp.json). A human can still connect it with /mcp connect ${server}.` }],
+            details: { isError: true },
+          };
+        }
+        const summary = await connectServer(server, cfg);
+        return { content: [{ type: "text", text: `${summary}\nThose tools are now callable this session.` }] };
+      },
+    });
+  }
 
   // Auto-connect servers listed in ~/.pi/agent/mcp.json "autoConnect" (default: none, for fast startup).
   pi.on("session_start", async () => {
