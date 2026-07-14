@@ -404,6 +404,20 @@ theme = TokyoNight Storm
 EOF
   fi
 
+  # kitty uses XDG: ~/.config/kitty/kitty.conf
+  ln -sf "$DOTS_CONFIG_DIR/kitty" "$CONFIG_DIR" || _fail_error "Failed to symlink kitty config"
+
+  # Per-user kitty overrides. The main config does `globinclude local.conf`,
+  # so this file is optional. Written through the symlinked dir, so it lands
+  # in dots/config/kitty/local.conf — gitignored.
+  if [[ "$USER" == "cay" ]]; then
+    cat > "$CONFIG_DIR/kitty/local.conf" <<'EOF' || _fail_error "Failed to write kitty local.conf"
+# TokyoNight Storm-ish dark override
+background       #24283b
+foreground       #c0caf5
+EOF
+  fi
+
 
   # tmux refuses to use XDG, this is for us to have tmux.conf
   ln -sf "$DOTS_CONFIG_DIR/tmux" "$CONFIG_DIR" || _fail_error "Failed to symlink tmux config dir"
