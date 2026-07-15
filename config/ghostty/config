@@ -1,5 +1,16 @@
 theme = Apple System Colors Light
-font-size = 10
+
+# Match iTerm2 "Default" profile: SFMono Nerd Font (SFMonoNF-Regular) @ 12
+font-family = "SFMono Nerd Font"
+font-size = 12
+
+# iTerm2 default profile colors: white bg, near-black (#1a1a1a) fg
+background = ffffff
+foreground = 1a1a1a
+
+# iTerm2 has a blinking box cursor
+cursor-style = block
+cursor-style-blink = true
 
 # Copy on select to system clipboard (middle-click paste is always on)
 copy-on-select = clipboard
