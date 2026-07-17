@@ -42,6 +42,16 @@
         "FocalLengthIn35mmFormat": "43",
         "MaxApertureValue": "5.6"
       }
+    },
+    "fujinon-90-5.6-swd": {
+      "description": "Fuji 90mm f/5.6 Fujinon SWD (4x5 wide-angle lens)",
+      "exif": {
+        "LensMake": "Fuji",
+        "LensModel": "Fuji 90mm f/5.6 Fujinon SWD",
+        "FocalLength": "90",
+        "FocalLengthIn35mmFormat": "26",
+        "MaxApertureValue": "5.6"
+      }
     }
   },
   "films": {
