@@ -9,7 +9,10 @@ vim.lsp.config("lua_ls", {
   settings = {
     Lua = {
       diagnostics = {
-        globals = { "vim" },
+        -- Intentional globals: `vim` (builtin), `alp` (my namespace, see
+        -- lua_init.lua) and the debug helpers from globals.lua. Declaring
+        -- them here silences `lowercase-global`/`undefined-global` everywhere.
+        globals = { "vim", "alp", "P", "RELOAD", "R" },
       },
     },
   },
