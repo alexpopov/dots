@@ -233,8 +233,12 @@ export default function (pi: ExtensionAPI) {
       })),
       model: Type.Optional(Type.String({
         description: "Override the default pi model for this subagent run. " +
-          "Accepts ids, provider-prefixed ids, or patterns " +
-          "(e.g. 'claude-opus-4-8', 'anthropic/claude-sonnet-4-6', 'sonnet'). " +
+          "Look the id up with `pi --list-models` (the authoritative table) instead of " +
+          "guessing. Use the PROVIDER-PREFIXED id from that table " +
+          "(e.g. 'anthropic/claude-opus-4-8', 'anthropic/claude-sonnet-4-6'): " +
+          "bare ids ('claude-opus-4-8') and short aliases ('opus') can route to a " +
+          "provider with no API key here (amazon-bedrock / cloudflare-ai-gateway) " +
+          "and fail the launch instantly. For Claude models, prefix with 'anthropic/'. " +
           "Use a cheaper model like Sonnet or Haiku for simple subtasks; " +
           "match the parent (default) for complex work.",
       })),
@@ -300,8 +304,10 @@ export default function (pi: ExtensionAPI) {
           prompt: Type.String({ description: "This member's task." }),
           model: Type.Optional(Type.String({
             description: "Override the default pi model for this member. " +
-              "Accepts ids, provider-prefixed ids, or patterns " +
-              "(e.g. 'claude-opus-4-8', 'anthropic/claude-opus-4-8', 'opus').",
+              "Look the id up with `pi --list-models` and use the PROVIDER-PREFIXED form " +
+              "(e.g. 'anthropic/claude-opus-4-8'): bare ids ('claude-opus-4-8') and " +
+              "aliases ('opus') can route to a provider with no API key here " +
+              "(amazon-bedrock / cloudflare-ai-gateway) and fail instantly.",
           })),
           tools: Type.Optional(Type.String({
             description: "Comma-separated tool allowlist for this member " +
@@ -874,8 +880,13 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
     : opts.prompt;
 
   // (B) Build CLI args. `--mode json` for structured output; `--model`
-  // overrides default per-member; `--session` only in inherit mode (also
-  // gives us a path to mtime-watch for liveness).
+  // overrides default per-member. `--session` is used only in inherit mode
+  // (it points at a replayed child session under subagent-runs/, outside the
+  // main store, and gives us a path to mtime-watch for liveness). Fresh mode
+  // gets `--no-session`: it has no replayed history and no mtime-watch
+  // (liveness comes from stdout/stderr), so without it the child would
+  // default to saving a one-turn session into ~/.pi/agent/sessions/ and
+  // pollute the /resume picker.
   const args: string[] = ["--mode", "json"];
   if (opts.model) args.push("--model", opts.model);
   if (opts.tools) args.push("--tools", opts.tools);
@@ -883,6 +894,8 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   if (opts.mode === "inherit") {
     childSessionFile = buildChildSession(opts.ctx, opts.parentToolCallId);
     args.push("--session", childSessionFile);
+  } else {
+    args.push("--no-session");
   }
   args.push("-p", fullPrompt);
 
