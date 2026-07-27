@@ -226,7 +226,24 @@ local specs = {
   },
   {
     "ggandor/flit.nvim",
-    config = function() require("flit").setup() end
+    config = function()
+      -- flit still passes the removed `case_sensitive = true` into leap, which
+      -- now only emits a deprecation warning (leap ignores the flag; case
+      -- sensitivity is driven by `vim_opts['go.ignorecase']`). flit merges its
+      -- opts with 'keep', so ours win: set `case_sensitive = false` to silence
+      -- the warning, and restore the old native case-sensitive f/t via leap's
+      -- new per-call vim_opts mechanism (we run ignorecase+smartcase globally,
+      -- which would otherwise silently make f/t smart-case).
+      require("flit").setup({
+        -- Keep pressing the trigger key (f/F/t/T) to jump to the next/prev
+        -- match instead of needing `;`/`,`.
+        clever_repeat = true,
+        opts = {
+          case_sensitive = false,
+          vim_opts = { ["go.ignorecase"] = false },
+        },
+      })
+    end
   },
 
   { "mechatroner/rainbow_csv" },
