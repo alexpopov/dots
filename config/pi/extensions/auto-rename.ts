@@ -197,7 +197,11 @@ Good examples:
 }
 
 function spawnRenamer(prompt: string, onResult: (newName: string | null) => void): void {
-  const args = ["--mode", "json"];
+  // --no-session: the renamer is a throwaway probe that only needs to print a
+  // name to stdout. Without it, the child pi persists its own "You are
+  // auto-renaming…" session into the store and pollutes /resume (one junk
+  // session per rename, i.e. at turns 4, 8, 16, 32, … of every real session).
+  const args = ["--mode", "json", "--no-session"];
   if (process.env.PI_AUTO_RENAME_MODEL) {
     args.push("--model", process.env.PI_AUTO_RENAME_MODEL);
   }
