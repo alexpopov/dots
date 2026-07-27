@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 // Archived-session state. Per-machine (session file paths are local), so
@@ -152,8 +152,10 @@ export default function (pi: ExtensionAPI) {
     description:
       "Search all pi sessions across every folder/project (not just the " +
       "current cwd). /find-session [query] [--all|--done] — by default " +
-      "hides sessions marked done via /done. --all includes them (with a " +
-      "[done] marker); --done shows only archived.",
+      "hides sessions marked done via /done AND auto-generated noise " +
+      "(auto-rename probes, stray `pi models`/`list`/`config` spawns). " +
+      "--all includes everything (done sessions get a [done] marker); " +
+      "--done shows only archived.",
     handler: async (args: string, ctx: any) => {
       const tokens = (args ?? "").trim().split(/\s+/).filter(Boolean);
       const showAll = tokens.includes("--all");
@@ -173,16 +175,17 @@ export default function (pi: ExtensionAPI) {
       }
 
       const archived = loadArchived();
-      const items = buildItems(sessions, query, archived, { showAll, showDoneOnly });
+      const { items, noiseHidden } = buildItems(sessions, query, archived, { showAll, showDoneOnly });
       if (items.length === 0) {
         const what = showDoneOnly ? "archived" : showAll ? "" : "(unarchived) ";
         ctx.ui.notify(`No ${what}sessions match "${query}".`.replace(/\s+/g, " ").trim(), "info");
         return;
       }
 
-      const totalNote = items.length === sessions.length
+      const noiseNote = !showAll && noiseHidden > 0 ? `, ${noiseHidden} noise hidden` : "";
+      const totalNote = (items.length === sessions.length
         ? `${sessions.length} sessions`
-        : `${items.length} of ${sessions.length}${showAll ? " (incl. done)" : showDoneOnly ? " done" : ""}${query ? ` matching "${query}"` : ""}`;
+        : `${items.length} of ${sessions.length}${showAll ? " (incl. done)" : showDoneOnly ? " done" : ""}${query ? ` matching "${query}"` : ""}`) + noiseNote;
 
       const choice = await ctx.ui.custom<string | null>(
         (tui: any, theme: any, _kb: any, done: (v: string | null) => void) => {
@@ -245,7 +248,7 @@ function buildItems(
   query: string,
   archived: Set<string>,
   flags: { showAll: boolean; showDoneOnly: boolean },
-): SelectItem[] {
+): { items: SelectItem[]; noiseHidden: number } {
   // Resolve file paths up front so we can sort by mtime fallback.
   const enriched = sessions
     .map((s) => {
@@ -258,17 +261,87 @@ function buildItems(
   enriched.sort((a, b) => timestampOf(b.s, b.file) - timestampOf(a.s, a.file));
 
   const items: SelectItem[] = [];
+  let noiseHidden = 0;
   for (const { s, file } of enriched) {
     const isDone = archived.has(file);
     if (flags.showDoneOnly && !isDone) continue;
     if (!flags.showAll && !flags.showDoneOnly && isDone) continue;
+    // Hide auto-generated junk (auto-rename probes, stray `pi models`/`list`/
+    // `config` one-word spawns) unless --all is given. A named session
+    // (human or LLM auto-name) is never treated as noise.
+    if (!flags.showAll && isNoiseSession(s, file)) { noiseHidden++; continue; }
     const { label: rawLabel, forkBadge } = pickLabel(s, file);
     const label = isDone ? `[done] ${rawLabel}` : rawLabel;
     const desc = pickDescription(s, file, forkBadge);
     if (query && !`${label} ${desc} ${file}`.toLowerCase().includes(query)) continue;
     items.push({ value: file, label, description: desc });
   }
-  return items;
+  return { items, noiseHidden };
+}
+
+// --- noise detection -------------------------------------------------------
+// Sessions minted by our own tooling rather than by a human sitting down to
+// work: auto-rename probes (auto-rename.ts spawns `pi -p "You are
+// auto-renaming…"`) and stray `pi models`/`list`/`config` invocations that
+// pi parses as a one-word initial message and then persists. These are the
+// bulk of the /resume garbage. We classify conservatively so a real session
+// is never hidden.
+const NOISE_EXACT = new Set(["models", "list", "config"]);
+const NOISE_PREFIXES = ["You are auto-renaming a pi.dev coding session"];
+
+function isNoiseSession(s: any, file: string): boolean {
+  // A named session (human-supplied or LLM auto-name) is never noise.
+  if (typeof s.name === "string" && s.name.trim()) return false;
+  if (typeof s.displayName === "string" && s.displayName.trim()) return false;
+  const first = firstUserText(s, file).trim();
+  if (!first) return false;
+  if (NOISE_EXACT.has(first.toLowerCase())) return true;
+  return NOISE_PREFIXES.some((p) => first.startsWith(p));
+}
+
+// First user message: prefer listAll metadata; else read a bounded head of the
+// file (the first user turn sits near the top — no need to read a 20MB log).
+function firstUserText(s: any, file: string): string {
+  for (const k of ["firstMessage", "firstUserMessage"]) {
+    if (typeof s[k] === "string" && s[k].trim()) return s[k];
+  }
+  const head = readHead(file, 16384);
+  if (!head) return "";
+  // Cheap raw fallback for the (potentially very long) auto-rename prompt
+  // line, in case its JSON exceeds the head window and won't parse.
+  for (const p of NOISE_PREFIXES) if (head.includes(p)) return p;
+  for (const line of head.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    let o: any;
+    try { o = JSON.parse(t); } catch { continue; }
+    if (o?.type === "message" && o.message?.role === "user") {
+      const c = o.message.content;
+      if (typeof c === "string") return c;
+      if (Array.isArray(c)) {
+        const txt = c
+          .filter((x: any) => x?.type === "text" && typeof x.text === "string")
+          .map((x: any) => x.text)
+          .join("\n");
+        if (txt.trim()) return txt;
+      }
+    }
+  }
+  return "";
+}
+
+function readHead(file: string, maxBytes: number): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, "r");
+    const buf = Buffer.alloc(maxBytes);
+    const n = readSync(fd, buf, 0, maxBytes, 0);
+    return buf.toString("utf8", 0, n);
+  } catch {
+    return "";
+  } finally {
+    if (fd !== undefined) { try { closeSync(fd); } catch {} }
+  }
 }
 
 // Extract the bare label and any "(fork N)" suffix. The fork count
