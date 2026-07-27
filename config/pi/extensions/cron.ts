@@ -116,10 +116,11 @@ function cronMatches(c: ParsedCron, d: Date): boolean {
 
 /** Convert a human interval token ("30s","5m","2h","1d") to a cron expression, or null. */
 function intervalToCron(token: string): string | null {
-	const m = /^(\d+)\s*([smhd])$/i.exec(token.trim());
+	// Accept compact ("4h") and word ("4 hours", "30 min", "2 days") forms.
+	const m = /^(\d+)\s*(s(?:ec(?:ond)?s?)?|m(?:in(?:ute)?s?)?|h(?:(?:ou)?rs?)?|d(?:ays?)?)$/i.exec(token.trim());
 	if (!m) return null;
 	let n = Number.parseInt(m[1], 10);
-	const unit = m[2].toLowerCase();
+	const unit = m[2][0].toLowerCase();
 	if (n < 1) return null;
 	if (unit === "s") n = Math.max(1, Math.ceil(n / 60)); // seconds round up to whole minutes
 	if (unit === "s" || unit === "m") {
@@ -464,20 +465,29 @@ export default function (pi: ExtensionAPI) {
 		description: "Run a prompt on a repeat: /loop <interval> <prompt>  (interval like 30s, 5m, 2h, 1d). Bare /loop runs loop.md or a maintenance prompt every 15m.",
 		handler: async (args, ctx) => {
 			lastCtx = ctx;
-			const trimmed = (args ?? "").trim();
-			const firstTok = trimmed.split(/\s+/)[0] ?? "";
-			const cronFromInterval = intervalToCron(firstTok);
+			// Accept a leading interval in compact ("4h") or natural-language
+			// ("every 4 hours:", "5 min") form: strip an optional leading "every",
+			// then peel off "<n><unit>" / "<n> <unit-word>" plus any trailing :/,/- .
+			const raw = (args ?? "").trim().replace(/^every\s+/i, "");
+			const m = /^(\d+\s*(?:s(?:ec(?:ond)?s?)?|m(?:in(?:ute)?s?)?|h(?:(?:ou)?rs?)?|d(?:ays?)?))\b[\s:,-]*([\s\S]*)$/i.exec(raw);
+			const cronFromInterval = m ? intervalToCron(m[1]) : null;
 
 			let schedule = DEFAULT_LOOP_CRON;
-			let prompt = trimmed;
+			let prompt = raw;
 			if (cronFromInterval) {
 				schedule = cronFromInterval;
-				prompt = trimmed.slice(firstTok.length).trim();
+				prompt = (m?.[2] ?? "").trim();
 			}
 			if (!prompt) prompt = await loadLoopPrompt(ctx);
 
 			const r = createTask({ prompt, schedule });
-			notify(r.ok ? `⏰ loop ${r.task.id} every "${schedule}"` : `Error: ${r.error}`, r.ok ? "info" : "error");
+			if (r.ok && !cronFromInterval) {
+				// Previously an unrecognized interval SILENTLY used the 15m default
+				// (surprising for e.g. "/loop every 4 hours ..."). Make it explicit.
+				notify(`⏰ loop ${r.task.id} — no interval recognized, defaulting to every 15m ("${schedule}"). For another cadence use e.g. /loop 4h <prompt>.`, "info");
+			} else {
+				notify(r.ok ? `⏰ loop ${r.task.id} every "${schedule}"` : `Error: ${r.error}`, r.ok ? "info" : "error");
+			}
 		},
 	});
 }
