@@ -34,6 +34,36 @@ return {
         return
       end
 
+      -- Route nvim-treesitter's logger through `vim.notify` instead of
+      -- `vim.api.nvim_echo`. The `main` branch echoes parser install/update
+      -- progress (and warnings/errors) straight to the cmdline/info bar, which
+      -- is spammy; `vim.notify` (nvim-notify here) collapses them into toasts.
+      -- We override the shared `Logger` table so both the module-level logger
+      -- and any `log.new(ctx)` instances are covered. `trace`/`debug` don't
+      -- echo, so we leave them alone.
+      local ok_log, log = pcall(require, "nvim-treesitter.log")
+      if ok_log and log.Logger then
+        local levels = {
+          info = vim.log.levels.INFO,
+          warn = vim.log.levels.WARN,
+          error = vim.log.levels.ERROR,
+        }
+        for name, level in pairs(levels) do
+          log.Logger[name] = function(self, m, ...)
+            local msg = select("#", ...) > 0 and m:format(...) or m
+            local prefix = self.ctx
+                and ("[nvim-treesitter/" .. self.ctx .. "] ")
+              or "[nvim-treesitter] "
+            -- Schedule so it's safe from libuv/fast-event install callbacks.
+            vim.schedule(function()
+              vim.notify(prefix .. msg, level)
+            end)
+            -- `Logger:error` is expected to return the formatted message.
+            return msg
+          end
+        end
+      end
+
       -- On the `main` branch `setup()` only configures the install dir;
       -- parsers are installed via `install()`, not `ensure_installed`.
       -- (`install()` downloads parser tarballs with curl + tar into
