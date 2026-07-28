@@ -322,6 +322,20 @@ function _install_package_uv {
   curl -LsSf https://astral.sh/uv/install.sh | sh
 }
 
+function _install_package_docker {
+  # A prior `brew install docker` can leave the formula fully installed in
+  # the Cellar but unlinked (e.g. a transient `brew link` conflict) --
+  # `command -v docker` then fails forever and every bootstrap run retries
+  # `brew install`, which is a no-op and never fixes the link. Relink
+  # instead of reinstalling when that's the case.
+  if is_mac && brew list --formula docker &>/dev/null; then
+    _log_info "docker is installed but not linked - relinking"
+    brew link --overwrite docker
+  else
+    _default_install_package "docker"
+  fi
+}
+
 function setup_neovim_venv {
   local nvim_venv_path="$HOME/.local/virtualenvs/nvim"
   local python_bin="python3"
