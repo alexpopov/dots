@@ -1,6 +1,6 @@
 ---
 name: anki-recipes
-description: Use this skill when adding, querying, or updating cards in Alp's Anki collection — especially the German "Deutsch: 4000 German Words by Frequency" deck. Covers the custom Grammar/Notes/Conjugation fields and their card templates, the anki MCP workflow, the schema-change → full-sync gotcha, the HTML/CSS conventions, and the content style for grammar notes.
+description: 'Use this skill when adding, querying, or updating cards in Alp''s Anki collection — especially the German "Deutsch: 4000 German Words by Frequency" deck. Covers the custom Grammar/Notes/Conjugation fields and their card templates, the anki MCP workflow, the schema-change → full-sync gotcha, the HTML/CSS conventions, and the content style for grammar notes.'
 ---
 
 # Alp's Anki
