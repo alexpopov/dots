@@ -87,6 +87,7 @@ for app in \
     "EOS Utility 3" \
     "Developer" \
     "Xcode" \
+    "Icon Composer" \
 ; do
     yabai -m rule --add app="$app" manage=off
 done
