@@ -40,7 +40,23 @@ function set_ps1 {
   PS1+="\[\033[1;38m\]\]\[\$\] \[\033[0;38m\]"
   export PS1="\n$PS1"  # Add a new line so it's easier to find where long command start/end
 }
-PROMPT_COMMAND=set_ps1
+
+# ── Terminal / tab title ────────────────────────────────────────────────
+# Every prompt, advertise this machine's name as the terminal title. Inside
+# tmux this becomes the pane title (#T), which tmux forwards to the outer
+# terminal (e.g. the kitty tab) via `set -g set-titles on`. The escape also
+# travels back over ssh/ET, so when you connect to a devvm the remote shell
+# retitles the tab to *its* name automatically. Override per-machine by
+# exporting TERM_TITLE (mac_support.sh sets "MacBook"; on a devvm you can
+# `export TERM_TITLE=Collosus`). Defaults to the short hostname.
+: "${TERM_TITLE:=$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo shell)}"
+function _set_term_title {
+  case "$TERM" in
+    xterm*|screen*|tmux*|*kitty*|vte*|rxvt*|alacritty*)
+      printf '\033]2;%s\007' "$TERM_TITLE" ;;
+  esac
+}
+PROMPT_COMMAND='set_ps1; _set_term_title'
 
 PATH="$HOME/.local/bin:$PATH"
 PATH="$PATH:$HOME/.local/bin/scripts"

@@ -1,5 +1,8 @@
 # Don't forget to export PATH at the end
 
+# Terminal/tab title for this machine (see _set_term_title in bash_profile.sh).
+export TERM_TITLE="MacBook"
+
 # Add Homebrew to PATH (Apple Silicon location, Intel uses /usr/local)
 PATH="/opt/homebrew/bin:$PATH"
 PATH="/opt/homebrew/sbin:$PATH"
