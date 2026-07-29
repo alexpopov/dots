@@ -358,10 +358,26 @@ function setup_neovim_venv {
     _log_btw "Already created: ${color_blue}nvim virtual env${color_reset}. Skipping!"
   fi
 
-  # Upgrade pip and install/upgrade pynvim
-  _log_btw "Upgrading ${color_blue}pip${color_reset} and ${color_blue}pynvim${color_reset} in neovim venv"
-  "$nvim_venv_path/bin/pip3" install --upgrade pip
-  "$nvim_venv_path/bin/pip3" install --upgrade --index-url https://pypi.org/simple pynvim
+  # Fast path: if pynvim already imports, don't touch the network at all.
+  # `pip install --upgrade` does a pypi round-trip on EVERY run; on a flaky or
+  # proxied network the TLS handshake fails (WRONG_VERSION_NUMBER) and pip
+  # retries with backoff for a minute+ per package before falling back to
+  # "already satisfied". The local import check is ~0.3s and fully idempotent.
+  if "$nvim_venv_path/bin/python3" -c "import pynvim" >/dev/null 2>&1; then
+    _log_btw "Already installed: ${color_blue}pynvim${color_reset} in nvim venv. Skipping!"
+    return 0
+  fi
+
+  # Install pynvim. Prefer uv (fast + cached); fall back to pip with fail-fast
+  # timeouts so a dead network errors out instead of hanging on retries.
+  _log_info "Installing ${color_blue}pynvim${color_reset} into neovim venv"
+  if command -v uv >/dev/null 2>&1; then
+    uv pip install --python "$nvim_venv_path/bin/python3" pynvim \
+      || _log_warn "Failed to install pynvim via uv (network?). Run ${color_blue}nvim +checkhealth${color_reset} later."
+  else
+    "$nvim_venv_path/bin/pip3" install --timeout 15 --retries 1 pynvim \
+      || _log_warn "Failed to install pynvim via pip (network?). Run ${color_blue}nvim +checkhealth${color_reset} later."
+  fi
 }
 
 function clone_dots {
