@@ -1,4 +1,10 @@
 # vi: ft=bash
+
+# macOS's legacy /bin/bash 3.2 prints a "default shell is now zsh" nag on
+# every interactive startup. Homebrew bash ignores this; keep fallback shells
+# quiet too.
+export BASH_SILENCE_DEPRECATION_WARNING=1
+
 # Keep oodles of command history (see https://fburl.com/bashhistory).
 HISTFILESIZE=-1
 HISTSIZE=1000000
