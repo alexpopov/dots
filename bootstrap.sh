@@ -653,6 +653,23 @@ fi
 
 mkdir -p $HOME/{.local/{bin,share},.config/}
 
+# Acquire sudo ONCE, up front, in a clean terminal, then keep the timestamp
+# warm in the background. Individual `sudo` calls later won't re-prompt.
+# Why: a mid-run sudo prompt can land right after an interactive tool (e.g.
+# `add-apt-repository`, a pager, or ssh-keygen) that left the tty with echo
+# enabled -- which is exactly how the password ends up printed in cleartext.
+# One clean prompt up front sidesteps that entirely. macOS uses brew (no sudo).
+if ! is_mac && command -v sudo >/dev/null 2>&1; then
+  _log_info "Requesting ${color_blue}sudo${color_reset} access up front (single prompt for the whole run)"
+  if sudo -v; then
+    ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
+    _SUDO_KEEPALIVE_PID=$!
+    trap '[[ -n "${_SUDO_KEEPALIVE_PID:-}" ]] && kill "$_SUDO_KEEPALIVE_PID" 2>/dev/null' EXIT
+  else
+    _log_warn "Could not acquire sudo up front; package installs may prompt individually."
+  fi
+fi
+
 # The most important packages to install for setup
 # NOTE: write the binary name, not the package name
 _BOOTSTRAP_PACKAGES_TO_INSTALL="vim jq nvim git et tmux fzf ag python3 uv"
