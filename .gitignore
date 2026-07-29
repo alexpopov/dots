@@ -1,4 +1,9 @@
 ### Internal
+# Python bytecode cache (e.g. from the kitty hotkeys kitten). Can also be
+# redirected out of the repo entirely with `export PYTHONPYCACHEPREFIX=...`.
+__pycache__/
+*.py[cod]
+
 config/nvim/plugged
 config/nvim/plugin
 config/nvim/sessions
