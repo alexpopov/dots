@@ -325,8 +325,21 @@ def prompt_line(label, fd, bg=None):
             continue
         if ch == b"\x03":
             return None
-        if ch in (b"\x7f", b"\x08"):
+        if ch in (b"\x7f", b"\x08"):     # backspace
             buf = buf[:-1]
+            render()
+            continue
+        if ch == b"\x17":                # C-w: delete word before cursor
+            j = len(buf)
+            while j > 0 and buf[j - 1].isspace():
+                j -= 1
+            while j > 0 and not buf[j - 1].isspace():
+                j -= 1
+            buf = buf[:j]
+            render()
+            continue
+        if ch == b"\x15":                # C-u: clear the line
+            buf = ""
             render()
             continue
         try:
