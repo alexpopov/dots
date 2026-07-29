@@ -32,7 +32,15 @@ function is_centos {
 }
 
 function is_ubuntu {
-  [[ -f /etc/ubuntu-release ]] || [[ -f /etc/os-release ]] && grep -qi "ubuntu" /etc/os-release
+  # Genuinely Ubuntu (for PPAs and ubuntu_version_ge gates). Prefer is_debian
+  # for anything that just needs apt / Debian-family package names.
+  [[ -f /etc/os-release ]] && grep -qi "ubuntu" /etc/os-release
+}
+
+function is_debian {
+  # Debian family: Debian, Ubuntu, Raspberry Pi OS, Linux Mint, WSL Ubuntu, ...
+  # i.e. anything that installs packages with apt.
+  [[ -f /etc/debian_version ]] || command -v apt-get >/dev/null 2>&1
 }
 
 function ubuntu_version_ge {
@@ -107,7 +115,7 @@ function _default_install_package {
     brew install "$package"
   elif is_fedora; then
     sudo dnf5 install "$package" -y
-  elif is_ubuntu; then
+  elif is_debian; then
     sudo apt-get install "$package" -y
   elif is_centos; then
     sudo dnf install "$package" -y
@@ -171,7 +179,7 @@ function _install_package_et {
 function _install_package_ag {
   # mac, fedora
   local package="the_silver_searcher"
-  if is_ubuntu; then
+  if is_debian; then
     package="silversearcher-ag"
   fi
   _default_install_package "$package"
@@ -182,7 +190,7 @@ function _install_package_delta {
 }
 
 function _install_package_fd {
-  if is_ubuntu; then
+  if is_debian; then
     _default_install_package "fd-find"
     # Ubuntu names the binary fdfind to avoid conflict with fdclone
     ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
@@ -294,8 +302,8 @@ function _install_package_git-prev {
 }
 
 function _install_package_python-utils {
-  # Ensure pip and venv modules are available (separate packages on Ubuntu)
-  if is_ubuntu; then
+  # Ensure pip and venv modules are available (separate packages on Debian/Ubuntu)
+  if is_debian; then
     if ! python3 -m pip --version >/dev/null 2>&1; then
       _log_info "Installing ${color_blue}python3-pip"
       sudo apt-get install python3-pip -y
