@@ -676,6 +676,45 @@ function configure_macos_defaults {
   fi
 }
 
+function setup_login_shell {
+  # macOS ships bash 3.2.57 forever (GPLv3 + SIP), and /bin/bash can't be
+  # replaced. Install a modern bash via Homebrew and make it the login shell
+  # so terminals and tmux inherit bash 5.x. Fixes the kitty shell-integration
+  # breakage (the bash-3.2 `set +o posix` handshake) among other things.
+  # macOS only: Linux distros already ship bash 5.x as /bin/bash.
+  is_mac || return 0
+
+  local brew_bash="$(brew --prefix)/bin/bash"
+
+  if [[ ! -x "$brew_bash" ]]; then
+    _log_info "Installing modern ${color_blue}bash${color_reset} via Homebrew"
+    brew install bash || _fail_error "Failed to ${color_blue}brew install bash"
+  else
+    _log_btw "Already installed: ${color_blue}Homebrew bash${color_reset}. Skipping!"
+  fi
+
+  # Register it as a legal login shell.
+  if ! grep -qxF "$brew_bash" /etc/shells 2>/dev/null; then
+    _log_info "Adding ${color_blue}$brew_bash${color_reset} to /etc/shells"
+    echo "$brew_bash" | sudo tee -a /etc/shells >/dev/null || _fail_error "Could not write /etc/shells"
+  else
+    _log_btw "Already in /etc/shells: ${color_blue}$brew_bash${color_reset}. Skipping!"
+  fi
+
+  # Set it as the login shell via dscl (non-interactive; bootstrap already
+  # holds sudo, so no separate chsh password prompt). Takes effect on next
+  # login / new shell.
+  local current
+  current="$(dscl . -read "/Users/$USER" UserShell 2>/dev/null | awk '{print $2}')"
+  if [[ "$current" != "$brew_bash" ]]; then
+    _log_info "Setting login shell to ${color_blue}$brew_bash"
+    sudo dscl . -create "/Users/$USER" UserShell "$brew_bash" \
+      || _log_warn "Could not set login shell; run ${color_blue}chsh -s $brew_bash${color_reset} manually"
+  else
+    _log_btw "Login shell already ${color_blue}$brew_bash${color_reset}. Skipping!"
+  fi
+}
+
 function platform_specific_packages {
   local packages=()
   if is_mac; then
@@ -771,6 +810,8 @@ create_links
 ensure_shell_sources_dots
 
 configure_macos_defaults  # no-op on non-macOS
+
+setup_login_shell        # macOS only: modern Homebrew bash as login shell
 
 setup_neovim_venv
 
