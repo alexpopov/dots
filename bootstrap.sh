@@ -268,9 +268,25 @@ function _install_package_lazygit {
 }
 
 function _install_package_gum {
-  local package="gum"
-  if is_fedora; then
-    _log_info "Adding ${color_blue}charm/gum${color_blue} repo"
+  # gum is packaged widely now, so prefer native package managers and only fall
+  # back to Charm's repos / a raw GitHub binary. Order: macOS brew -> native dnf
+  # -> Debian-family apt (Charm repo) -> GitHub release binary.
+
+  # macOS: Homebrew ships gum.
+  if is_mac; then
+    _default_install_package "gum"
+    return
+  fi
+
+  # Fedora / RHEL / CentOS: gum is now in the official repos (Fedora + EPEL 10).
+  # Try the native package first; only add Charm's yum repo if that misses.
+  if command -v dnf5 >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; then
+    local dnf_bin
+    dnf_bin=$(command -v dnf5 || command -v dnf)
+    if sudo "$dnf_bin" install gum -y; then
+      return
+    fi
+    _log_warn "No native ${color_blue}gum${color_reset} package; adding ${color_blue}charm/gum${color_reset} yum repo"
     # NOTE: must be indented in this way to be valid config file
     echo '[charm]
 name=Charm
@@ -279,14 +295,59 @@ enabled=1
 gpgcheck=1
 gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
     sudo rpm --import https://repo.charm.sh/yum/gpg.key
-  elif is_ubuntu; then
-    _log_info "Adding ${color_blue}charm/gum${color_blue} repo"
+    sudo "$dnf_bin" install gum -y && return
+  fi
+
+  # Debian family: Ubuntu, Debian, Raspberry Pi OS, WSL. Uses is_debian (NOT
+  # is_ubuntu) so Debian/Pi are covered. Charm's apt repo serves arm64/armhf
+  # too, so the Pi gets a real package.
+  if is_debian; then
+    _log_info "Adding ${color_blue}charm/gum${color_reset} apt repo"
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
     echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-    sudo apt update
+    sudo apt-get update && sudo apt-get install gum -y && return
   fi
-  _default_install_package "$package"
+
+  # Universal fallback: raw release binary from GitHub into ~/.local/bin.
+  _log_warn "No native package path for ${color_blue}gum${color_reset}; downloading a release binary"
+  _install_gum_from_github
+}
+
+function _install_gum_from_github {
+  local os arch tag ver url tmp gum_bin
+  case "$(uname -s)" in
+    Linux)   os="Linux" ;;
+    Darwin)  os="Darwin" ;;
+    FreeBSD) os="Freebsd" ;;
+    *) _log_warn "Unsupported OS for gum binary: $(uname -s). Try: ${color_blue}go install github.com/charmbracelet/gum@latest"; return 1 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64)  arch="x86_64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    armv7l|armv7)  arch="armv7" ;;
+    armv6l|armv6)  arch="armv6" ;;
+    i386|i686)     arch="i386" ;;
+    *) _log_warn "Unsupported arch for gum binary: $(uname -m)"; return 1 ;;
+  esac
+
+  tag=$(curl -fsSL "https://api.github.com/repos/charmbracelet/gum/releases/latest" | jq -r '.tag_name') \
+    || { _log_warn "Could not query gum releases (network?)"; return 1; }
+  ver="${tag#v}"
+  # Charm/goreleaser asset layout: gum_<ver>_<Os>_<Arch>.tar.gz
+  url="https://github.com/charmbracelet/gum/releases/download/${tag}/gum_${ver}_${os}_${arch}.tar.gz"
+  tmp=$(mktemp -d)
+  _log_info "Downloading ${color_blue}gum ${ver}${color_reset} (${os}/${arch})"
+  if ! curl -fsSL "$url" -o "$tmp/gum.tar.gz"; then
+    _log_warn "Download failed: ${color_blue}$url"
+    rm -rf "$tmp"; return 1
+  fi
+  tar -xzf "$tmp/gum.tar.gz" -C "$tmp" || { _log_warn "Failed to extract gum"; rm -rf "$tmp"; return 1; }
+  gum_bin=$(find "$tmp" -name gum -type f | head -n1)
+  mkdir -p "$HOME/.local/bin"
+  install "$gum_bin" "$HOME/.local/bin/gum" || { _log_warn "Failed to install gum binary"; rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"
+  _log_info "Installed ${color_blue}gum${color_reset} to ${color_blue}$HOME/.local/bin/gum"
 }
 
 function _install_package_git-prev {
