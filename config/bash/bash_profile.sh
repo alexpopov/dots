@@ -135,6 +135,36 @@ function jk_choose_dirs_v {
   (IFS=$'\n'; gum filter $(dirs -v) | awk '{ print "+" $1 }')
 }
 
+# --- pi session-only model switch ------------------------------------------
+# Plain `pi` and its built-in /model are left stock: /model changes your
+# persistent default in settings.json. Use `model-switch` to run ONE session on
+# a different model WITHOUT touching your default: it launches pi with --model
+# and, belt-and-suspenders, snapshots the default and restores it after pi
+# exits (writing through the symlink with `cat >` so the dots symlink stays).
+#   model-switch <model-id> [pi args...]
+function model-switch {
+  if [[ -z "${1:-}" ]]; then
+    echo "usage: model-switch <model-id> [pi args...]" >&2; return 1
+  fi
+  local model="$1"; shift
+  local s="$HOME/.pi/agent/settings.json"
+  if ! command -v jq >/dev/null 2>&1 || [[ ! -f "$s" ]]; then
+    command pi --model "$model" "$@"; return $?
+  fi
+  local dm dp rc tmp
+  dm=$(jq -r '.defaultModel // empty' "$s")
+  dp=$(jq -r '.defaultProvider // empty' "$s")
+  command pi --model "$model" "$@"; rc=$?
+  tmp=$(mktemp)
+  if jq --arg m "$dm" --arg p "$dp" \
+        '(if $m != "" then .defaultModel = $m else . end)
+       | (if $p != "" then .defaultProvider = $p else . end)' "$s" >"$tmp" 2>/dev/null; then
+    cat "$tmp" >"$s"
+  fi
+  rm -f "$tmp"
+  return $rc
+}
+
 # fd respects gitignores
 if command -v fd >/dev/null 2>&1; then
   export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git --exclude node_modules'
