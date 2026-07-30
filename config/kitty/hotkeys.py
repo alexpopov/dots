@@ -488,9 +488,47 @@ def _with_command_line(full, out):
     return before.rsplit("\n", 1)[-1] + "\n" + out_s
 
 
+# The tmux prefix + the key bound to "copy last command + output" in
+# tmux.conf. If this window is running tmux, ⌘I y just injects these so tmux's
+# own OSC-133 capture does the work (kitty can't see command marks through
+# tmux). Update if you change the tmux prefix or that binding.
+TMUX_COPY_KEYS = ("ctrl+s", "y")
+
+
+def _window_runs_tmux(rc, target):
+    if rc is None or target is None:
+        return False
+    try:
+        cp = rc(["ls", "--match", f"id:{target}"], capture_output=True)
+        if cp.returncode != 0:
+            return False
+        data = json.loads(cp.stdout)
+    except Exception as e:
+        log(f"_window_runs_tmux ls failed: {e!r}")
+        return False
+    for osw in data:
+        for tab in osw.get("tabs", []):
+            for w in tab.get("windows", []):
+                for p in (w.get("foreground_processes") or []):
+                    if any("tmux" in (c or "") for c in (p.get("cmdline") or [])):
+                        return True
+    return False
+
+
 def _bi_copy(action, rc, target):
     if target is None:
         return "\u26a0 couldn't find the terminal window"
+
+    what = action.get("what", "cmd_output")
+
+    # If the window is running tmux, kitty can't see OSC-133 command marks
+    # through it -- so for the "last command + output" case, delegate to tmux's
+    # own binding by injecting the prefix+key (see TMUX_COPY_KEYS).
+    if what == "cmd_output" and _window_runs_tmux(rc, target):
+        err = _run_rc(rc, ["send-key", "--match", f"id:{target}", *TMUX_COPY_KEYS])
+        if err:
+            return f"\u26a0 tmux delegate failed: {err}"
+        return "\u2713 copied via tmux (last command + output)"
 
     def gt(extent):
         try:
@@ -504,7 +542,6 @@ def _bi_copy(action, rc, target):
             return None
         return cp.stdout.decode("utf-8", "replace")
 
-    what = action.get("what", "cmd_output")
     if what == "output":
         text = gt("last_cmd_output")
     elif what == "screen":
