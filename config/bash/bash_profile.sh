@@ -64,6 +64,35 @@ function _set_term_title {
 }
 PROMPT_COMMAND='set_ps1; _set_term_title'
 
+# ── OSC-133 semantic prompt marks (tmux only) ───────────────────────────
+# Emit OSC-133 A/B/C/D marks so tmux 3.4+ knows where each command and its
+# output begin and end. This is what powers `prefix+y` in tmux.conf ("copy
+# last command + output"). BEL-terminated (\a) so terminals consume them
+# invisibly. Guarded to tmux: outside tmux the terminal's own shell
+# integration (e.g. kitty) supplies these marks, and doubling them would
+# confuse it. __OSC133_ON is deliberately NOT exported, so every new pane
+# sets itself up while re-sourcing this file stays a no-op.
+if [[ -n "$TMUX" && -z "${__OSC133_ON:-}" ]]; then
+  __OSC133_ON=1
+  PS0=$'\e]133;C\a'"${PS0-}"                    # C: command output begins
+  __osc133_precmd() {                            # D: previous command finished
+    local __e=$?
+    printf '\e]133;D;%s\a' "$__e"
+    return $__e                                  # keep $? intact for set_ps1
+  }
+  __osc133_mark_ps1() {                          # A/B: wrap the prompt
+    # set_ps1 prepends a literal "\n" spacer; put A *after* it so the mark
+    # lands on the real prompt line, not the blank line (else tmux's prompt
+    # navigation desyncs). The matching skip lives in tmux.conf's prefix+y.
+    local a=$'\[\e]133;A\a\]' b=$'\[\e]133;B\a\]'
+    case $PS1 in
+      '\n'*) PS1='\n'"$a${PS1#'\n'}$b" ;;
+      *)      PS1="$a$PS1$b" ;;
+    esac
+  }
+  PROMPT_COMMAND='__osc133_precmd; '"$PROMPT_COMMAND"'; __osc133_mark_ps1'
+fi
+
 PATH="$HOME/.local/bin:$PATH"
 PATH="$PATH:$HOME/.local/bin/scripts"
 export PATH
