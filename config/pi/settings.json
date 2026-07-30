@@ -14,5 +14,11 @@
   "compaction": {
     "reserveTokens": 100000,
     "keepRecentTokens": 50000
+  },
+  "subagent": {
+    "timeoutSeconds": 900
+  },
+  "council": {
+    "timeoutSeconds": 900
   }
 }
