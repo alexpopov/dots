@@ -2,6 +2,7 @@ return {
   {
     'axkirillov/easypick.nvim',
     dependencies = { "nvim-telescope/telescope.nvim" },
+    cmd = "EasyPick",  -- lazy: was loading at startup and dragging telescope in eagerly
   },
   {
     'nvim-telescope/telescope-fzf-native.nvim',
@@ -12,6 +13,10 @@ return {
   {
     "nvim-telescope/telescope.nvim",
     dependencies = { "nvim-lua/plenary.nvim", "junegunn/fzf", "nvim-telescope/telescope-fzf-native.nvim" },
+    -- Preload just after startup (off the critical path) rather than on first
+    -- keypress, so opening a picker has no module-load lag. The keys below
+    -- still work; VeryLazy just wins the race in practice.
+    event = "VeryLazy",
     keys = {
       { "<Leader>fH", ":Telescope help_tags<CR>", desc = "Help tags" },
       {
@@ -136,6 +141,9 @@ return {
       -- load_extension, somewhere after setup function:
       require('telescope').load_extension('fzf')
 
+      -- Preload the builtin pickers so the first :Telescope open doesn't pay
+      -- the "loading the fetchers" cost (runs on VeryLazy, off the startup path).
+      require('telescope.builtin')
     end,
   },
 }

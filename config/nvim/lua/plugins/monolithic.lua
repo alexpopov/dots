@@ -34,6 +34,7 @@ local specs = {
 
   {
     "hrsh7th/nvim-cmp",
+    event = "InsertEnter",  -- lazy: completion only needed once you start typing
     dependencies = {
       "hrsh7th/cmp-nvim-lsp",
       "hrsh7th/cmp-buffer",
@@ -213,6 +214,7 @@ local specs = {
 
   {
     url = "https://codeberg.org/andyg/leap.nvim",
+    event = "VeryLazy",  -- lazy: loaded just after startup (flit pulls it in too)
     config = function()
       local leap = require("leap")
       vim.keymap.set({'n', 'x', 'o'}, 's', function ()
@@ -226,6 +228,7 @@ local specs = {
   },
   {
     "ggandor/flit.nvim",
+    event = "VeryLazy",  -- lazy: keep in sync with leap (flit.setup requires leap)
     config = function()
       -- flit still passes the removed `case_sensitive = true` into leap, which
       -- now only emits a deprecation warning (leap ignores the flag; case
@@ -299,10 +302,20 @@ local specs = {
   {
     'stevearc/oil.nvim',
     ---@module 'oil'
-      ---@type oil.SetupOpts
-      opts = {},
-      dependencies = { "kyazdani42/nvim-web-devicons" },
-      lazy = false,
+    ---@type oil.SetupOpts
+    opts = {},
+    dependencies = { "kyazdani42/nvim-web-devicons" },
+    cmd = "Oil",
+    keys = { { "-", "<cmd>Oil<CR>", desc = "Open parent dir (oil)" } },
+    init = function()
+      -- Keep `nvim <dir>` opening oil (netrw hijack) without loading oil at
+      -- startup for normal file edits: only pull it in when the sole argument
+      -- is a directory.
+      if vim.fn.argc(-1) == 1 then
+        local stat = (vim.uv or vim.loop).fs_stat(vim.fn.argv(0))
+        if stat and stat.type == "directory" then require("oil") end
+      end
+    end,
   },
 
 
