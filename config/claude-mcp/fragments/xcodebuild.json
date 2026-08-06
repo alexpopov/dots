@@ -1,0 +1,6 @@
+{
+  "xcodebuild": {
+    "command": "npx",
+    "args": ["-y", "xcodebuildmcp@latest", "mcp"]
+  }
+}

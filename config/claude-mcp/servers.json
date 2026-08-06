@@ -30,13 +30,5 @@
       "mcp==1.29.1",
       "blender-mcp"
     ]
-  },
-  "xcode": {
-    "command": "xcrun",
-    "args": ["mcpbridge"]
-  },
-  "xcodebuild": {
-    "command": "npx",
-    "args": ["-y", "xcodebuildmcp@latest", "mcp"]
   }
 }

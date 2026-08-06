@@ -1,38 +1,116 @@
 #!/usr/bin/env bash
 # Launch `claude` with an interactively-chosen subset of MCP servers.
-# Definitions live in $CLAUDE_MCP_DEFINITIONS (default: ~/.config/claude-mcp/servers.json),
-# a JSON object mapping server name -> server config (same shape as the value side
-# of `mcpServers`). Selected servers are written to a temp file and passed to
+#
+# Global definitions live in $CLAUDE_MCP_DEFINITIONS
+# (default: ~/.config/claude-mcp/servers.json), a JSON object mapping
+# server name -> server config (same shape as the value side of `mcpServers`).
+# Selected servers are written to a temp file and passed to
 # `claude --strict-mcp-config --mcp-config`, so nothing else leaks in.
 #
-# If the current project has a local `.mcp.json` (cwd, else git root), its servers
-# are offered as ONE extra choice. Picking it merges them all in alongside the
-# global picks — necessary because --strict-mcp-config otherwise drops the
-# project's own MCP config (e.g. a repo's `unity` server).
+# PROJECT-LOCAL SERVERS (two mechanisms, both optional):
+#
+#   1. `.claude-mcp.json` and/or `.claude-mcp/*.json` fragments in the cwd or
+#      git root. Same shape as servers.json (a bare name -> config map; a
+#      {"mcpServers": {...}} wrapper is also accepted). Their servers are
+#      offered INDIVIDUALLY in the picker, tagged "(project)", so a repo can
+#      opt into e.g. `xcodebuild` without it being globally available.
+#      Reusable fragments live in ~/.config/claude-mcp/fragments/ and can be
+#      symlinked into a project — see `claude-with --link`.
+#
+#   2. A stock `.mcp.json` (the format Claude Code itself reads). Offered as
+#      ONE bundled choice, since it is usually checked in and not ours to
+#      split up. Picking it merges all of its servers in — necessary because
+#      --strict-mcp-config otherwise drops the project's own MCP config.
+#
+# Usage:
+#   claude-with [--yolo] [claude args...]
+#   claude-with --link [fragment]   # symlink a global fragment into ./.claude-mcp/
+#   claude-with --list              # show every server this directory could offer
+#
+# Bash 3.2 compatible (macOS system bash): no mapfile, no negative array indices.
 
 set -euo pipefail
 
 DEFINITIONS="${CLAUDE_MCP_DEFINITIONS:-$HOME/.config/claude-mcp/servers.json}"
+FRAGMENT_DIR="${CLAUDE_MCP_FRAGMENTS:-$(dirname "$DEFINITIONS")/fragments}"
+PROJECT_TAG=" (project)"
 
 if [[ ! -f "$DEFINITIONS" ]]; then
     echo "claude-with: definitions file not found: $DEFINITIONS" >&2
     exit 1
 fi
 
-available=$(jq -r 'keys[]' "$DEFINITIONS")
-if [[ -z "$available" ]]; then
-    echo "claude-with: no servers defined in $DEFINITIONS" >&2
-    exit 1
+# --- project root discovery -------------------------------------------------
+
+NL=$'\n'  # ${var:+...} does not expand $'\n', so keep the newline in a variable
+GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+# Newline-separated so we stay bash-3.2 friendly. cwd first, git root second.
+SEARCH_ROOTS="$PWD"
+[[ -n "$GIT_ROOT" && "$GIT_ROOT" != "$PWD" ]] && SEARCH_ROOTS="$SEARCH_ROOTS$NL$GIT_ROOT"
+# Where `--link` drops fragments: the repo root if we're in one, else here.
+LINK_ROOT="${GIT_ROOT:-$PWD}"
+
+# --- `--link`: pull a global fragment into this project ---------------------
+
+if [[ "${1:-}" == "--link" ]]; then
+    if [[ ! -d "$FRAGMENT_DIR" ]]; then
+        echo "claude-with: no fragment directory: $FRAGMENT_DIR" >&2
+        exit 1
+    fi
+    frag="${2:-}"
+    if [[ -z "$frag" ]]; then
+        frag=$(find "$FRAGMENT_DIR" -maxdepth 1 -name '*.json' -exec basename {} .json \; \
+            | sort | gum choose --header "Link fragment into $(basename "$LINK_ROOT")" || true)
+    fi
+    [[ -z "$frag" ]] && exit 1
+    src="$FRAGMENT_DIR/${frag%.json}.json"
+    if [[ ! -f "$src" ]]; then
+        echo "claude-with: no such fragment: $src" >&2
+        exit 1
+    fi
+    dest_dir="$LINK_ROOT/.claude-mcp"
+    mkdir -p "$dest_dir"
+    ln -sfn "$src" "$dest_dir/$(basename "$src")"
+    echo "claude-with: linked $dest_dir/$(basename "$src") -> $src"
+    echo "  (gitignore .claude-mcp/, or commit it if the whole repo should get it)"
+    exit 0
 fi
 
-# Discover a project-local .mcp.json (cwd first, then the git root) and offer its
-# servers as a single bundled choice rather than individually.
+# --- collect project fragments ----------------------------------------------
+
+# Every fragment merges into one object; later files win on key collision.
+project_defs='{}'
+while IFS= read -r root; do
+    [[ -z "$root" ]] && continue
+    frag_list=""
+    [[ -f "$root/.claude-mcp.json" ]] && frag_list="$root/.claude-mcp.json"
+    if [[ -d "$root/.claude-mcp" ]]; then
+        more=$(find "$root/.claude-mcp" -maxdepth 1 -name '*.json' | sort)
+        [[ -n "$more" ]] && frag_list="${frag_list:+$frag_list$NL}$more"
+    fi
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        frag_json=$(jq 'if has("mcpServers") then .mcpServers else . end' "$f" 2>/dev/null || true)
+        if [[ -z "$frag_json" ]]; then
+            echo "claude-with: warning: could not parse $f" >&2
+            continue
+        fi
+        project_defs=$(jq -n --argjson a "$project_defs" --argjson b "$frag_json" '$a * $b')
+    done <<< "$frag_list"
+done <<< "$SEARCH_ROOTS"
+
+# Project fragments win over globals of the same name.
+all_defs=$(jq -n --slurpfile g "$DEFINITIONS" --argjson p "$project_defs" '$g[0] * $p')
+
+# --- discover a stock .mcp.json (bundled choice) ----------------------------
+
 PROJECT_MCP=""
-if [[ -f .mcp.json ]]; then
-    PROJECT_MCP="$(pwd)/.mcp.json"
-elif git_root=$(git rev-parse --show-toplevel 2>/dev/null) && [[ -f "$git_root/.mcp.json" ]]; then
-    PROJECT_MCP="$git_root/.mcp.json"
-fi
+while IFS= read -r root; do
+    if [[ -n "$root" && -f "$root/.mcp.json" ]]; then
+        PROJECT_MCP="$root/.mcp.json"
+        break
+    fi
+done <<< "$SEARCH_ROOTS"
 
 LOCAL_LABEL=""
 if [[ -n "$PROJECT_MCP" ]]; then
@@ -40,9 +118,33 @@ if [[ -n "$PROJECT_MCP" ]]; then
     [[ -n "$local_names" ]] && LOCAL_LABEL="[project .mcp.json] $local_names"
 fi
 
+# --- build the picker -------------------------------------------------------
+
+# Project-provided servers sort first and carry a "(project)" tag.
+project_keys=$(jq -r 'keys[]' <<< "$project_defs")
+global_keys=$(jq -r --argjson p "$project_defs" 'keys[] as $k | select(($p | has($k)) | not) | $k' "$DEFINITIONS")
+
+if [[ -z "$project_keys$global_keys" ]]; then
+    echo "claude-with: no servers defined in $DEFINITIONS" >&2
+    exit 1
+fi
+
+tagged_project=""
+[[ -n "$project_keys" ]] && tagged_project=$(sed "s/\$/$PROJECT_TAG/" <<< "$project_keys")
+
+if [[ "${1:-}" == "--list" ]]; then
+    [[ -n "$tagged_project" ]] && printf '%s\n' "$tagged_project"
+    [[ -n "$global_keys" ]] && printf '%s\n' "$global_keys"
+    [[ -n "$LOCAL_LABEL" ]] && printf '%s\n' "$LOCAL_LABEL"
+    exit 0
+fi
+
 NONE_LABEL="[none]"
-choices="$available"$'\n'"$NONE_LABEL"
-[[ -n "$LOCAL_LABEL" ]] && choices=$(printf '%s\n%s' "$LOCAL_LABEL" "$choices")
+choices=""
+[[ -n "$LOCAL_LABEL" ]] && choices="$LOCAL_LABEL"
+[[ -n "$tagged_project" ]] && choices="${choices:+$choices$NL}$tagged_project"
+[[ -n "$global_keys" ]] && choices="${choices:+$choices$NL}$global_keys"
+choices="${choices:+$choices$NL}$NONE_LABEL"
 
 selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
 
@@ -64,9 +166,12 @@ fi
 if [[ "$want_none" == true ]]; then
     config='{"mcpServers": {}}'
 else
+    # Drop the bundle label, then strip the "(project)" tag back to real keys.
     selected=$(grep -vxF "$LOCAL_LABEL" <<< "$selected" 2>/dev/null || true)
+    selected="${selected//$PROJECT_TAG/}"
     keys_json=$(printf '%s\n' "$selected" | jq -R . | jq -s 'map(select(length > 0))')
-    config=$(jq --argjson keys "$keys_json" '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' "$DEFINITIONS")
+    config=$(jq --argjson keys "$keys_json" \
+        '{mcpServers: with_entries(select(.key as $k | $keys | index($k)))}' <<< "$all_defs")
 
     # Merge the project-local servers in if chosen (project keys win on collision).
     if [[ "$want_local" == true ]]; then
