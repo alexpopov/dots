@@ -506,6 +506,25 @@ function clone_dots {
   git clone --recursive https://github.com/alexpopov/dots.git $HOME/dots
 }
 
+# The --recursive above only helps a machine being set up for the first time.
+# On every already-bootstrapped machine clone_dots returns early, so a submodule
+# added later (tmux-continuum, say) would never arrive and tmux would silently
+# load a config referencing a plugin that isn't on disk. Idempotent, so it just
+# runs every time rather than trying to detect which case we're in.
+function sync_submodules {
+  if [[ ! -d $HOME/dots/.git ]]; then
+    _log_warn "No dots git repo at $HOME/dots; skipping submodule sync."
+    return
+  fi
+  _log_btw "Syncing git submodules (tmux plugins)."
+  # `sync` first so a changed upstream URL in .gitmodules is picked up by
+  # submodules that were already initialised against the old one.
+  git -C "$HOME/dots" submodule sync --recursive --quiet \
+    || _log_warn "git submodule sync failed; tmux plugins may be stale."
+  git -C "$HOME/dots" submodule update --init --recursive \
+    || _log_warn "git submodule update failed (network?). Run ${color_blue}git -C ~/dots submodule update --init --recursive${color_reset} later."
+}
+
 function export_fzf_bindings {
   local fzf_config_path="$HOME/.config/fzf/"
   local log_func=
@@ -861,6 +880,7 @@ ssh_config_support_github
 
 # This requires git, which isn't installed on everything by default
 clone_dots
+sync_submodules
 export_fzf_bindings
 
 # Packages that may rely on some manual intervention or the existence of dots dirs or something
