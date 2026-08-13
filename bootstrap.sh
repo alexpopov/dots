@@ -554,6 +554,16 @@ EOF
     done
   fi
 
+  # Meta-only pi config (MCP servers, agent instructions) lives in fbsource,
+  # not here -- this repo is public and that config names internal binaries,
+  # corpora, and checkout paths. It links itself into ~/.pi/agent.
+  local fbsource_pi_link="$HOME/fbsource/users/al/alexpopov/pi/link-pi-config.sh"
+  if [[ -x "$fbsource_pi_link" ]]; then
+    "$fbsource_pi_link" || _fail_error "Failed to link fbsource pi config"
+  elif is_work_computer; then
+    echo "NOTE: $fbsource_pi_link not found -- run it after fbsource is checked out"
+  fi
+
   # binary stuff
   ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts" || _fail_error "Failed to symlink scripts"
 

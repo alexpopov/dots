@@ -55,6 +55,12 @@ interface ServerCfg {
   // One-line summary of what this server's tools are for; shown to the model in the
   // mcp_connect tool description so it knows when to load them.
   hint?: string;
+  // Working directory for the server process. Defaults to pi's cwd.
+  // This matters for the Meta mux server: its search_files is configured with
+  // `use_cwd_as_target_directory` / `use_cwd_relative_paths`, so the repo it searches is
+  // decided by the SERVER's cwd. Pinning it here lets one pi session hold several search
+  // roots at once (e.g. an A14 and an A16 checkout) regardless of where pi was started.
+  cwd?: string;
 }
 
 interface BridgeConfig {
@@ -105,7 +111,11 @@ class McpClient {
       throw new Error(`server "${this.name}": only stdio transport is supported (got ${this.cfg.type})`);
     }
     const env = { ...process.env, ...(this.cfg.env ?? {}) };
-    this.proc = spawn(this.cfg.command, this.cfg.args ?? [], { env, stdio: ["pipe", "pipe", "pipe"] });
+    this.proc = spawn(this.cfg.command, this.cfg.args ?? [], {
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+      ...(this.cfg.cwd ? { cwd: this.cfg.cwd } : {}),
+    });
     this.proc.stdout!.setEncoding("utf8");
     this.proc.stdout!.on("data", (d: string) => this.onData(d));
     this.proc.stderr!.setEncoding("utf8");
