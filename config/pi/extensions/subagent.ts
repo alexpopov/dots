@@ -35,6 +35,14 @@ const DEFAULT_TIMEOUT_SECONDS = Number(process.env.PI_SUBAGENT_TIMEOUT) || 600;
 const DEFAULT_SILENT_SECONDS = Number(process.env.PI_SUBAGENT_SILENCE) || 300;
 // Grace period between SIGTERM and SIGKILL when killing a hung child.
 const SIGKILL_GRACE_MS = 5_000;
+// After the child exits, how long to let its stdio pipes drain before settling.
+// Only matters when a grandchild holds the pipes open (then "close" never fires).
+const STDIO_DRAIN_MS = 250;
+// Background dispatch: cap concurrent children, and how much prompt to keep as
+// a human label. Completion reports come back as this custom message type.
+const MAX_BG_RUNS = Number(process.env.PI_SUBAGENT_MAX_RUNNING) || 8;
+const BG_LABEL_CHARS = 70;
+const BG_MSG_TYPE = "subagent-done";
 // How often to poll for liveness signals.
 const SILENCE_CHECK_INTERVAL_MS = 10_000;
 const MTIME_CHECK_INTERVAL_MS = 5_000;
@@ -241,13 +249,99 @@ export default function (pi: ExtensionAPI) {
   // them return before registering. One env var, one early-return.
   if (process.env.PI_AGENT_TEAM_CHILD === "1") return;
 
+  // ----- background run registry -------------------------------------------
+  // Dispatch does NOT block the parent's turn. A blocking subagent call meant
+  // the primary sat idle for the child's whole runtime: steering stayed queued
+  // (it only lands between turns) and Esc had nothing useful to do — the user's
+  // only lever was killing work they wanted to keep. So a dispatch returns
+  // immediately, the primary ends its turn, and the user has the floor.
+  //
+  // Each run owns its own AbortController, deliberately NOT the turn's signal:
+  // Esc interrupts the primary, it must never reach into a running child.
+  // Killing is an explicit decision the agent makes via subagent_kill.
+  //
+  // Results come back through sendMessage(followUp + triggerTurn) — between
+  // turns, never mid-response — the same delivery path cron.ts uses.
+  interface BgRun {
+    id: string;
+    label: string;
+    startedAt: number;
+    endedAt?: number;
+    preview: string;
+    control: AbortController;
+    killed?: boolean;
+    isError?: boolean;
+    /** Child transcript on disk — survives a hang, a kill, or a parent crash. */
+    sessionFile?: string;
+  }
+  const bgRuns = new Map<string, BgRun>();
+  const liveRuns = () => [...bgRuns.values()].filter((r) => !r.endedAt);
+
+  const runLabel = (prompt: string) => {
+    const first = prompt.trim().split("\n")[0];
+    return first.length > BG_LABEL_CHARS ? `${first.slice(0, BG_LABEL_CHARS)}…` : first;
+  };
+
+  const finishRun = (run: BgRun, result: any) => {
+    if (run.endedAt) return;
+    run.endedAt = Date.now();
+    run.isError = !!result?.isError;
+    const body = extractText(result ?? { content: [] }) || "(no output)";
+    const secs = Math.round((run.endedAt - run.startedAt) / 1000);
+    try {
+      pi.sendMessage(
+        {
+          customType: BG_MSG_TYPE,
+          content:
+            `[subagent ${run.id}] finished after ${secs}s — ${run.label}\n` +
+            `transcript: ${run.sessionFile ?? "(none)"}\n\n${body}`,
+          display: true,
+          details: { id: run.id, ok: !run.isError && !run.killed, label: run.label, seconds: secs },
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    } catch {
+      /* session gone */
+    }
+  };
+
+  const dispatchRun = (opts: Omit<RunOnePiOptions, "signal" | "onPreview" | "parentToolCallId">, parentToolCallId: string): BgRun | string => {
+    if (liveRuns().length >= MAX_BG_RUNS) return `too many subagents already running (max ${MAX_BG_RUNS}) — wait for one, or subagent_kill it`;
+    const id = randomUUID().slice(0, 8);
+    const run: BgRun = { id, label: runLabel(opts.prompt), startedAt: Date.now(), preview: "", control: new AbortController() };
+    bgRuns.set(id, run);
+    void runOnePi({
+      ...opts,
+      parentToolCallId,
+      signal: run.control.signal,
+      onPreview: (preview) => { run.preview = preview; },
+      onSessionFile: (file) => { run.sessionFile = file; },
+    })
+      .then((result) => finishRun(run, result))
+      .catch((err) => finishRun(run, { content: [{ type: "text", text: `subagent crashed: ${err?.message ?? err}` }], isError: true }));
+    return run;
+  };
+
+  pi.registerMessageRenderer(BG_MSG_TYPE, (message: any, _options: any, theme: any) => {
+    const d = message.details as { id?: string; ok?: boolean; label?: string; seconds?: number } | undefined;
+    const head = d?.ok === false ? theme.fg("error", `✗ subagent ${d?.id}`) : theme.fg("dim", `↩ subagent ${d?.id}`);
+    return new Text(`${head} ${theme.fg("dim", `(${d?.seconds ?? "?"}s) ${d?.label ?? ""}`)}`, 0, 0);
+  });
+
+  pi.on("session_shutdown", async () => {
+    for (const run of liveRuns()) run.control.abort();
+  });
+
   // ----- subagent: one child, optional context inheritance -----------------
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
     description:
       "Spawn a fresh pi subprocess to handle a focused subtask. " +
-      "Returns the subagent's final answer as text.\n\n" +
+      "Dispatch is NON-BLOCKING: this returns a run id immediately and the " +
+      "subagent's final answer is delivered to you later, automatically, when " +
+      "it finishes. Do not wait for it — if you have nothing else to do, end " +
+      "your turn so the user can talk to you; the result will wake you.\n\n" +
       "mode='fresh' (default): child starts empty; only sees the prompt.\n" +
       "mode='inherit': child sees a filtered copy of the parent conversation. " +
       "Thinking blocks dropped, oversize tool results truncated. Use when the " +
@@ -291,9 +385,15 @@ export default function (pi: ExtensionAPI) {
       })),
     }),
 
-    async execute(toolCallId, params, signal, onUpdate, ctx) {
+    promptGuidelines: [
+      "subagent dispatch returns immediately. Never idle-wait, sleep, or poll subagent_status in a loop for a result — you are notified when the child finishes.",
+      "After dispatching everything you need, end your turn if there is no other work. Sitting in a turn blocks the user from steering you.",
+      "Use subagent_kill only when the work is genuinely unwanted. The user pressing Esc interrupts YOU, not the children — it is not a signal to kill them.",
+    ],
+
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       const s = loadSettings(ctx.cwd).subagent;
-      return runOnePi({
+      const started = dispatchRun({
         prompt: params.prompt,
         mode: params.mode ?? "fresh",
         contextHint: params.contextHint,
@@ -302,16 +402,102 @@ export default function (pi: ExtensionAPI) {
         timeoutSeconds: params.timeoutSeconds ?? s.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
         silentForSeconds: params.silentForSeconds ?? s.silentForSeconds ?? DEFAULT_SILENT_SECONDS,
         ctx,
-        parentToolCallId: toolCallId,
-        signal,
-        onPreview: (preview) =>
-          onUpdate?.({ content: [{ type: "text", text: preview }] }),
-      });
+      }, toolCallId);
+      if (typeof started === "string") {
+        return { content: [{ type: "text", text: `Error: ${started}` }], isError: true };
+      }
+      return {
+        content: [{
+          type: "text",
+          text: `Dispatched subagent ${started.id} — "${started.label}". ` +
+            `Its answer will be delivered to you automatically when it finishes; do not wait or poll. ` +
+            `subagent_status to check on it, subagent_kill to stop it.\n` +
+            `Live transcript: ${started.sessionFile ?? "(pending)"} — readable while it runs, and it survives ` +
+            `a hang or a kill, so its work is never lost.`,
+        }],
+        details: { id: started.id },
+      };
     },
 
     renderShell: "self",
     renderCall: renderEmpty,
     renderResult: renderResultEmptyOrError("subagent"),
+  });
+
+  // ----- subagent_status / subagent_kill -----------------------------------
+  const describeRun = (r: BgRun) => {
+    const secs = Math.round(((r.endedAt ?? Date.now()) - r.startedAt) / 1000);
+    const state = r.endedAt ? (r.killed ? "killed" : r.isError ? "failed" : "done") : "running";
+    const tail = !r.endedAt && r.preview ? `\n      ${r.preview.split("\n").pop()?.slice(0, 120) ?? ""}` : "";
+    // Always show the transcript: if a run hangs or is killed, this file is the
+    // only way to recover what it actually did.
+    return `${r.id}  ${state.padEnd(8)} ${String(secs).padStart(5)}s  ${r.label}\n      transcript: ${r.sessionFile ?? "(pending)"}${tail}`;
+  };
+
+  pi.registerTool({
+    name: "subagent_status",
+    label: "Subagent status",
+    description:
+      "List dispatched subagents with id, state, elapsed time, and the latest preview line from each running child. " +
+      "Use this to answer 'what is still running?' — NOT as a polling loop: finished runs report themselves to you.",
+    parameters: Type.Object({}),
+    async execute() {
+      const all = [...bgRuns.values()];
+      return {
+        content: [{ type: "text", text: all.length ? all.map(describeRun).join("\n") : "No subagents dispatched." }],
+        details: { running: liveRuns().length, total: all.length },
+      };
+    },
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("subagent_status"),
+  });
+
+  pi.registerTool({
+    name: "subagent_kill",
+    label: "Stop subagent",
+    description:
+      "Stop a running subagent and its whole process tree. Pass a run id, or 'all'. " +
+      "Only for work that is genuinely no longer wanted — a partial result is still delivered.",
+    parameters: Type.Object({
+      id: Type.String({ description: "Run id from subagent/subagent_status, or 'all'." }),
+    }),
+    async execute(_id, params) {
+      const p = params as { id: string };
+      const targets = p.id === "all" ? liveRuns() : [bgRuns.get(p.id)].filter((r): r is BgRun => !!r && !r.endedAt);
+      if (targets.length === 0) return { content: [{ type: "text", text: `No running subagent matching '${p.id}'.` }], details: { killed: 0 } };
+      for (const r of targets) {
+        r.killed = true;
+        r.control.abort();
+      }
+      return {
+        content: [{ type: "text", text: `Killing ${targets.length} subagent(s): ${targets.map((r) => r.id).join(", ")}` }],
+        details: { killed: targets.length },
+      };
+    },
+    renderShell: "self",
+    renderCall: renderEmpty,
+    renderResult: renderResultEmptyOrError("subagent_kill"),
+  });
+
+  // Human-facing view: Esc interrupts the primary, so the user needs a
+  // separate lever for the children it dispatched.
+  pi.registerCommand("subagents", {
+    description: "List dispatched subagents, or stop them: /subagents [kill <id>|kill all]",
+    handler: async (args, ctx) => {
+      const [sub, target] = (args ?? "").trim().split(/\s+/);
+      if (sub === "kill") {
+        const targets = !target || target === "all" ? liveRuns() : [bgRuns.get(target)].filter((r): r is BgRun => !!r && !r.endedAt);
+        for (const r of targets) {
+          r.killed = true;
+          r.control.abort();
+        }
+        ctx.ui.notify(targets.length ? `Killing ${targets.map((r) => r.id).join(", ")}` : "No running subagents.", "info");
+        return;
+      }
+      const all = [...bgRuns.values()];
+      ctx.ui.notify(all.length ? all.map(describeRun).join("\n") : "No subagents dispatched.", "info");
+    },
   });
 
   // ----- council: N children in parallel, aggregated result ----------------
@@ -955,6 +1141,8 @@ interface RunOnePiOptions {
   parentToolCallId: string;
   signal?: AbortSignal;
   onPreview?: (preview: string) => void;
+  /** Fired once with the child's transcript path, before the child is spawned. */
+  onSessionFile?: (file: string) => void;
 }
 
 /**
@@ -981,16 +1169,29 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   let childSessionFile: string | undefined;
   if (opts.mode === "inherit") {
     childSessionFile = buildChildSession(opts.ctx, opts.parentToolCallId);
-    args.push("--session", childSessionFile);
   } else {
-    args.push("--no-session");
+    // Fresh mode used to pass --no-session to keep the /resume picker clean.
+    // The cost was total: a child that hung, was killed, or died with its
+    // parent left NOTHING on disk — the whole run was unrecoverable, however
+    // much work it had done. subagent-runs/ is already outside the sessions
+    // store, so we get the transcript AND a clean picker. It also gives fresh
+    // children the session-mtime liveness watcher (I), which previously only
+    // inherit mode had.
+    childSessionFile = createFreshChildSession(opts.ctx);
   }
+  args.push("--session", childSessionFile);
+  opts.onSessionFile?.(childSessionFile);
   args.push("-p", fullPrompt);
 
   // (C) Spawn. PI_AGENT_TEAM_CHILD=1 triggers the recursion guard above.
+  // `detached` puts the child in its own process group so killChild can signal
+  // the WHOLE tree. Without it we only ever signalled the child pi, leaving its
+  // bash grandchildren alive — and those grandchildren inherit the stdio pipes,
+  // which is what used to make (J) hang forever after an Esc or a timeout.
   const child = spawn("pi", args, {
     env: { ...process.env, PI_AGENT_TEAM_CHILD: "1" },
     stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
   });
 
   // (D) Liveness state. Any stdout/stderr chunk or session-file mtime
@@ -998,14 +1199,28 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   // is surfaced in the final tool result.
   let lastActivity = Date.now();
   let killReason: string | undefined;
+  let exited = false;
   const bumpActivity = () => { lastActivity = Date.now(); };
+  // Signal the child's whole process group (negative pid), falling back to the
+  // bare pid if the group is already gone.
+  const signalTree = (sig: NodeJS.Signals) => {
+    if (!child.pid) return;
+    try {
+      process.kill(-child.pid, sig);
+    } catch {
+      try { child.kill(sig); } catch { /* already gone */ }
+    }
+  };
   const killChild = (reason: string) => {
     if (killReason) return; // already killing
     killReason = reason;
-    child.kill("SIGTERM");
-    setTimeout(() => {
-      if (!child.killed) child.kill("SIGKILL");
+    signalTree("SIGTERM");
+    // NOT `child.killed` — that flag only means "a signal was sent", so the old
+    // check made this escalation dead code. `exited` is the real liveness bit.
+    const escalate = setTimeout(() => {
+      if (!exited) signalTree("SIGKILL");
     }, SIGKILL_GRACE_MS);
+    (escalate as unknown as { unref?: () => void }).unref?.();
   };
 
   // (E) Forward parent abort (Esc) to the child.
@@ -1068,9 +1283,26 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
       }, MTIME_CHECK_INTERVAL_MS)
     : null;
 
-  // (J) Wait for exit (stdio fully drained).
+  // (J) Wait for exit. Prefer "close" (stdio fully drained) but never depend on
+  // it: a grandchild that inherited the pipes keeps them open after the child
+  // dies, and "close" would then never fire — the tool call would hang past Esc
+  // and past the hard timeout. So "exit" starts a short drain grace and settles.
   const exitCode: number = await new Promise((resolve) => {
-    child.on("close", (code) => resolve(code ?? -1));
+    let settled = false;
+    let drain: ReturnType<typeof setTimeout> | null = null;
+    const settle = (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      if (drain) clearTimeout(drain);
+      resolve(code ?? -1);
+    };
+    child.on("exit", (code) => {
+      exited = true;
+      drain = setTimeout(() => settle(code), STDIO_DRAIN_MS);
+      (drain as unknown as { unref?: () => void }).unref?.();
+    });
+    child.on("close", (code) => settle(code));
+    child.on("error", () => settle(-1));
   });
   opts.signal?.removeEventListener("abort", onAbort);
   if (hardTimer) clearTimeout(hardTimer);
@@ -1150,6 +1382,28 @@ function aggregateCouncil(completed: CompletedMember[]): any {
  * Create a child session file containing a filtered copy of the parent
  * branch. Returns the absolute path to the new JSONL.
  */
+/**
+ * Where child transcripts live: project-local `.pi/subagent-runs` when the
+ * project has a `.pi/`, else user-scoped. Either way OUTSIDE
+ * `~/.pi/agent/sessions/`, so children never pollute the /resume picker.
+ */
+function subagentRunsDir(ctx: any): string {
+  const projectPi = join(ctx.cwd, ".pi");
+  const runsDir = existsSync(projectPi)
+    ? join(projectPi, "subagent-runs")
+    : join(process.env.HOME!, ".pi", "agent", "subagent-runs");
+  mkdirSync(runsDir, { recursive: true });
+  return runsDir;
+}
+
+/**
+ * An empty child session for fresh mode. No replayed history — the point is
+ * purely that the child's own transcript lands on disk.
+ */
+function createFreshChildSession(ctx: any): string {
+  return SessionManager.create(ctx.cwd, subagentRunsDir(ctx)).getSessionFile()!;
+}
+
 function buildChildSession(ctx: any, toolCallId: string): string {
   // Set PI_SUBAGENT_DEBUG=1 to trace replay decisions to /tmp/subagent-debug.log
   const dbg = process.env.PI_SUBAGENT_DEBUG
@@ -1163,14 +1417,8 @@ function buildChildSession(ctx: any, toolCallId: string): string {
       }
     : () => {};
 
-  // 1. Pick a runs dir. Project-local if .pi/ exists, else user-scoped.
-  // Either way, files live OUTSIDE ~/.pi/agent/sessions/ so they don't
-  // pollute the /resume picker.
-  const projectPi = join(ctx.cwd, ".pi");
-  const runsDir = existsSync(projectPi)
-    ? join(projectPi, "subagent-runs")
-    : join(process.env.HOME!, ".pi", "agent", "subagent-runs");
-  mkdirSync(runsDir, { recursive: true });
+  // 1. Pick a runs dir (see subagentRunsDir: outside the /resume store).
+  const runsDir = subagentRunsDir(ctx);
 
   // 2. Create a fresh child session in that dir.
   const childSm = SessionManager.create(ctx.cwd, runsDir);
