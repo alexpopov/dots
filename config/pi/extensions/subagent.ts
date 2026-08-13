@@ -52,6 +52,11 @@ const DEFAULT_HEALTH_TIMEOUT_SECONDS = Number(process.env.PI_SUPERVISE_HEALTH_TI
 // single send (no SDK event for this long → that send is aborted; the
 // side-kick stays alive for the next send).
 const DEFAULT_SIDEKICK_HEALTH_SECONDS = Number(process.env.PI_SIDEKICK_HEALTH_TIMEOUT) || 600;
+// Wall-clock cap on a single sidekick_send. Unlike the silence-based health
+// timeout (which a constantly-thinking side-kick never trips), this fires in
+// real time and hands a "justify yourself" checkpoint back to the primary
+// agent (partial progress; the side-kick stays alive). 0 disables (block).
+const DEFAULT_SIDEKICK_TIMEOUT_SECONDS = Number(process.env.PI_SIDEKICK_TIMEOUT) || 180;
 const DEFAULT_SIDEKICK_NAME = "sidekick";
 const DEFAULT_SIDEKICK_ROLE =
   "You are a side-kick agent working alongside a primary agent in the same " +
@@ -59,6 +64,30 @@ const DEFAULT_SIDEKICK_ROLE =
   "you repeatedly, so remember what you've done across messages. Be concise, " +
   "do the work concretely (use your tools), and end each reply with the " +
   "result the primary agent needs — not a restatement of the request.";
+
+// Steered into a running side-kick when its wall-clock timeout fires: ask what
+// it's doing and have it PAUSE (not abort), so the primary decides continue-vs-
+// stop without discarding the turn's context.
+const SIDEKICK_CHECKPOINT_MSG =
+  "⏸ CHECKPOINT from the primary agent. Pause what you're doing right now. In " +
+  "2-4 short lines tell me: (1) what you're working on this moment, (2) what " +
+  "you've found so far, (3) what's left and how much longer. Then STOP and wait " +
+  "— do NOT continue until I explicitly say so. Keep all your context; I may " +
+  "well tell you to continue.";
+
+// Race a promise against a wall-clock timeout WITHOUT disturbing it: on timeout
+// the promise keeps running (we re-race the same promise later), so nothing is
+// killed by the race itself.
+async function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<{ timedOut: boolean; value?: T }> {
+  let to: ReturnType<typeof setTimeout> | undefined;
+  const timer = new Promise<{ timedOut: true }>((resolve) => {
+    to = setTimeout(() => resolve({ timedOut: true }), ms);
+  });
+  const done = p.then((value) => ({ timedOut: false as const, value }));
+  const r = await Promise.race([done, timer]);
+  if (to) clearTimeout(to);
+  return r as { timedOut: boolean; value?: T };
+}
 
 // --- settings loading -------------------------------------------------------
 // Read ~/.pi/agent/settings.json (global) and ./.pi/settings.json (project).
@@ -118,6 +147,9 @@ interface SidekickSettings {
   // Per-send health-timeout (seconds of no SDK event) before that send is
   // aborted. The side-kick survives — only the in-flight send is killed.
   healthTimeoutSeconds?: number;
+  // Per-send WALL-CLOCK timeout (real seconds) before the send is interrupted
+  // and a checkpoint handed back to the primary. 0 disables.
+  timeoutSeconds?: number;
 }
 
 interface AllSettings {
@@ -640,6 +672,7 @@ export default function (pi: ExtensionAPI) {
       name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'." })),
       model: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created; ignored if it already exists." })),
       tools: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created." })),
+      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 0, description: "Wall-clock seconds before this send is interrupted and its partial progress is handed back to you as a 'justify yourself' checkpoint (the side-kick stays alive so you can send 'continue' or sidekick_stop). Default 180 (env PI_SIDEKICK_TIMEOUT / settings.sidekick.timeoutSeconds); 0 = block until done." })),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
       const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
@@ -687,13 +720,68 @@ export default function (pi: ExtensionAPI) {
         ? params.message
         : `You are operating as a side-kick agent. Your standing role:\n${entry.role}\n\nFirst message from the primary agent:\n${params.message}`;
       entry.streamBuf = "";
+      entry.thinkTail = "";
       entry.onPreview = (t) => onUpdate?.({ content: [{ type: "text", text: t }] });
       const onAbort = () => { void entry!.handle.abort(); };
       signal?.addEventListener("abort", onAbort);
+      // Wall-clock interrupt (graceful, NOT a kill): the silence-based health
+      // timeout never trips a side-kick that keeps thinking, so bound the send
+      // in real time. On timeout we STEER a checkpoint into the running turn
+      // ("what are you working on? pause and wait"), let it report and pause
+      // WITHOUT discarding its context, and hand continue-vs-stop to the
+      // primary. Abort is only a last resort if it refuses to pause.
+      const skSettings = loadSettings(ctx.cwd).sidekick;
+      const timeoutSeconds = params.timeoutSeconds ?? skSettings.timeoutSeconds ?? DEFAULT_SIDEKICK_TIMEOUT_SECONDS;
+      const graceSeconds = Math.max(20, Math.min(60, Math.round(timeoutSeconds / 4)));
+      let interrupted = false;
+      let hadToAbort = false;
       try {
-        const res = await entry.handle.prompt(text);
+        const promptP = entry.handle.prompt(text);
+        let res: { ok: boolean; report: string; error?: string };
+        if (timeoutSeconds > 0) {
+          const first = await raceWithTimeout(promptP, timeoutSeconds * 1000);
+          if (first.timedOut) {
+            interrupted = true;
+            // Ask what it's doing + tell it to pause. Does NOT kill the turn.
+            try { await entry.handle.steer(SIDEKICK_CHECKPOINT_MSG); } catch {}
+            const second = await raceWithTimeout(promptP, graceSeconds * 1000);
+            if (second.timedOut) {
+              // It didn't pause when asked — reclaim control as a last resort.
+              // The side-kick (session + memory) survives; only this turn ends.
+              hadToAbort = true;
+              void entry.handle.abort();
+              res = await promptP.catch((e: any) => ({ ok: false, report: entry.streamBuf, error: String(e?.message ?? e) }));
+            } else {
+              res = second.value!;
+            }
+          } else {
+            res = first.value!;
+          }
+        } else {
+          res = await promptP;
+        }
         entry.firstSendDone = true;
         entry.sends++;
+        if (interrupted) {
+          const status = (res.report?.trim()) || "";
+          const prog = [
+            status ? `[what it says it's working on]\n${status}` : "",
+            !status && entry.streamBuf.trim() ? entry.streamBuf.trim() : "",
+            entry.thinkTail.trim() ? `[latest thinking]\n${entry.thinkTail.trim()}` : "",
+          ].filter(Boolean).join("\n\n");
+          const abortNote = hadToAbort
+            ? `\n\n(It did not pause within ${graceSeconds}s of being asked, so I ended its current turn to hand control back — its memory/context is intact, so "continue" still works.)`
+            : "";
+          const body =
+            `⏸ CHECKPOINT after ${timeoutSeconds}s — I paused the side-kick and asked what it's working on (it is NOT killed; it keeps all its context).\n\n` +
+            `${prog || "(it produced no status yet)"}${abortNote}\n\n` +
+            `YOU decide: sidekick_send({ name: "${name}", message: "continue" }) to let it resume, or sidekick_stop({ name: "${name}" }) if it's done / off-track.`;
+          return {
+            content: [{ type: "text", text: body }],
+            isError: false,
+            details: { name, sends: entry.sends, status: entry.handle.status, interrupted: true, aborted: hadToAbort, timeoutSeconds },
+          };
+        }
         // Make implicit creation visible: a caller expecting an established
         // companion should be able to tell it just got a blank-slate one.
         const banner = autoCreated ? `(auto-started fresh side-kick '${name}' — no prior history)\n\n` : "";
@@ -3045,6 +3133,9 @@ interface SidekickEntry {
   sends: number;
   firstSendDone: boolean;
   streamBuf: string;
+  // Rolling tail of the latest thinking (not otherwise captured in streamBuf)
+  // so an interrupt checkpoint can show what the side-kick was reasoning about.
+  thinkTail: string;
   onPreview?: (text: string) => void;
 }
 
@@ -3081,6 +3172,7 @@ async function startSidekick(opts: {
     sends: 0,
     firstSendDone: false,
     streamBuf: "",
+    thinkTail: "",
   };
   // context: "" — the role is injected into the first send instead of being
   // re-prepended to every prompt (createSdkAgent would otherwise repeat it).
@@ -3094,8 +3186,14 @@ async function startSidekick(opts: {
     modelRegistry: opts.modelRegistry,
     authStorage: opts.authStorage,
     onEvent: (e) => {
+      const t = e.text ?? "";
       if (e.type === "text") {
-        entry.streamBuf += e.text;
+        entry.streamBuf += t;
+        entry.onPreview?.(entry.streamBuf);
+      } else if (e.type === "thinking") {
+        entry.thinkTail = (entry.thinkTail + t).slice(-1200);
+      } else if (e.type === "tool-call" || e.type === "tool-result") {
+        entry.streamBuf += `\n${t}\n`;
         entry.onPreview?.(entry.streamBuf);
       }
     },
