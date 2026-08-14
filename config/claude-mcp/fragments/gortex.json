@@ -1,0 +1,10 @@
+{
+  "gortex": {
+    "type": "stdio",
+    "command": "gortex",
+    "args": ["mcp", "--tools-mode", "defer"],
+    "env": {
+      "GORTEX_TOOLS": "nav,+search_symbols,+get_symbol_source,+index_health"
+    }
+  }
+}
