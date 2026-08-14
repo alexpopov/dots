@@ -1,11 +1,17 @@
 {
   "things": {
     "command": "uvx",
-    "args": ["things-mcp"]
+    "args": [
+      "things-mcp"
+    ]
   },
   "anki": {
     "command": "npx",
-    "args": ["-y", "@ankimcp/anki-mcp-server", "--stdio"],
+    "args": [
+      "-y",
+      "@ankimcp/anki-mcp-server",
+      "--stdio"
+    ],
     "env": {
       "ANKI_CONNECT_URL": "http://localhost:8765"
     }
@@ -16,7 +22,10 @@
   },
   "notion-wife": {
     "command": "npx",
-    "args": ["-y", "@notionhq/notion-mcp-server"],
+    "args": [
+      "-y",
+      "@notionhq/notion-mcp-server"
+    ],
     "env": {
       "NOTION_TOKEN": "${NOTION_TOKEN_WIFE}"
     }
