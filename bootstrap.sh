@@ -194,6 +194,9 @@ function _install_package_fd {
     _default_install_package "fd-find"
     # Ubuntu names the binary fdfind to avoid conflict with fdclone
     ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
+  elif is_fedora || is_centos; then
+    # Fedora/RHEL/CentOS package it as fd-find; binary is already `fd`
+    _default_install_package "fd-find"
   else
     _default_install_package "fd"
   fi
@@ -488,7 +491,9 @@ function create_links {
   if [[ "$USER" != "cay" ]]; then
     ln -sf "$DOTS_CONFIG_DIR/git" "$CONFIG_DIR" || _fail_error "Failed to symlink git config"
   fi
-  if [[ "$USER" != "cay" ]]; then
+  # Personal media-stack units only; work computers already have a managed
+  # ~/.config/systemd/user (a whole-dir symlink can't overwrite it anyway).
+  if [[ "$USER" != "cay" ]] && ! is_work_computer; then
     ln -sf "$DOTS_CONFIG_DIR/systemd" "$CONFIG_DIR" || _fail_error "Failed to symlink systemd config"
   fi
   ln -sf "$DOTS_CONFIG_DIR/selinux" "$CONFIG_DIR" || _fail_error "Failed to symlink selinux config"
