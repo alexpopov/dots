@@ -1,9 +1,9 @@
 {
   "defaultProvider": "anthropic",
-  "defaultModel": "claude-opus-4-8",
+  "defaultModel": "claude-opus-5",
   "theme": "alexpopov",
-  "lastChangelogVersion": "0.80.6",
-  "defaultThinkingLevel": "xhigh",
+  "lastChangelogVersion": "0.84.1",
+  "defaultThinkingLevel": "medium",
   "hideThinkingBlock": true,
   "showHardwareCursor": true,
   "outputPad": 0,
