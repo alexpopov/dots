@@ -606,6 +606,15 @@ EOF
       fi
     done
   fi
+
+  # Work-only Claude resources (e.g. qfil-flashing) live in fbsource, kept OUT
+  # of this public repo. If that bootstrap exists on this machine, let it link
+  # them into ~/.claude too. Absent on personal machines -> cleanly skipped.
+  local fb_bootstrap="$HOME/fbsource/users/al/alexpopov/bootstrap.sh"
+  if [[ -f "$fb_bootstrap" ]]; then
+    echo "Running fbsource work bootstrap..."
+    bash "$fb_bootstrap" || echo "warning: fbsource bootstrap failed (non-fatal)"
+  fi
 }
 
 function ensure_shell_sources_dots {
