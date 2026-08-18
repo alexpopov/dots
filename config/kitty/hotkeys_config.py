@@ -100,7 +100,7 @@ MODES = {
             ",": ("rename tab",          ask("New tab title", rc("set-tab-title"))),
             "y": ("copy last cmd+output", copy("cmd_output")),
             "c": ("Copy",                go("copy")),
-            "o": ("open diff/task ↗",    open_artifact()),
+            "o": ("open diff/task ↗",    act("kitten hints --alphabet sfnjklhodweimbuyvrgtaqpcxz --customize-processing artifact-hints.py")),
             "r": ("reload kitty config", act("load_config_file")),
         },
     },
