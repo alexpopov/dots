@@ -18,6 +18,7 @@ import base64
 import importlib.util
 import json
 import os
+import re
 import select
 import shlex
 import subprocess
@@ -515,7 +516,7 @@ def _window_runs_tmux(rc, target):
     return False
 
 
-def _bi_copy(action, rc, target):
+def _bi_copy(action, rc, target, fd=None, bg=None):
     if target is None:
         return "\u26a0 couldn't find the terminal window"
 
@@ -559,7 +560,90 @@ def _bi_copy(action, rc, target):
     return f"\u2713 copied {text.count(chr(10))} lines / {len(text)} chars"
 
 
-BUILTINS = {"copy": _bi_copy}
+# ── open Meta artifacts (Dxxxxxxx / Txxxxxxx) — ported from the iTerm2 Smart
+# Selection rules in ~/dots/config/iterm2. This is the in-menu version of what
+# used to be a standalone `kitten hints` binding: it scans the target window's
+# visible text for diff/task refs and opens them in the browser. Doing it here
+# (rather than launching the hints kitten) avoids nesting an interactive kitten
+# under this overlay, and works the same inside tmux / over ssh because it
+# reads the rendered screen. Left \b would still allow a match inside a longer
+# identifier (the S,D in "SD1234567"), so use a negative lookbehind instead.
+ARTIFACT_RE = re.compile(r"(?<![A-Za-z0-9])([DT])(\d{7,})")
+ARTIFACT_URLS = {
+    "D": "https://www.internalfb.com/diff/D{num}",
+    "T": "https://www.internalfb.com/tasks/?t={num}",
+}
+ARTIFACT_KIND = {"D": "diff", "T": "task"}
+
+
+def _open_url(url):
+    for cmd in (["open", url], ["xdg-open", url]):
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            log(f"opened url via {cmd[0]}: {url}")
+            return True
+        except Exception:
+            continue
+    log(f"_open_url failed: {url}")
+    return False
+
+
+def _scan_artifacts(rc, target):
+    """Unique (kind, num, token) tuples for D/T refs on the target's screen."""
+    if rc is None or target is None:
+        return []
+    try:
+        cp = rc(["get-text", "--match", f"id:{target}", "--extent", "screen"],
+                capture_output=True)
+        if cp.returncode != 0:
+            log(f"_scan_artifacts get-text rc={cp.returncode}")
+            return []
+        text = cp.stdout.decode("utf-8", "replace")
+    except Exception as e:
+        log(f"_scan_artifacts raised: {e!r}")
+        return []
+    seen, out = set(), []
+    for m in ARTIFACT_RE.finditer(text):
+        tok = m.group(0)
+        if tok not in seen:
+            seen.add(tok)
+            out.append((m.group(1), m.group(2), tok))
+    return out
+
+
+def _open_artifact(kind, num, tok):
+    url = ARTIFACT_URLS.get(kind, "").format(num=num)
+    if url and _open_url(url):
+        return f"\u2713 opening {tok}"
+    return f"\u26a0 couldn't open {tok}"
+
+
+def _bi_open_artifact(action, rc, target, fd=None, bg=None):
+    if target is None:
+        return "\u26a0 couldn't find the terminal window"
+    found = _scan_artifacts(rc, target)
+    if not found:
+        return "\u26a0 no D\u2026 / T\u2026 reference on screen"
+    if len(found) == 1:
+        return _open_artifact(*found[0])
+
+    # More than one on screen: pick with a single keypress, reusing the panel.
+    labels = "123456789abcdefghijklmnopqrstuvwxyz"
+    entries = list(zip(labels, found))
+    keys = {lbl: (f"{tok}  ({ARTIFACT_KIND.get(kind, '?')})", {"kind": "shell"})
+            for lbl, (kind, num, tok) in entries}
+    adhoc = {"title": "Open", "keys": keys}
+    while True:
+        draw(adhoc, "Kitty \u203a Open diff/task", None, bg)
+        k = read_key(fd)
+        if k in ("quit", "back"):
+            return None
+        for lbl, (kind, num, tok) in entries:
+            if k == lbl:
+                return _open_artifact(kind, num, tok)
+
+
+BUILTINS = {"copy": _bi_copy, "open_artifact": _bi_open_artifact}
 
 
 # ── error page (so failures don't just flash) ────────────────────────────
@@ -666,7 +750,7 @@ def _run(args):
                     note = f"unknown builtin: {action['name']}"
                 else:
                     try:
-                        note = fn(action, rc, target)
+                        note = fn(action, rc, target, fd=fd, bg=bg)
                     except Exception as e:
                         log("builtin error:\n" + traceback.format_exc())
                         note = f"error: {e}"
