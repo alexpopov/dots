@@ -205,6 +205,30 @@ class McpClient {
   }
 }
 
+// Cap an MCP tool result before it enters the model's context. Some tools
+// (e.g. get_phabricator_diff_details) return enormous blobs that flood the
+// transcript. Override the limit with PI_MCP_MAX_RESULT (chars).
+const MCP_MAX_RESULT = Number(process.env.PI_MCP_MAX_RESULT) || 12000;
+
+export function capContent(content: any[], max: number): any[] {
+  if (!Array.isArray(content)) return content;
+  let used = 0;
+  let truncated = false;
+  const out: any[] = [];
+  for (const item of content) {
+    if (item && item.type === "text" && typeof item.text === "string") {
+      if (used >= max) { truncated = true; continue; }
+      const room = max - used;
+      if (item.text.length > room) { out.push({ ...item, text: item.text.slice(0, room) }); used = max; truncated = true; }
+      else { out.push(item); used += item.text.length; }
+    } else {
+      out.push(item);
+    }
+  }
+  if (truncated) out.push({ type: "text", text: `\n[mcp-bridge: output truncated at ${max} chars — narrow the query or request specific fields; raise PI_MCP_MAX_RESULT to see more.]` });
+  return out;
+}
+
 export default function mcpBridge(pi: ExtensionAPI) {
   const clients = new Map<string, McpClient>();
   const registered = new Set<string>();
@@ -227,7 +251,9 @@ export default function mcpBridge(pi: ExtensionAPI) {
       pi.registerTool({
         name: toolName,
         label: `${name}: ${t.name}`,
-        description: t.description ?? `${t.name} (via ${name} MCP server)`,
+        // Cap the registered description: some MCP servers ship multi-paragraph
+        // tool docs that otherwise bloat the tool schema on every later turn.
+        description: t.description ? String(t.description).slice(0, 500) : `${t.name} (via ${name} MCP server)`,
         promptSnippet: t.description ? String(t.description).split("\n")[0].slice(0, 140) : undefined,
         // MCP inputSchema is plain JSON Schema; Type.Unsafe passes it through to the
         // model unchanged and skips re-validation so args reach the server as-is.
@@ -239,7 +265,7 @@ export default function mcpBridge(pi: ExtensionAPI) {
           const content = Array.isArray(res?.content)
             ? res.content
             : [{ type: "text", text: typeof res === "string" ? res : JSON.stringify(res) }];
-          return { content, details: { mcpServer: name, mcpTool: t.name, isError: !!res?.isError } };
+          return { content: capContent(content, MCP_MAX_RESULT), details: { mcpServer: name, mcpTool: t.name, isError: !!res?.isError } };
         },
       });
     }
@@ -305,8 +331,10 @@ export default function mcpBridge(pi: ExtensionAPI) {
   {
     const { servers } = loadConfig();
     const allow = Object.entries(servers).filter(([, c]) => c.agentConnect);
+    // One short line per server (first sentence / ~100 chars of the hint) so the
+    // mcp_connect description stays small — the full hint bloats the schema.
     const menu = allow.length
-      ? allow.map(([n, c]) => `- ${n}${c.hint ? `: ${c.hint}` : ""}`).join("\n")
+      ? allow.map(([n, c]) => `- ${n}${c.hint ? `: ${String(c.hint).split(/[.\n]/)[0].slice(0, 100)}` : ""}`).join("\n")
       : "(none configured — set \"agentConnect\": true on a server in ~/.pi/agent/mcp.json)";
     pi.registerTool({
       name: "mcp_connect",
