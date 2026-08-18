@@ -11,5 +11,13 @@ require("globals")
 
 if os.getenv("ENABLE_PRIVATE_FACEBOOK")
 then
-  require("private/meta")
+  -- Private Meta-only module. Absent on non-Meta machines / CI / anywhere it
+  -- isn't on the Lua runtime path, so load it optionally: its absence must not
+  -- crash init (E5113). Warn instead of aborting.
+  local ok, err = pcall(require, "private/meta")
+  if not ok then
+    vim.schedule(function()
+      vim.notify("private/meta not loaded: " .. tostring(err), vim.log.levels.WARN)
+    end)
+  end
 end
