@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Expose the interactive-rebase todo list as a plain file, for agents.
+#
+# GIT_SEQUENCE_EDITOR is handed the todo path as $1, so any in-place editor
+# works as "the editor". That is all `git prev` does, and all this does.
+#
+#   git todo start <base>   begin a rebase paused before the first commit
+#   git todo path           print the todo file path (worktree-safe)
+#   git todo show           print the pending todo
+#   git todo apply          re-read the todo after you edited the file
+#   git todo status         where am I
+#
+# Edit the file with your normal file tools between `start` and `apply`.
+# `apply` runs it through git's own parser, so a typo is rejected rather than
+# silently dropping commits.
+set -euo pipefail
+
+todo() { git rev-parse --git-path rebase-merge/git-rebase-todo; }
+in_rebase() { test -f "$(todo)"; }
+
+case "${1:-status}" in
+start)
+    [ $# -ge 2 ] || { echo "usage: git todo start <base>" >&2; exit 2; }
+    in_rebase && { echo "already in a rebase; finish it or 'git rebase --abort'" >&2; exit 1; }
+    # `break` as the first line stops the rebase immediately, before any commit
+    # is replayed, leaving the entire todo pending and editable.
+    GIT_SEQUENCE_EDITOR='sed -i "1i break"' git rebase -i --update-refs "$2" || true
+    in_rebase || { echo "rebase did not start (nothing to do?)" >&2; exit 1; }
+    "$0" show
+    ;;
+path) todo ;;
+show)
+    in_rebase || { echo "not in an interactive rebase" >&2; exit 1; }
+    grep -v '^\s*#' "$(todo)" | grep -v '^\s*$' || true
+    ;;
+apply)
+    in_rebase || { echo "not in an interactive rebase" >&2; exit 1; }
+    GIT_SEQUENCE_EDITOR=true git rebase --edit-todo   # validates what you wrote
+    echo "todo accepted; 'git rebase --continue' to run it"
+    ;;
+status)
+    if in_rebase; then
+        echo "interactive rebase in progress; $(grep -cve '^\s*#' -e '^\s*$' "$(todo)") steps pending"
+        git log -1 --oneline
+    else
+        echo "not in a rebase"
+    fi
+    ;;
+*) echo "usage: git todo start <base>|path|show|apply|status" >&2; exit 2 ;;
+esac
