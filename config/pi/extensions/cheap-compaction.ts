@@ -23,6 +23,23 @@ const MODEL = process.env.PI_COMPACTION_MODEL ?? "gemini-3-flash-preview";
 // Same truncation idiom pi uses for tool results (capped at 2000 chars).
 const THINKING_CAP = Number(process.env.PI_COMPACTION_THINKING_CAP ?? 1000);
 
+// Blind-judged against claude-sonnet-5 on the same payload: sonnet wrote 4x more
+// (1800 vs 460 words, 50 vs 10 identifiers) and both judges ranked it above
+// flash — but it took 83s vs 14s. Flash's real defect was not brevity, it was
+// reporting the session goal ('achieve boot_completed') without ever saying the
+// milestone was REACHED, plus dropping the parent task and the known-expected
+// build failure. These instructions fix that at the same length and latency:
+// identifiers 9-10 -> 24-32 per summary, and all of boot_completed-as-done,
+// T270212415, CheckAbOtaImages, P2468969799, job 81582a3b now survive both runs.
+const RESUMABILITY_FOCUS =
+  "Prioritise resumable state over history. Always include, when present: " +
+  "(a) state transitions actually reached (e.g. \"booted\", \"landed\", \"test passes\"), not just what was attempted; " +
+  "(b) work in flight — running job IDs, uncommitted edits and which file/repo they are in, decisions awaiting the user; " +
+  "(c) known-expected failures and red herrings, so the next agent does not re-debug them; " +
+  "(d) every diff (D…), task (T…) and paste (P…) identifier, file path, device serial and exact error string still relevant; " +
+  "(e) pointers to durable records rather than reproducing their contents. " +
+  "Do not spend words on questions already answered, mistakes already corrected, or restating the same item in several sections.";
+
 export function capThinking<T>(messages: T[], cap = THINKING_CAP): T[] {
   if (!(cap >= 0)) return messages; // NaN or negative => leave thinking intact
   return messages.map((m: any) => {
@@ -61,10 +78,7 @@ export default function (pi: ExtensionAPI) {
         auth.auth.apiKey,
         auth.auth.headers,
         signal,
-        // Judges' top complaint about every variant: summaries silently drop
-        // identifiers the resumer needs to find the work again.
-        customInstructions ??
-          "Preserve every diff (D…), task (T…) and paste (P…) identifier, file path, device serial and exact error string that is still relevant.",
+        customInstructions ?? RESUMABILITY_FOCUS,
         preparation.previousSummary,
         "off",
         undefined,
