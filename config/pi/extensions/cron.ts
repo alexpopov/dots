@@ -17,6 +17,9 @@
  *  - State persists via appendEntry and is restored on --resume (one-shots whose time
  *    already passed, and recurring tasks older than 7d, are pruned on restore).
  *  - Max 50 tasks. Disable entirely with PI_DISABLE_CRON=1.
+ *  - TIMEZONE: cron matching + one-shot times use the pi HOST's local tz (getHours/etc.).
+ *    That host (e.g. a devserver) may NOT share the USER's tz — confirm the user's tz before
+ *    scheduling clock-time reminders ("at 9am"); do NOT assume the system tz.
  *
  * Cron grammar (5 fields: min hour dom month dow): *  5  *​/15  1-5  1,15,30 . Day-of-week
  * 0 or 7 = Sunday. vixie-cron DOM/DOW "either matches" semantics. No L/W/? or name aliases.
@@ -363,7 +366,8 @@ export default function (pi: ExtensionAPI) {
 			"Schedule a prompt to run later. Use `schedule` (5-field cron, e.g. '*/5 * * * *') for recurring or fixed-time runs, or `inSeconds` for a one-shot relative reminder (e.g. 2700 = 45 min). Set recurs=false for a one-time cron fire. The prompt runs between turns when the agent is idle. Returns the 8-char task id.",
 		promptGuidelines: [
 			"Use cron_create when the user asks to schedule, repeat, poll, loop, or be reminded of a prompt (e.g. 'every 5 minutes', 'at 9am', 'in 45 minutes', 'remind me to ...').",
-			"For relative reminders use cron_create with inSeconds; for recurring or clock-time use a cron `schedule`. All times are local.",
+			"For relative reminders use cron_create with inSeconds; for recurring or clock-time use a cron `schedule`.",
+			"TIMEZONE: 'local' = the pi HOST's timezone (e.g. a devserver), which is often NOT the user's. Before scheduling any clock-time reminder ('at 9am', 'tomorrow morning'), CONFIRM the user's timezone — never assume the system/devserver TZ. Compute the delay against the user's clock, e.g. `TZ=<their-tz> date -d 'tomorrow 09:00'` → inSeconds.",
 		],
 		parameters: Type.Object({
 			prompt: Type.String({ description: "The prompt (or /command) to run when the task fires." }),
