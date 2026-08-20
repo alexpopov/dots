@@ -13,16 +13,25 @@ const PROVIDER = process.env.PI_COMPACTION_PROVIDER ?? "google";
 const MODEL = process.env.PI_COMPACTION_MODEL ?? "gemini-3-flash-preview";
 
 // Thinking blocks are ~half of what gets serialized into the summarization
-// prompt (measured: 9.1M of 17.3M chars on a real session), and a summary needs
-// decisions and actions, not the chain of thought that produced them. Tool
-// results are already capped at 2000 chars by pi's serializeConversation, so
-// this is the one big lever left on compaction latency.
-// ponytail: drops thinking entirely; truncate instead if summaries lose rationale.
-export function stripThinking<T>(messages: T[]): T[] {
+// prompt (measured: 9.1M of 17.3M chars on a real session; 3240 blocks, median
+// 1686 chars, max 25875). Truncate rather than drop: the plan and the decision
+// live at the top of a thinking block, the rambling below it does not. A 1000
+// char cap removes 71% of thinking chars while keeping every block's opening.
+// Same idiom pi itself uses for tool results (capped at 2000 chars).
+const THINKING_CAP = Number(process.env.PI_COMPACTION_THINKING_CAP ?? 1000);
+
+export function capThinking<T>(messages: T[], cap = THINKING_CAP): T[] {
+  if (!(cap >= 0)) return messages; // NaN or negative => leave thinking intact
   return messages.map((m: any) => {
     if (m?.role !== "assistant" || !Array.isArray(m.content)) return m;
-    const content = m.content.filter((b: any) => b?.type !== "thinking");
-    return content.length === m.content.length ? m : { ...m, content };
+    let changed = false;
+    const content = m.content.map((b: any) => {
+      if (b?.type !== "thinking" || typeof b.thinking !== "string") return b;
+      if (b.thinking.length <= cap) return b;
+      changed = true;
+      return { ...b, thinking: `${b.thinking.slice(0, cap)}\n[... ${b.thinking.length - cap} more characters truncated]` };
+    });
+    return changed ? { ...m, content } : m;
   });
 }
 
@@ -43,7 +52,7 @@ export default function (pi: ExtensionAPI) {
 
     try {
       const { text, usage } = await generateSummaryWithUsage(
-        stripThinking(messages),
+        capThinking(messages),
         model,
         preparation.settings.reserveTokens,
         auth.auth.apiKey,
