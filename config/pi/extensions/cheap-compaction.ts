@@ -14,10 +14,13 @@ const MODEL = process.env.PI_COMPACTION_MODEL ?? "gemini-3-flash-preview";
 
 // Thinking blocks are ~half of what gets serialized into the summarization
 // prompt (measured: 9.1M of 17.3M chars on a real session; 3240 blocks, median
-// 1686 chars, max 25875). Truncate rather than drop: the plan and the decision
-// live at the top of a thinking block, the rambling below it does not. A 1000
-// char cap removes 71% of thinking chars while keeping every block's opening.
-// Same idiom pi itself uses for tool results (capped at 2000 chars).
+// 1686 chars, max 25875). Truncate rather than drop, and keep the TAIL: a
+// thinking block opens with hypotheses and closes with the verdict, the
+// rejected alternative and the next action — which is what a checkpoint is for.
+// Blind A/B: 6 summaries of one 500k-token span (thinking full / none / first
+// 1000 / last 1000), judged by opus-5 and gpt-5.6-sol without knowing the
+// variants. Both ranked last-1000 #1; both ranked a full-thinking run last.
+// Same truncation idiom pi uses for tool results (capped at 2000 chars).
 const THINKING_CAP = Number(process.env.PI_COMPACTION_THINKING_CAP ?? 1000);
 
 export function capThinking<T>(messages: T[], cap = THINKING_CAP): T[] {
@@ -29,7 +32,7 @@ export function capThinking<T>(messages: T[], cap = THINKING_CAP): T[] {
       if (b?.type !== "thinking" || typeof b.thinking !== "string") return b;
       if (b.thinking.length <= cap) return b;
       changed = true;
-      return { ...b, thinking: `${b.thinking.slice(0, cap)}\n[... ${b.thinking.length - cap} more characters truncated]` };
+      return { ...b, thinking: `[... ${b.thinking.length - cap} earlier characters truncated]\n${b.thinking.slice(-cap)}` };
     });
     return changed ? { ...m, content } : m;
   });
@@ -58,7 +61,10 @@ export default function (pi: ExtensionAPI) {
         auth.auth.apiKey,
         auth.auth.headers,
         signal,
-        customInstructions,
+        // Judges' top complaint about every variant: summaries silently drop
+        // identifiers the resumer needs to find the work again.
+        customInstructions ??
+          "Preserve every diff (D…), task (T…) and paste (P…) identifier, file path, device serial and exact error string that is still relevant.",
         preparation.previousSummary,
         "off",
         undefined,
