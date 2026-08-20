@@ -81,6 +81,8 @@ FG_OK    = "\x1b[38;2;40;130;70m"
 FG_MARK  = "\x1b[38;2;150;155;165m"
 BOLD     = "\x1b[1m"
 RESET    = "\x1b[0m"
+LABEL_HL = BOLD + "\x1b[38;2;255;255;255m" + "\x1b[48;2;200;60;60m"  # leap-style hint label
+_CLOSE   = object()  # sentinel: a builtin returning this closes the whole menu
 
 # ── panel layout — tweak these to taste ─────────────────────────────────────
 PAD_X      = 4    # blank columns inside the left & right borders
@@ -573,42 +575,24 @@ ARTIFACT_URLS = {
     "D": "https://www.internalfb.com/diff/D{num}",
     "T": "https://www.internalfb.com/tasks/?t={num}",
 }
-ARTIFACT_KIND = {"D": "diff", "T": "task"}
 
 
 def _open_url(url):
     for cmd in (["open", url], ["xdg-open", url]):
         try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # start_new_session=True detaches the opener into its own session so
+            # it survives this kitten exiting right after (return _CLOSE). Without
+            # it, the opener is in the kitten's process group and can be killed
+            # before LaunchServices actually opens the browser -> nothing opens.
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
             log(f"opened url via {cmd[0]}: {url}")
             return True
         except Exception:
             continue
     log(f"_open_url failed: {url}")
     return False
-
-
-def _scan_artifacts(rc, target):
-    """Unique (kind, num, token) tuples for D/T refs on the target's screen."""
-    if rc is None or target is None:
-        return []
-    try:
-        cp = rc(["get-text", "--match", f"id:{target}", "--extent", "screen"],
-                capture_output=True)
-        if cp.returncode != 0:
-            log(f"_scan_artifacts get-text rc={cp.returncode}")
-            return []
-        text = cp.stdout.decode("utf-8", "replace")
-    except Exception as e:
-        log(f"_scan_artifacts raised: {e!r}")
-        return []
-    seen, out = set(), []
-    for m in ARTIFACT_RE.finditer(text):
-        tok = m.group(0)
-        if tok not in seen:
-            seen.add(tok)
-            out.append((m.group(1), m.group(2), tok))
-    return out
 
 
 def _open_artifact(kind, num, tok):
@@ -618,29 +602,77 @@ def _open_artifact(kind, num, tok):
     return f"\u26a0 couldn't open {tok}"
 
 
+def _screen_lines(rc, target):
+    """Plain (no-ANSI) screen rows of the target window, for computing positions."""
+    if rc is None or target is None:
+        return []
+    try:
+        cp = rc(["get-text", "--match", f"id:{target}", "--extent", "screen"],
+                capture_output=True)
+        if cp.returncode != 0:
+            log(f"_screen_lines get-text rc={cp.returncode}")
+            return []
+        return cp.stdout.decode("utf-8", "replace").split("\n")
+    except Exception as e:
+        log(f"_screen_lines raised: {e!r}")
+        return []
+
+
+_LEAP_ALPHABET = "sfnjklhodweimbuyvrgtaqpcxz"  # leap.nvim's label order (muscle memory)
+
+
+def _artifact_labels(n):
+    if n <= len(_LEAP_ALPHABET):
+        return list(_LEAP_ALPHABET[:n])
+    import itertools
+    return ["".join(p) for p in itertools.product(_LEAP_ALPHABET, repeat=2)][:n]
+
+
 def _bi_open_artifact(action, rc, target, fd=None, bg=None):
+    """Leap-style picker: label every D\u2026/T\u2026 ref in place on our OWN backdrop
+    (no second kitten, so nothing can cover the labels), then open the pick."""
     if target is None:
         return "\u26a0 couldn't find the terminal window"
-    found = _scan_artifacts(rc, target)
-    if not found:
+    hits = []
+    for i, line in enumerate(_screen_lines(rc, target)):
+        for m in ARTIFACT_RE.finditer(line):
+            hits.append({"row": i + 1, "col": m.end() + 1,  # just AFTER the ref
+                         "kind": m.group(1), "num": m.group(2), "tok": m.group(0)})
+    if not hits:
         return "\u26a0 no D\u2026 / T\u2026 reference on screen"
-    if len(found) == 1:
-        return _open_artifact(*found[0])
+    # Always label (even a single hit) so there's a visible pick step and we
+    # never silently open a browser tab.
+    by_label = {}
+    for h, lab in zip(hits, _artifact_labels(len(hits))):
+        h["label"] = lab
+        by_label[lab] = h
 
-    # More than one on screen: pick with a single keypress, reusing the panel.
-    labels = "123456789abcdefghijklmnopqrstuvwxyz"
-    entries = list(zip(labels, found))
-    keys = {lbl: (f"{tok}  ({ARTIFACT_KIND.get(kind, '?')})", {"kind": "shell"})
-            for lbl, (kind, num, tok) in entries}
-    adhoc = {"title": "Open", "keys": keys}
+    cols, rows = _term_size()
+    _paint_backdrop(bg)                        # repaint the frozen terminal...
+    _out("\x1b[?7l")
+    for h in hits:                             # ...then stamp labels just AFTER each
+        if h["row"] <= rows:                   # ref, so its D/T type stays visible
+            col = min(h["col"], max(1, cols - len(h["label"]) + 1))
+            _out(f"\x1b[{h['row']};{col}H" + LABEL_HL + h["label"] + RESET)
+    _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT +
+         " open diff/task \u00b7 type a label \u00b7 esc cancels " + RESET + "\x1b[?7h")
+
+    typed = ""
     while True:
-        draw(adhoc, "Kitty \u203a Open diff/task", None, bg)
         k = read_key(fd)
         if k in ("quit", "back"):
-            return None
-        for lbl, (kind, num, tok) in entries:
-            if k == lbl:
-                return _open_artifact(kind, num, tok)
+            return _CLOSE
+        if k in ("enter", "ignore") or len(k) != 1:
+            continue
+        typed += k
+        cands = [lab for lab in by_label if lab.startswith(typed)]
+        if not cands:
+            typed = ""
+            continue
+        if typed in by_label and len(cands) == 1:
+            h = by_label[typed]
+            _open_artifact(h["kind"], h["num"], h["tok"])
+            return _CLOSE
 
 
 BUILTINS = {"copy": _bi_copy, "open_artifact": _bi_open_artifact}
@@ -754,7 +786,9 @@ def _run(args):
                     except Exception as e:
                         log("builtin error:\n" + traceback.format_exc())
                         note = f"error: {e}"
-                continue  # stay so the ✓/⚠ note is visible
+                if note is _CLOSE:
+                    return ""
+                continue  # otherwise stay so the ✓/⚠ note is visible
 
             if kind == "prompt":
                 text = prompt_line(action["label"], fd, bg)
