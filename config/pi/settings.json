@@ -12,7 +12,7 @@
     "~/.claude/agent-market/plugins/aosp-upgrade/skills"
   ],
   "compaction": {
-    "reserveTokens": 100000,
+    "reserveTokens": 32768,
     "keepRecentTokens": 50000
   },
   "subagent": {
