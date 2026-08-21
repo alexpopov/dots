@@ -18,6 +18,9 @@ config/ghostty/local.conf
 # Per-user kitty overrides written by bootstrap (see create_links)
 config/kitty/local.conf
 
+# Custom kitty app icon fetched by bootstrap (see install_kitty_icon)
+config/kitty/kitty.app.icns
+
 # Private location/preset overrides for any skill
 config/claude/skills/*/*.local.json
 

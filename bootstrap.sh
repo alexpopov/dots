@@ -764,6 +764,73 @@ function configure_macos_defaults {
   fi
 }
 
+# Upstream kitty's icon is... not great. DinkDonk/kitty-icon is a nicer
+# drop-in. Two places matter on macOS:
+#   1. ~/.config/kitty/kitty.app.icns -- kitty applies this itself at startup,
+#      so it survives kitty upgrades (the app bundle gets replaced on update).
+#   2. the app bundle itself -- so Finder/Dock/Spotlight show it even when
+#      kitty isn't running.
+# Set KITTY_ICON_VARIANT=light for the light version.
+KITTY_ICON_REPO="https://github.com/DinkDonk/kitty-icon.git"
+
+function install_kitty_icon {
+  is_mac || return 0
+
+  local variant="${KITTY_ICON_VARIANT:-dark}"
+  local kitty_config_dir="$CONFIG_DIR/kitty"
+  local dest="$kitty_config_dir/kitty.app.icns"
+
+  if [[ ! -d "$kitty_config_dir" ]]; then
+    _log_warn "No ${color_blue}$kitty_config_dir${color_reset}; skipping kitty icon"
+    return 0
+  fi
+
+  local tmpdir
+  tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/kitty-icon.XXXXXX")" || {
+    _log_warn "Could not create temp dir for kitty icon"
+    return 0
+  }
+
+  if ! git clone --depth 1 --quiet "$KITTY_ICON_REPO" "$tmpdir/repo" 2>/dev/null; then
+    _log_warn "Could not clone ${color_blue}$KITTY_ICON_REPO${color_reset}; skipping kitty icon"
+    rm -rf "$tmpdir"
+    return 0
+  fi
+
+  local src="$tmpdir/repo/kitty-${variant}.icns"
+  if [[ ! -f "$src" ]]; then
+    _log_warn "No ${color_blue}kitty-${variant}.icns${color_reset} in kitty-icon repo; skipping"
+    rm -rf "$tmpdir"
+    return 0
+  fi
+
+  # Written through the symlinked dir, so it lands in
+  # dots/config/kitty/kitty.app.icns -- gitignored.
+  if [[ -f "$dest" ]] && cmp -s "$src" "$dest"; then
+    _log_btw "Already installed: ${color_blue}kitty icon (${variant})${color_reset}. Skipping!"
+  else
+    cp "$src" "$dest" || _log_warn "Failed to install kitty icon to $dest"
+    _log_info "Installed ${color_blue}kitty icon (${variant})${color_reset} to $dest"
+  fi
+
+  rm -rf "$tmpdir"
+
+  # Stamp the app bundle too, so the icon shows before kitty ever runs.
+  local app="/Applications/kitty.app"
+  local kitty_bin="$app/Contents/MacOS/kitty"
+  if [[ -x "$kitty_bin" && -f "$dest" ]]; then
+    if "$kitty_bin" +runpy 'from kitty.fast_data_types import cocoa_set_app_icon; import sys; cocoa_set_app_icon(*sys.argv[1:])' \
+        "$dest" "$app" >/dev/null 2>&1; then
+      _log_info "Applied kitty icon to ${color_blue}$app"
+    else
+      _log_warn "Could not stamp ${color_blue}$app${color_reset} with the custom icon"
+    fi
+  fi
+
+  # The Dock caches app icons and won't notice until it's restarted.
+  _log_warn "Dock caches icons. To see it now, run: ${color_blue}rm /var/folders/*/*/*/com.apple.dock.iconcache; killall Dock"
+}
+
 function setup_login_shell {
   # macOS ships bash 3.2.57 forever (GPLv3 + SIP), and /bin/bash can't be
   # replaced. Install a modern bash via Homebrew and make it the login shell
@@ -899,6 +966,8 @@ create_links
 ensure_shell_sources_dots
 
 configure_macos_defaults  # no-op on non-macOS
+
+install_kitty_icon       # macOS only: nicer kitty.app icon
 
 setup_login_shell        # macOS only: modern Homebrew bash as login shell
 
