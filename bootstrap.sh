@@ -452,6 +452,51 @@ function setup_neovim_venv {
   fi
 }
 
+# TPM plugins live in dots/config/tmux/plugins (symlinked to ~/.tmux/plugins) but
+# are gitignored, so a fresh checkout has no plugins at all. Worse: an EMPTY
+# plugin dir left behind (e.g. by a half-finished clone or a dead submodule)
+# makes TPM think the plugin is already installed, so `prefix + I` silently
+# skips it forever -- which is exactly how tmux-resurrect ended up a no-op.
+# Clone anything missing, and treat an empty dir as missing.
+function setup_tmux_plugins {
+  local plugins_dir="$DOTS_CONFIG_DIR/tmux/plugins"
+  local -a plugins=(
+    "tpm https://github.com/tmux-plugins/tpm"
+    "tmux-sensible https://github.com/tmux-plugins/tmux-sensible"
+    "tmux-themepack https://github.com/jimeh/tmux-themepack"
+    "tmux-resurrect https://github.com/tmux-plugins/tmux-resurrect"
+  )
+
+  mkdir -p "$plugins_dir"
+
+  local entry name url dest
+  for entry in "${plugins[@]}"; do
+    read -r name url <<< "$entry"
+    dest="$plugins_dir/$name"
+
+    # An existing but empty dir is a TPM landmine: remove it so we re-clone.
+    if [[ -d "$dest" && -z "$(ls -A "$dest" 2>/dev/null)" ]]; then
+      _log_warn "Empty tmux plugin dir ${color_blue}$name${color_reset}; re-cloning"
+      rmdir "$dest"
+    fi
+
+    if [[ -d "$dest" ]]; then
+      _log_btw "Already installed: ${color_blue}tmux plugin $name${color_reset}. Skipping!"
+      continue
+    fi
+
+    _log_info "Cloning ${color_blue}tmux plugin $name${color_reset}"
+    git clone --depth 1 "$url" "$dest" \
+      || _log_warn "Failed to clone tmux plugin $name (network?). Run ${color_blue}prefix + I${color_reset} later."
+  done
+
+  # Pick up newly-installed plugins in any already-running server.
+  if command -v tmux >/dev/null 2>&1 && tmux has-session 2>/dev/null; then
+    tmux source-file "$HOME/.tmux.conf" >/dev/null 2>&1 \
+      && _log_info "Reloaded tmux.conf in the running server"
+  fi
+}
+
 function clone_dots {
   if [[ -d $HOME/dots/ ]]; then 
     _log_btw "Dots repo cloned. Skipping!"
@@ -838,6 +883,8 @@ configure_macos_defaults  # no-op on non-macOS
 setup_login_shell        # macOS only: modern Homebrew bash as login shell
 
 setup_neovim_venv
+
+setup_tmux_plugins       # clone TPM + plugins into dots/config/tmux/plugins
 
 _log_info "Bootstrapping complete! 🎉 "
 
