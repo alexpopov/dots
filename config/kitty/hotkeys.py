@@ -81,7 +81,9 @@ FG_OK    = "\x1b[38;2;40;130;70m"
 FG_MARK  = "\x1b[38;2;150;155;165m"
 BOLD     = "\x1b[1m"
 RESET    = "\x1b[0m"
-LABEL_HL = BOLD + "\x1b[38;2;255;255;255m" + "\x1b[48;2;200;60;60m"  # leap-style hint label
+LABEL_HL   = BOLD + "\x1b[38;2;255;255;255m" + "\x1b[48;2;200;60;60m"  # leap-style hint label
+LABEL_DONE = BOLD + "\x1b[38;2;255;255;255m" + "\x1b[48;2;60;150;90m"  # queued (multi mode)
+MODE_TAG   = BOLD + "\x1b[38;2;255;255;255m" + "\x1b[48;2;90;90;200m"  # top-right mode indicator
 _CLOSE   = object()  # sentinel: a builtin returning this closes the whole menu
 
 # ── panel layout — tweak these to taste ─────────────────────────────────────
@@ -311,6 +313,7 @@ def prompt_line(label, fd, bg=None):
              + " " + FG_TEXT + shown + RESET + BG_PANEL
              + " " * (inner - 1 - len(shown)) + FG_BORD + "\u2502" + RESET)
         _out(f"\x1b[{y0+3};{x0}H" + BG_PANEL + FG_BORD + "\u2570" + "\u2500" * inner + "\u256f" + RESET)
+        _out(f"\x1b[{y0+4};{x0}H" + FG_HINT + "  \u21b5 save \u00b7 esc cancel" + RESET)
         _out(RESET + "\x1b[1;1H")
 
     render()
@@ -577,8 +580,11 @@ ARTIFACT_URLS = {
 }
 
 
-def _open_url(url):
-    for cmd in (["open", url], ["xdg-open", url]):
+def _open_url(url, background=False):
+    # macOS 'open -g' opens in the background (browser doesn't steal focus) --
+    # ideal for firing off several in a row. xdg-open has no such flag.
+    macopen = ["open", "-g", url] if background else ["open", url]
+    for cmd in (macopen, ["xdg-open", url]):
         try:
             # start_new_session=True detaches the opener into its own session so
             # it survives this kitten exiting right after (return _CLOSE). Without
@@ -595,9 +601,29 @@ def _open_url(url):
     return False
 
 
-def _open_artifact(kind, num, tok):
+def _open_urls(urls, background=False):
+    """Open several URLs at once (one focus event at most). macOS 'open' accepts
+    multiple URLs; fall back to xdg-open one at a time."""
+    urls = list(urls)
+    if not urls:
+        return True
+    try:
+        cmd = ["open"] + (["-g"] if background else []) + urls
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        log(f"opened {len(urls)} urls via open (bg={background})")
+        return True
+    except Exception as e:
+        log(f"_open_urls via open failed: {e!r}")
+    ok = True
+    for u in urls:
+        ok = _open_url(u, background=background) and ok
+    return ok
+
+
+def _open_artifact(kind, num, tok, background=False):
     url = ARTIFACT_URLS.get(kind, "").format(num=num)
-    if url and _open_url(url):
+    if url and _open_url(url, background=background):
         return f"\u2713 opening {tok}"
     return f"\u26a0 couldn't open {tok}"
 
@@ -630,7 +656,10 @@ def _artifact_labels(n):
 
 def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     """Leap-style picker: label every D\u2026/T\u2026 ref in place on our OWN backdrop
-    (no second kitten, so nothing can cover the labels), then open the pick."""
+    (no second kitten, so nothing can cover the labels), then open the pick.
+    With multi=True, keep the picker open and open each pick in the background
+    (opened labels turn green); esc when done."""
+    multi = bool(action.get("multi"))
     if target is None:
         return "\u26a0 couldn't find the terminal window"
     hits = []
@@ -648,19 +677,36 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         by_label[lab] = h
 
     cols, rows = _term_size()
-    _paint_backdrop(bg)                        # repaint the frozen terminal...
-    _out("\x1b[?7l")
-    for h in hits:                             # ...then stamp labels just AFTER each
-        if h["row"] <= rows:                   # ref, so its D/T type stays visible
-            col = min(h["col"], max(1, cols - len(h["label"]) + 1))
-            _out(f"\x1b[{h['row']};{col}H" + LABEL_HL + h["label"] + RESET)
-    _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT +
-         " open diff/task \u00b7 type a label \u00b7 esc cancels " + RESET + "\x1b[?7h")
+    queued = []      # hits picked in multi mode; all opened at once on esc
+    picked = set()   # labels already queued (drawn green)
 
+    def draw_labels():
+        _paint_backdrop(bg)                    # repaint the frozen terminal...
+        _out("\x1b[?7l")
+        for h in hits:                         # ...then stamp labels just AFTER each
+            if h["row"] <= rows:               # ref, so its D/T type stays visible
+                col = min(h["col"], max(1, cols - len(h["label"]) + 1))
+                style = LABEL_DONE if h["label"] in picked else LABEL_HL
+                _out(f"\x1b[{h['row']};{col}H" + style + h["label"] + RESET)
+        if multi:                              # tiny mode indicator, top-right corner
+            tag = f" SELECT \u00b7 {len(queued)} queued "
+            _out(f"\x1b[1;{max(1, cols - len(tag) + 1)}H" + MODE_TAG + tag + RESET)
+            hint = " type labels to queue \u00b7 esc opens them "
+        else:
+            hint = " open diff/task \u00b7 type a label \u00b7 esc cancels "
+        _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT + hint + RESET + "\x1b[?7h")
+
+    draw_labels()
     typed = ""
     while True:
         k = read_key(fd)
-        if k in ("quit", "back"):
+        if k == "back" and typed:               # undo a partial 2-char label
+            typed = ""
+            continue
+        if k in ("quit", "back") or (multi and k == "enter"):  # esc / \u21b5 / \u2303C: done
+            if queued:                          # open the whole queue at once
+                _open_urls([ARTIFACT_URLS.get(h["kind"], "").format(num=h["num"])
+                            for h in queued], background=True)
             return _CLOSE
         if k in ("enter", "ignore") or len(k) != 1:
             continue
@@ -671,8 +717,14 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             continue
         if typed in by_label and len(cands) == 1:
             h = by_label[typed]
-            _open_artifact(h["kind"], h["num"], h["tok"])
-            return _CLOSE
+            if not multi:
+                _open_artifact(h["kind"], h["num"], h["tok"])
+                return _CLOSE
+            if typed not in picked:             # queue it; opened together on esc
+                picked.add(typed)
+                queued.append(h)
+            typed = ""
+            draw_labels()                       # reflect queued (green) + count
 
 
 BUILTINS = {"copy": _bi_copy, "open_artifact": _bi_open_artifact}
