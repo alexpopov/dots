@@ -43,6 +43,8 @@ const STDIO_DRAIN_MS = 250;
 const MAX_BG_RUNS = Number(process.env.PI_SUBAGENT_MAX_RUNNING) || 8;
 const BG_LABEL_CHARS = 70;
 const BG_MSG_TYPE = "subagent-done";
+const COUNCIL_MSG_TYPE = "council-done";
+const SIDEKICK_MSG_TYPE = "sidekick-reply";
 // How often to poll for liveness signals.
 const SILENCE_CHECK_INTERVAL_MS = 10_000;
 const MTIME_CHECK_INTERVAL_MS = 5_000;
@@ -277,6 +279,63 @@ export default function (pi: ExtensionAPI) {
   const bgRuns = new Map<string, BgRun>();
   const liveRuns = () => [...bgRuns.values()].filter((r) => !r.endedAt);
 
+  // ---- live background-agents widget --------------------------------------
+  // Passive, glanceable "what's running in the background" view: subagents +
+  // council members (bgRuns) and busy side-kicks. Those tools return
+  // immediately (async), so the tool-aggregator sees the tool call as
+  // instantly-done -- without this you'd have to /subagents or /sidekick to
+  // know work is live. Poll-driven while anything runs; clears when idle.
+  let agentsCtx: any = null;
+  let agentsPoll: ReturnType<typeof setInterval> | null = null;
+  const liveSidekicks = () => [...sidekicks.values()].filter((e) => e.handle?.status === "running");
+  const stopAgentsPoll = () => { if (agentsPoll) { clearInterval(agentsPoll); agentsPoll = null; } };
+  const renderAgentsWidget = () => {
+    const c = agentsCtx;
+    if (!c?.ui?.setWidget) return;
+    const runs = liveRuns();
+    const sks = liveSidekicks();
+    if (runs.length === 0 && sks.length === 0) {
+      try { c.ui.setWidget("live-agents", undefined); } catch {}
+      return;
+    }
+    const now = Date.now();
+    try {
+      c.ui.setWidget("live-agents", (_tui: any, theme: any) => ({
+        render: () => {
+          const head: string[] = [];
+          if (runs.length) head.push(`${runs.length} subagent${runs.length > 1 ? "s" : ""}`);
+          if (sks.length) head.push(`${sks.length} side-kick${sks.length > 1 ? "s" : ""}`);
+          const lines = [`${theme.fg("accent", "\u2699")} ${theme.bold(head.join(" \u00b7 "))} ${theme.fg("dim", "running \u2014 /subagents /sidekick to manage")}`];
+          for (const r of runs) {
+            const secs = Math.round((now - r.startedAt) / 1000);
+            lines.push(`  ${theme.fg("accent", "\u25b6")} ${r.id} ${theme.fg("dim", `(${secs}s)`)} ${r.label.slice(0, 60)}`);
+            const tail = r.preview ? (r.preview.split("\n").pop() || "").slice(0, 80) : "";
+            if (tail) lines.push(`      ${theme.fg("dim", tail)}`);
+          }
+          for (const e of sks) {
+            lines.push(`  ${theme.fg("accent", "\u25b6")} side-kick ${e.name}${e.model ? theme.fg("dim", ` ${e.model}`) : ""}`);
+            const tail = e.streamBuf ? (e.streamBuf.split("\n").pop() || "").slice(0, 80) : "";
+            if (tail) lines.push(`      ${theme.fg("dim", tail)}`);
+          }
+          return lines;
+        },
+        invalidate: () => {},
+      }));
+    } catch { /* ui gone */ }
+  };
+  const startAgentsPoll = () => {
+    if (agentsPoll) return;
+    agentsPoll = setInterval(() => {
+      renderAgentsWidget();
+      if (liveRuns().length === 0 && liveSidekicks().length === 0) stopAgentsPoll();
+    }, 1500);
+    agentsPoll.unref?.();
+  };
+  const kickAgentsWidget = (ctx?: any) => { if (ctx) agentsCtx = ctx; renderAgentsWidget(); startAgentsPoll(); };
+
+  pi.on("session_start", (_e: any, ctx: any) => { agentsCtx = ctx; });
+  pi.on("session_shutdown", () => { stopAgentsPoll(); try { agentsCtx?.ui?.setWidget?.("live-agents", undefined); } catch {} });
+
   const runLabel = (prompt: string) => {
     const first = prompt.trim().split("\n")[0];
     return first.length > BG_LABEL_CHARS ? `${first.slice(0, BG_LABEL_CHARS)}…` : first;
@@ -303,6 +362,7 @@ export default function (pi: ExtensionAPI) {
     } catch {
       /* session gone */
     }
+    renderAgentsWidget();
   };
 
   const dispatchRun = (opts: Omit<RunOnePiOptions, "signal" | "onPreview" | "parentToolCallId">, parentToolCallId: string): BgRun | string => {
@@ -319,13 +379,104 @@ export default function (pi: ExtensionAPI) {
     })
       .then((result) => finishRun(run, result))
       .catch((err) => finishRun(run, { content: [{ type: "text", text: `subagent crashed: ${err?.message ?? err}` }], isError: true }));
+    kickAgentsWidget();
     return run;
+  };
+
+  // Council in the background: dispatch every member as a bg run (so
+  // subagent_status / subagent_kill / session-shutdown all cover them), and when
+  // the LAST one finishes deliver ONE aggregated result via followUp. Non-blocking
+  // like subagent -- the parent ends its turn immediately instead of awaiting
+  // Promise.all inline (which froze the user out of steering while it ran).
+  const dispatchCouncil = (
+    members: Array<MemberSpec & { tools?: string }>,
+    perMember: { timeoutSeconds: number; silentForSeconds: number; toolsFallback?: string; ctx: any },
+    parentToolCallId: string,
+  ): { runs: BgRun[] } | string => {
+    const free = MAX_BG_RUNS - liveRuns().length;
+    if (members.length > free) return `council needs ${members.length} slots but only ${free} of ${MAX_BG_RUNS} are free — wait for running subagents or subagent_kill some`;
+    const startedAt = Date.now();
+    const results: (CompletedMember | undefined)[] = new Array(members.length);
+    let remaining = members.length;
+    const runs = members.map((member, idx) => {
+      const label = labelFor(member, idx);
+      const run: BgRun = { id: randomUUID().slice(0, 8), label: `council: ${label}`, startedAt, preview: "", control: new AbortController() };
+      bgRuns.set(run.id, run);
+      void runOnePi({
+        prompt: member.prompt,
+        mode: member.mode ?? "fresh",
+        contextHint: member.contextHint,
+        model: member.model,
+        tools: member.tools ?? perMember.toolsFallback,
+        timeoutSeconds: perMember.timeoutSeconds,
+        silentForSeconds: perMember.silentForSeconds,
+        ctx: perMember.ctx,
+        parentToolCallId,
+        signal: run.control.signal,
+        onPreview: (p) => { run.preview = p; },
+        onSessionFile: (f) => { run.sessionFile = f; },
+      })
+        .then((result) => { results[idx] = { member, result, label }; run.isError = !!result?.isError; })
+        .catch((err) => { results[idx] = { member, result: { content: [{ type: "text", text: `council member crashed: ${err?.message ?? err}` }], isError: true }, label }; run.isError = true; })
+        .finally(() => {
+          run.endedAt = Date.now();
+          renderAgentsWidget();
+          remaining -= 1;
+          if (remaining > 0) return;
+          const completed: CompletedMember[] = members.map((m, i) => results[i] ?? { member: m, result: { content: [{ type: "text", text: "(no result)" }], isError: true }, label: labelFor(m, i) });
+          const ok = completed.filter((c) => !c.result.isError).length;
+          const secs = Math.round((Date.now() - startedAt) / 1000);
+          try {
+            pi.sendMessage(
+              {
+                customType: COUNCIL_MSG_TYPE,
+                content: `[council] ${ok}/${completed.length} succeeded after ${secs}s\n\n${extractText(aggregateCouncil(completed))}`,
+                display: true,
+                details: { ok: ok === completed.length, succeeded: ok, total: completed.length, seconds: secs },
+              },
+              { deliverAs: "followUp", triggerTurn: true },
+            );
+          } catch { /* session gone */ }
+        });
+      return run;
+    });
+    kickAgentsWidget();
+    return { runs };
   };
 
   pi.registerMessageRenderer(BG_MSG_TYPE, (message: any, _options: any, theme: any) => {
     const d = message.details as { id?: string; ok?: boolean; label?: string; seconds?: number } | undefined;
     const head = d?.ok === false ? theme.fg("error", `✗ subagent ${d?.id}`) : theme.fg("dim", `↩ subagent ${d?.id}`);
     return new Text(`${head} ${theme.fg("dim", `(${d?.seconds ?? "?"}s) ${d?.label ?? ""}`)}`, 0, 0);
+  });
+
+  pi.registerMessageRenderer(COUNCIL_MSG_TYPE, (message: any, _options: any, theme: any) => {
+    const d = message.details as { ok?: boolean; succeeded?: number; total?: number; seconds?: number } | undefined;
+    const head = d?.ok ? theme.fg("dim", `↩ council`) : theme.fg("error", `✗ council`);
+    return new Text(`${head} ${theme.fg("dim", `(${d?.seconds ?? "?"}s) ${d?.succeeded ?? "?"}/${d?.total ?? "?"} ok`)}`, 0, 0);
+  });
+
+  // Deliver an async side-kick reply between turns (followUp + triggerTurn), the
+  // same wake-the-primary path subagent/council use. Lets sidekick_send return
+  // immediately instead of holding the turn open while awaiting the reply.
+  const deliverSidekick = (name: string, ok: boolean, body: string) => {
+    try {
+      pi.sendMessage(
+        {
+          customType: SIDEKICK_MSG_TYPE,
+          content: `[side-kick ${name}] ${ok ? "replied" : "error"}:\n\n${body}`,
+          display: true,
+          details: { name, ok },
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    } catch { /* session gone */ }
+  };
+
+  pi.registerMessageRenderer(SIDEKICK_MSG_TYPE, (message: any, _options: any, theme: any) => {
+    const d = message.details as { name?: string; ok?: boolean } | undefined;
+    const head = d?.ok ? theme.fg("dim", `↩ side-kick ${d?.name ?? ""}`) : theme.fg("error", `✗ side-kick ${d?.name ?? ""}`);
+    return new Text(head, 0, 0);
   });
 
   pi.on("session_shutdown", async () => {
@@ -505,7 +656,10 @@ export default function (pi: ExtensionAPI) {
     name: "council",
     label: "Council",
     description:
-      "Run N subagents in parallel and return all their answers. Use for: " +
+      "Run N subagents in parallel IN THE BACKGROUND; their combined answers are " +
+      "delivered automatically when all members finish (non-blocking, like subagent " +
+      "-- end your turn after calling this, do NOT sit and wait; track with " +
+      "subagent_status, stop with subagent_kill). Use for: " +
       "multi-model comparison (ask different models the same question), " +
       "parallelizable subtasks (split work N ways), " +
       "multi-perspective review (one member per lens — security, perf, etc.).\n\n" +
@@ -544,64 +698,30 @@ export default function (pi: ExtensionAPI) {
       silentForSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
     }),
 
-    async execute(toolCallId, params, signal, onUpdate, ctx) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       const csettings = loadSettings(ctx.cwd).council;
       const timeoutSeconds = params.timeoutSeconds ?? csettings.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
       const silentForSeconds = params.silentForSeconds ?? csettings.silentForSeconds ?? DEFAULT_SILENT_SECONDS;
       const N = params.members.length;
 
-      // Per-member preview state. Combined into one TUI display.
-      type MemberState = {
-        state: "pending" | "running" | "done" | "failed";
-        preview: string;
+      // Dispatch in the background and return immediately -- like subagent. The
+      // aggregated result is delivered via followUp when the last member finishes,
+      // so you keep the floor (can steer / take your turn) while the council runs.
+      // (Members ignore the turn's `signal`: Esc must interrupt the primary, not
+      // reach into running children -- kill them explicitly with subagent_kill.)
+      const res = dispatchCouncil(
+        params.members,
+        { timeoutSeconds, silentForSeconds, toolsFallback: csettings.tools, ctx },
+        toolCallId,
+      );
+      if (typeof res === "string") return { content: [{ type: "text", text: res }], isError: true };
+      const ids = res.runs.map((r) => r.id).join(", ");
+      return {
+        content: [{ type: "text", text:
+          `Council of ${N} dispatched in the background (ids: ${ids}). ` +
+          `End your turn now -- the aggregated result is delivered automatically when all members finish. ` +
+          `Track with subagent_status; stop with subagent_kill.` }],
       };
-      const states: MemberState[] = Array.from({ length: N }, () => ({
-        state: "pending",
-        preview: "",
-      }));
-
-      const flushPreview = () => {
-        const blocks = states.map((s, i) => {
-          const label = labelFor(params.members[i], i);
-          const body = s.preview || (s.state === "pending" ? "(waiting)" : "(no output yet)");
-          return `## ${label} [${s.state}]\n${body}`;
-        });
-        onUpdate?.({ content: [{ type: "text", text: blocks.join("\n\n") }] });
-      };
-
-      // Spawn all members in parallel. runOnePi handles abort/timeout/etc.
-      // per child; failures resolve as { isError: true } results, not throws.
-      const promises = params.members.map((member, idx) => {
-        states[idx].state = "running";
-        return runOnePi({
-          prompt: member.prompt,
-          mode: member.mode ?? "fresh",
-          contextHint: member.contextHint,
-          model: member.model,
-          tools: member.tools ?? csettings.tools,
-          timeoutSeconds,
-          silentForSeconds,
-          ctx,
-          parentToolCallId: toolCallId,
-          signal,
-          onPreview: (p) => {
-            states[idx].preview = p;
-            flushPreview();
-          },
-        }).then((result) => {
-          states[idx] = {
-            state: result.isError ? "failed" : "done",
-            preview: extractText(result),
-          };
-          flushPreview();
-          return { member, result, label: labelFor(member, idx) };
-        });
-      });
-
-      flushPreview(); // initial paint with everyone running
-      const completed = await Promise.all(promises);
-
-      return aggregateCouncil(completed);
     },
 
     renderShell: "self",
@@ -846,19 +966,24 @@ export default function (pi: ExtensionAPI) {
     name: "sidekick_send",
     label: "Sidekick Send",
     description:
-      "Send a message to a side-kick and get its reply. The side-kick remembers " +
-      "your earlier messages to it (it has its own running history). Only the " +
-      "default 'sidekick' is auto-created on first use (handy for a quick " +
-      "companion); any other name must be created with sidekick_start first, and " +
-      "a side-kick that was explicitly stopped is not silently revived (the next " +
-      "send fails once, then a follow-up send starts a fresh one). Use " +
-      "sidekick_start when you want a specific role / model / tools.",
+      "Send a message to a side-kick. By DEFAULT this dispatches in the background " +
+      "and returns immediately -- the reply arrives as a follow-up that wakes you " +
+      "when ready, so you keep the floor (end your turn after sending, like a " +
+      "backgrounded shell command). Pass wait:true to block for the reply in this " +
+      "turn instead. The side-kick remembers your earlier messages to it (it has " +
+      "its own running history). Only the default 'sidekick' is auto-created on " +
+      "first use (handy for a quick companion); any other name must be created " +
+      "with sidekick_start first, and a side-kick that was explicitly stopped is " +
+      "not silently revived (the next send fails once, then a follow-up send " +
+      "starts a fresh one). Use sidekick_start when you want a specific role / " +
+      "model / tools.",
     parameters: Type.Object({
       message: Type.String({ description: "What to say to the side-kick." }),
       name: Type.Optional(Type.String({ description: "Side-kick name. Default 'sidekick'." })),
       model: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created; ignored if it already exists." })),
       tools: Type.Optional(Type.String({ description: "Only used if the side-kick must be auto-created." })),
-      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 0, description: "Wall-clock seconds before this send is interrupted and its partial progress is handed back to you as a 'justify yourself' checkpoint (the side-kick stays alive so you can send 'continue' or sidekick_stop). Default 180 (env PI_SIDEKICK_TIMEOUT / settings.sidekick.timeoutSeconds); 0 = block until done." })),
+      wait: Type.Optional(Type.Boolean({ description: "Block for the reply in THIS turn. Default false = dispatch in the background and receive the reply as a follow-up when ready (you keep the floor; end your turn after sending). Use wait:true only for a tight synchronous loop where yielding the floor buys nothing." })),
+      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 0, description: "Only applies to wait:true. Wall-clock seconds before the blocking send is interrupted and its partial progress is handed back as a 'justify yourself' checkpoint (the side-kick stays alive so you can send 'continue' or sidekick_stop). Default 180 (env PI_SIDEKICK_TIMEOUT / settings.sidekick.timeoutSeconds); 0 = block until done. Ignored in the default async mode -- the side-kick's health timeout guards hangs there." })),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
       const name = (params.name ?? DEFAULT_SIDEKICK_NAME).trim() || DEFAULT_SIDEKICK_NAME;
@@ -907,6 +1032,36 @@ export default function (pi: ExtensionAPI) {
         : `You are operating as a side-kick agent. Your standing role:\n${entry.role}\n\nFirst message from the primary agent:\n${params.message}`;
       entry.streamBuf = "";
       entry.thinkTail = "";
+
+      // Default: async dispatch (like a backgrounded shell). Fire the message and
+      // return immediately so the primary ends its turn and the human keeps the
+      // floor; the reply is delivered as a followUp that wakes the primary. The
+      // side-kick's own silence-based health timeout guards a wedged send, and
+      // only one send runs at a time (a send while busy is rejected above).
+      if (!(params.wait ?? false)) {
+        entry.onPreview = undefined;
+        const sk = entry;
+        void sk.handle.prompt(text)
+          .then((res) => {
+            sk.firstSendDone = true;
+            sk.sends++;
+            const body = res.report?.trim() || (res.error ? `(error: ${res.error})` : "(side-kick returned no text)");
+            deliverSidekick(name, !!res.ok, body);
+          })
+          .catch((err: any) => deliverSidekick(name, false, `side-kick send failed: ${err?.message ?? err}`))
+          .finally(() => renderAgentsWidget());
+        kickAgentsWidget();
+        const banner = autoCreated ? `Auto-started fresh side-kick '${name}' (no prior history). ` : "";
+        return {
+          content: [{ type: "text", text:
+            `${banner}Dispatched to side-kick '${name}' in the background — end your turn; its reply arrives automatically as a follow-up when ready. ` +
+            `(A send while it's still working is rejected; reclaim with sidekick_stop. Pass wait:true to block for the reply in this turn instead.)` }],
+          details: { name, dispatched: true, created: autoCreated },
+        };
+      }
+
+      // wait:true -- block for the reply in THIS turn, bounded by a wall-clock
+      // checkpoint. Only for a tight synchronous loop where yielding buys nothing.
       entry.onPreview = (t) => onUpdate?.({ content: [{ type: "text", text: t }] });
       const onAbort = () => { void entry!.handle.abort(); };
       signal?.addEventListener("abort", onAbort);
