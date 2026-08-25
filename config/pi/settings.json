@@ -1,9 +1,9 @@
 {
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-opus-5",
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-5.6-sol",
   "theme": "alexpopov",
   "lastChangelogVersion": "0.84.1",
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": true,
   "showHardwareCursor": true,
   "outputPad": 0,
