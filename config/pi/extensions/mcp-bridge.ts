@@ -43,6 +43,11 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// Empty render component: suppress all inline TUI output for MCP tool calls
+// (humans don't care about raw MCP I/O). The tool-aggregator widget still counts
+// every call and surfaces errors via tool_execution_end, like the built-in tools.
+const EMPTY_RENDER = { render: () => [], invalidate: () => {} };
+
 interface ServerCfg {
   command: string;
   args?: string[];
@@ -267,6 +272,12 @@ export default function mcpBridge(pi: ExtensionAPI) {
             : [{ type: "text", text: typeof res === "string" ? res : JSON.stringify(res) }];
           return { content: capContent(content, MCP_MAX_RESULT), details: { mcpServer: name, mcpTool: t.name, isError: !!res?.isError } };
         },
+        // Quiet inline rendering -- humans don't care about raw MCP call/result
+        // dumps. Render nothing inline (like the built-in read/bash/etc.); the
+        // tool-aggregator widget still counts every call and surfaces errors.
+        renderShell: "self",
+        renderCall: () => EMPTY_RENDER,
+        renderResult: () => EMPTY_RENDER,
       });
     }
     return `${name}: connected, registered ${added} tool(s) as ${name}__*`;
