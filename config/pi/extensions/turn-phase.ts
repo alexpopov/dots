@@ -17,15 +17,19 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 // tool_execution_end = the in-tool (synchronous-wait) phase. A poll animates
 // the spinner and ticks elapsed.
 //
-// No emoji: they mis-measure / need VS16 in many terminals and jitter column
-// width. Uses the ASCII spinner |/-\ (unambiguously single-width) and U+00B7
-// as a separator; a long wait is flagged with COLOR, not a glyph.
+// No emoji: they mis-measure / need VS16 and jitter column width. Uses the
+// Braille-dots spinner (U+2800 block) -- the de-facto terminal spinner (ora,
+// npm, cargo): East Asian Width = Neutral, so always ONE cell, no variation
+// selectors, and even a font missing the glyph renders single-width tofu.
+// Avoids Ambiguous-width glyphs (● ◐ ▶ ✓ ★, and even ·/•) which render 1 OR 2
+// cells by terminal/locale. Separators are ASCII; a long wait is flagged with
+// COLOR, not a glyph.
 //
 // Env: PI_TURN_PHASE_DISABLE=1 to turn off; PI_TURN_PHASE_POLL_MS (default 150);
 // PI_TURN_PHASE_WARN_MS (default 15000) = when an in-tool wait turns "warning".
 
 const KEY = "turn-phase";
-const SPIN = ["|", "/", "-", "\\"];
+const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const POLL_MS = Number(process.env.PI_TURN_PHASE_POLL_MS) || 150;
 const WARN_MS = Number(process.env.PI_TURN_PHASE_WARN_MS) || 15000;
 
@@ -68,8 +72,8 @@ export default function (pi: ExtensionAPI) {
         const long = waited >= WARN_MS;
         const label = tools.length === 1
           ? `${oldest.name} ${fmt(waited)}`
-          : `${tools.length} tools \u00b7 ${oldest.name} ${fmt(waited)}`;
-        const tail = long ? theme.fg("dim", "  waiting \u00b7 input queues, Esc interrupts") : "";
+          : `${tools.length} tools, ${oldest.name} ${fmt(waited)}`;
+        const tail = long ? theme.fg("dim", "  waiting -- input queues, Esc interrupts") : "";
         return [`${theme.fg(long ? "warning" : "dim", spin)} ${theme.fg(long ? "warning" : "text", label)}${tail}`];
       },
       invalidate: () => {},

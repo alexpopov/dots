@@ -305,15 +305,15 @@ export default function (pi: ExtensionAPI) {
           const head: string[] = [];
           if (runs.length) head.push(`${runs.length} subagent${runs.length > 1 ? "s" : ""}`);
           if (sks.length) head.push(`${sks.length} side-kick${sks.length > 1 ? "s" : ""}`);
-          const lines = [`${theme.fg("accent", "\u2699")} ${theme.bold(head.join(" \u00b7 "))} ${theme.fg("dim", "running \u2014 /subagents /sidekick to manage")}`];
+          const lines = [`${theme.bold(head.join(", "))} ${theme.fg("dim", "running -- /subagents /sidekick to manage")}`];
           for (const r of runs) {
             const secs = Math.round((now - r.startedAt) / 1000);
-            lines.push(`  ${theme.fg("accent", "\u25b6")} ${r.id} ${theme.fg("dim", `(${secs}s)`)} ${r.label.slice(0, 60)}`);
+            lines.push(`  ${theme.fg("accent", ">")} ${r.id} ${theme.fg("dim", `(${secs}s)`)} ${r.label.slice(0, 60)}`);
             const tail = r.preview ? (r.preview.split("\n").pop() || "").slice(0, 80) : "";
             if (tail) lines.push(`      ${theme.fg("dim", tail)}`);
           }
           for (const e of sks) {
-            lines.push(`  ${theme.fg("accent", "\u25b6")} side-kick ${e.name}${e.model ? theme.fg("dim", ` ${e.model}`) : ""}`);
+            lines.push(`  ${theme.fg("accent", ">")} side-kick ${e.name}${e.model ? theme.fg("dim", ` ${e.model}`) : ""}`);
             const tail = e.streamBuf ? (e.streamBuf.split("\n").pop() || "").slice(0, 80) : "";
             if (tail) lines.push(`      ${theme.fg("dim", tail)}`);
           }
@@ -446,13 +446,13 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerMessageRenderer(BG_MSG_TYPE, (message: any, _options: any, theme: any) => {
     const d = message.details as { id?: string; ok?: boolean; label?: string; seconds?: number } | undefined;
-    const head = d?.ok === false ? theme.fg("error", `✗ subagent ${d?.id}`) : theme.fg("dim", `↩ subagent ${d?.id}`);
+    const head = d?.ok === false ? theme.fg("error", `✗ subagent ${d?.id}`) : theme.fg("dim", `✓ subagent ${d?.id}`);
     return new Text(`${head} ${theme.fg("dim", `(${d?.seconds ?? "?"}s) ${d?.label ?? ""}`)}`, 0, 0);
   });
 
   pi.registerMessageRenderer(COUNCIL_MSG_TYPE, (message: any, _options: any, theme: any) => {
     const d = message.details as { ok?: boolean; succeeded?: number; total?: number; seconds?: number } | undefined;
-    const head = d?.ok ? theme.fg("dim", `↩ council`) : theme.fg("error", `✗ council`);
+    const head = d?.ok ? theme.fg("dim", `✓ council`) : theme.fg("error", `✗ council`);
     return new Text(`${head} ${theme.fg("dim", `(${d?.seconds ?? "?"}s) ${d?.succeeded ?? "?"}/${d?.total ?? "?"} ok`)}`, 0, 0);
   });
 
@@ -475,7 +475,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerMessageRenderer(SIDEKICK_MSG_TYPE, (message: any, _options: any, theme: any) => {
     const d = message.details as { name?: string; ok?: boolean } | undefined;
-    const head = d?.ok ? theme.fg("dim", `↩ side-kick ${d?.name ?? ""}`) : theme.fg("error", `✗ side-kick ${d?.name ?? ""}`);
+    const head = d?.ok ? theme.fg("dim", `✓ side-kick ${d?.name ?? ""}`) : theme.fg("error", `✗ side-kick ${d?.name ?? ""}`);
     return new Text(head, 0, 0);
   });
 
