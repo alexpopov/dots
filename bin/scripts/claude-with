@@ -24,8 +24,14 @@
 #
 # Usage:
 #   claude-with [--yolo] [claude args...]
+#   claude-with --select a,b,c [claude args...]  # non-interactive pick (agents / no TTY)
+#                                                # names: server keys, plus "local" for the
+#                                                # stock .mcp.json bundle and "none"
 #   claude-with --link [fragment]   # symlink a global fragment into ./.claude-mcp/
 #   claude-with --list              # show every server this directory could offer
+#
+# Without a TTY (agents, cron), the interactive picker cannot run: pass --select,
+# or you get the offer list on stderr instead of a gum error.
 #
 # Bash 3.2 compatible (macOS system bash): no mapfile, no negative array indices.
 
@@ -146,7 +152,45 @@ choices=""
 [[ -n "$global_keys" ]] && choices="${choices:+$choices$NL}$global_keys"
 choices="${choices:+$choices$NL}$NONE_LABEL"
 
-selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
+# --select a,b,c: non-interactive selection (agents, cron — anywhere gum has no TTY).
+# Accepts server keys, "local" (the stock .mcp.json bundle) and "none".
+SELECT_NAMES=""
+if [[ "${1:-}" == "--select" ]]; then
+    SELECT_NAMES="${2:-}"
+    if [[ -z "$SELECT_NAMES" ]]; then
+        echo "claude-with: --select needs a comma-separated server list" >&2
+        exit 1
+    fi
+    shift 2
+fi
+
+if [[ -n "$SELECT_NAMES" ]]; then
+    selected=""
+    for name in ${SELECT_NAMES//,/ }; do
+        case "$name" in
+            none)  selected="${selected:+$selected$NL}$NONE_LABEL" ;;
+            local)
+                if [[ -z "$LOCAL_LABEL" ]]; then
+                    echo "claude-with: --select local, but no project .mcp.json here" >&2
+                    exit 1
+                fi
+                selected="${selected:+$selected$NL}$LOCAL_LABEL" ;;
+            *)
+                if ! jq -e --arg k "$name" 'has($k)' <<< "$all_defs" > /dev/null; then
+                    echo "claude-with: unknown server '$name' — offers are:" >&2
+                    printf '%s\n' "$choices" >&2
+                    exit 1
+                fi
+                selected="${selected:+$selected$NL}$name" ;;
+        esac
+    done
+elif ! { [[ -t 0 ]] && [[ -t 1 ]]; }; then
+    echo "claude-with: no TTY for the picker — use --select a,b,c (or 'local', 'none'). Offers:" >&2
+    printf '%s\n' "$choices" >&2
+    exit 2
+else
+    selected=$(printf '%s\n' "$choices" | gum choose --no-limit --header "MCP servers for this session" || true)
+fi
 
 # Pull special labels out of the selection.
 want_none=false
