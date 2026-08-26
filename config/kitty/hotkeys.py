@@ -747,7 +747,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     hits = []
     for i, line in enumerate(_screen_lines(rc, target)):
         for m in ARTIFACT_RE.finditer(line):
-            hits.append({"row": i + 1, "col": m.end() + 1,  # just AFTER the ref
+            hits.append({"row": i + 1, "col": m.end(),  # ON the ref's last digit
                          "kind": m.group(1), "num": m.group(2), "tok": m.group(0)})
     if not hits:
         return "\u26a0 no D\u2026 / T\u2026 / P\u2026 reference on screen"
@@ -765,8 +765,11 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     def draw_labels():
         _paint_backdrop(bg)                    # repaint the frozen terminal...
         _out("\x1b[?7l")
-        for h in hits:                         # ...then stamp labels just AFTER each
-            if h["row"] <= rows:               # ref, so its D/T type stays visible
+        for h in hits:                         # ...then stamp each label OVER the
+            if h["row"] <= rows:               # ref's last digit: the D/T/P type and
+                                               # most of the number stay readable, and
+                                               # no letter lands in the gap between
+                                               # words, which breaks reading flow
                 col = min(h["col"], max(1, cols - len(h["label"]) + 1))
                 style = LABEL_DONE if h["label"] in picked else LABEL_HL
                 _out(f"\x1b[{h['row']};{col}H" + style + h["label"] + RESET)
