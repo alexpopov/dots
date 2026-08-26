@@ -25,9 +25,9 @@
     "command": "uvx",
     "args": [
       "--from",
-      "git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp",
+      "git+https://projects.blender.org/lab/blender_mcp.git@4309a39646e644261624bfcd2bca669b343b7621#subdirectory=mcp",
       "--with",
-      "mcp<2",
+      "mcp==1.29.1",
       "blender-mcp"
     ]
   },
