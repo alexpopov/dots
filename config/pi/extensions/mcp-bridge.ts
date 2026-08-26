@@ -237,11 +237,18 @@ export function capContent(content: any[], max: number): any[] {
 export default function mcpBridge(pi: ExtensionAPI) {
   const clients = new Map<string, McpClient>();
   const registered = new Set<string>();
+  // Servers the user has connected this session, persisted to the session log so
+  // the set survives extension re-init (/reload, /resume, /fork) -- which tears
+  // down clients + tool registrations. On session_start we replay this and
+  // reconnect, so a connection you made sticks instead of vanishing into a
+  // "tool not found". Snapshot-style (full set each write, last wins), like cron.ts.
+  const intended = new Set<string>();
+  const persistConnected = () => { try { pi.appendEntry("mcp-connected", { servers: [...intended] }); } catch {} };
 
   const piToolName = (server: string, tool: string) =>
     `${server}__${tool}`.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 64);
 
-  async function connectServer(name: string, cfg: ServerCfg): Promise<string> {
+  async function connectServer(name: string, cfg: ServerCfg, remember = true): Promise<string> {
     const existing = clients.get(name);
     if (existing?.connected) return `${name}: already connected (${existing.tools.length} tools)`;
     const client = new McpClient(name, cfg);
@@ -280,6 +287,10 @@ export default function mcpBridge(pi: ExtensionAPI) {
         renderResult: () => EMPTY_RENDER,
       });
     }
+    // Remember user-initiated connects so they auto-reconnect after re-init.
+    // (autoConnect + session_start restore pass remember=false: config/session
+    // already drive them, and we don't want autoConnect bleeding into memory.)
+    if (remember && !intended.has(name)) { intended.add(name); persistConnected(); }
     return `${name}: connected, registered ${added} tool(s) as ${name}__*`;
   }
 
@@ -308,6 +319,7 @@ export default function mcpBridge(pi: ExtensionAPI) {
         const c = name && clients.get(name);
         if (c) {
           c.close();
+          if (name && intended.delete(name)) persistConnected(); // stop auto-reconnecting it after re-init
           ctx.ui.notify(`Disconnected ${name} (registered tools stay until session reload).`, "info");
         } else ctx.ui.notify(`Not connected: ${name}`, "warning");
         return;
@@ -382,17 +394,26 @@ export default function mcpBridge(pi: ExtensionAPI) {
     });
   }
 
-  // Auto-connect servers listed in ~/.pi/agent/mcp.json "autoConnect" (default: none, for fast startup).
-  pi.on("session_start", async () => {
+  // On session_start, reconnect: (a) servers in mcp.json "autoConnect" (always-on,
+  // config-driven), and (b) servers the user had connected before an extension
+  // re-init (/reload, /resume, /fork), replayed from the persisted "mcp-connected"
+  // snapshot. This is what makes a connection survive re-init instead of dropping
+  // to "tool not found". Bad/slow servers are caught so they never block startup.
+  pi.on("session_start", async (_e: any, ctx: any) => {
     const { servers, autoConnect } = loadConfig();
-    for (const n of autoConnect) {
-      if (servers[n]) {
-        try {
-          await connectServer(n, servers[n]);
-        } catch {
-          /* don't let a bad server break startup */
+    let remembered: string[] = [];
+    try {
+      for (const entry of ctx?.sessionManager?.getEntries?.() ?? []) {
+        if (entry?.type === "custom" && entry?.customType === "mcp-connected") {
+          const d = entry.data as { servers?: string[] } | undefined;
+          if (Array.isArray(d?.servers)) remembered = d.servers; // last write wins
         }
       }
+    } catch { /* no session manager / print mode */ }
+    for (const n of remembered) intended.add(n); // repopulate memory for future persists
+    for (const n of new Set<string>([...autoConnect, ...remembered])) {
+      if (!servers[n]) continue;
+      try { await connectServer(n, servers[n], false); } catch { /* never block startup */ }
     }
   });
 
