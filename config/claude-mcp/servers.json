@@ -26,6 +26,8 @@
     "args": [
       "--from",
       "git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp",
+      "--with",
+      "mcp<2",
       "blender-mcp"
     ]
   },
