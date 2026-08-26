@@ -83,8 +83,8 @@ def copy(what="cmd_output"):
 
 
 def open_artifact(multi=False):
-    # Scan the terminal's visible text for Meta diff/task refs (Dxxxxxxx /
-    # Txxxxxxx) and open them in the browser -- the in-menu port of iTerm's
+    # Scan the terminal's visible text for Meta diff/task/paste refs (Dxxxxxxx
+    # / Txxxxxxx / Pxxxxxxx) and open them in the browser -- the in-menu port of iTerm's
     # ⌘-click Smart Selection. One match opens immediately; several show a
     # one-keypress picker. Rules/URLs live in hotkeys.py (_bi_open_artifact).
     # multi=True keeps the picker open, opening each pick in the background.
@@ -104,8 +104,8 @@ MODES = {
             ",": ("rename tab",          ask("New tab title", rc("set-tab-title"))),
             "y": ("copy last cmd+output", copy("cmd_output")),
             "c": ("Copy",                go("copy")),
-            "o": ("open diff/task ↗",       open_artifact()),
-            "O": ("open many diff/tasks ↗", open_artifact(multi=True)),
+            "o": ("open diff/task/paste ↗",       open_artifact()),
+            "O": ("open many diff/task/pastes ↗", open_artifact(multi=True)),
             "r": ("reload kitty config", act("load_config_file")),
         },
     },

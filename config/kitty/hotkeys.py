@@ -28,6 +28,8 @@ import time
 import traceback
 import tty
 
+_T0 = time.monotonic()   # module import; all log lines carry +ms since this
+
 
 # ── logging ────────────────────────────────────────────────────────────────
 def _log_path():
@@ -48,12 +50,25 @@ def log(msg):
     try:
         if _LOGF is None:
             _LOGF = open(_log_path(), "a", buffering=1)
-        _LOGF.write(time.strftime("%H:%M:%S ") + str(msg) + "\n")
+        _LOGF.write(time.strftime("%H:%M:%S ")
+                    + f"+{(time.monotonic() - _T0) * 1000:6.1f}ms  "
+                    + str(msg) + "\n")
     except Exception:
         pass
 
 
 log("---- module import ----")
+
+# Optional latency probe: if kitty.conf's instrumented cmd+i mapping is enabled,
+# it stamps this file the moment the key is pressed, so we can log how much of
+# the perceived delay is kitty spawning us vs. our own work. Harmless if absent.
+try:
+    _stamp = "/tmp/kitty-hotkeys-press"
+    _age = time.time() - os.path.getmtime(_stamp)
+    if 0 <= _age < 5:
+        log(f"spawn latency (keypress -> kitten import): {_age * 1000:.0f}ms")
+except Exception:
+    pass
 try:
     from kittens.tui.handler import kitten_ui
     log("import kitten_ui: OK")
@@ -111,9 +126,25 @@ def tty_fd():
     return _TTY_FD
 
 
+# Output is buffered and flushed in ONE write per frame. Hundreds of tiny
+# os.write() calls per draw is both syscall-expensive and visibly tearing (the
+# panel painted itself row by row); a single write makes a frame atomic.
+_OUTBUF = []
+
+
 def _out(s):
+    _OUTBUF.append(s)
+
+
+def _flush():
+    if not _OUTBUF:
+        return
+    data = "".join(_OUTBUF).encode("utf-8")
+    del _OUTBUF[:]
+    fd = tty_fd()
     try:
-        os.write(tty_fd(), s.encode("utf-8"))
+        while data:
+            data = data[os.write(fd, data):]
     except OSError as e:
         log(f"_out write failed: {e!r}")
 
@@ -269,7 +300,18 @@ def draw(mode, breadcrumb, note=None, bg=None):
 
 
 # ── input ────────────────────────────────────────────────────────────────
+def pending(fd):
+    """True if a keystroke is already sitting in the tty buffer. Used to skip
+    drawing entirely when the user typed ahead (⌘I o) -- no flash, no wasted
+    frame, and the queued key acts as if the menu had been up all along."""
+    try:
+        return bool(select.select([fd], [], [], 0)[0])
+    except Exception:
+        return False
+
+
 def read_key(fd):
+    _flush()
     ch = os.read(fd, 1)
     if not ch:
         log("read_key: EOF on tty")
@@ -318,6 +360,7 @@ def prompt_line(label, fd, bg=None):
 
     render()
     while True:
+        _flush()
         ch = os.read(fd, 1)
         if not ch:
             return None
@@ -400,6 +443,43 @@ def resolve_target(rc):
                 return wid
     log("resolve_target: no non-self window found")
     return None
+
+
+class Scene:
+    """Memoized, on-demand access to the two slow startup round trips: `ls` (which
+    window were we invoked from) and `get-text` (photograph it for the backdrop).
+
+    Deliberately NOT threaded: a kitten's remote control is carried over the tty
+    as escape sequences, so issuing it from a worker thread races with the frames
+    the main thread is writing -- that showed up as ⌘I intermittently not
+    drawing. Instead we simply don't pay for either call until something actually
+    needs it, which is what makes typed-ahead ⌘I-o instant."""
+
+    def __init__(self, rc):
+        self._rc = rc
+        self._target = self._bg = None
+        self._have_target = self._have_bg = False
+
+    def target(self):
+        if not self._have_target:
+            self._target = resolve_target(self._rc)
+            self._have_target = True
+        return self._target
+
+    def bg(self):
+        if not self._have_bg:
+            self._bg = capture_backdrop(self._rc, self.target())
+            self._have_bg = True
+            log(f"backdrop captured: {self._bg is not None}")
+        return self._bg
+
+    def have_bg(self):
+        return self._have_bg
+
+    def bg_if_cheap(self):
+        """The backdrop only if we already have it -- for frames we don't want to
+        stall (a repaint while the user is mid-typeahead)."""
+        return self._bg if self._have_bg else None
 
 
 def capture_backdrop(rc, target):
@@ -565,18 +645,20 @@ def _bi_copy(action, rc, target, fd=None, bg=None):
     return f"\u2713 copied {text.count(chr(10))} lines / {len(text)} chars"
 
 
-# ── open Meta artifacts (Dxxxxxxx / Txxxxxxx) — ported from the iTerm2 Smart
-# Selection rules in ~/dots/config/iterm2. This is the in-menu version of what
-# used to be a standalone `kitten hints` binding: it scans the target window's
-# visible text for diff/task refs and opens them in the browser. Doing it here
-# (rather than launching the hints kitten) avoids nesting an interactive kitten
-# under this overlay, and works the same inside tmux / over ssh because it
-# reads the rendered screen. Left \b would still allow a match inside a longer
-# identifier (the S,D in "SD1234567"), so use a negative lookbehind instead.
-ARTIFACT_RE = re.compile(r"(?<![A-Za-z0-9])([DT])(\d{7,})")
+# ── open Meta artifacts (Dxxxxxxx / Txxxxxxx / Pxxxxxxx) — ported from the
+# iTerm2 Smart Selection rules in ~/dots/config/iterm2. This is the in-menu
+# version of what used to be a standalone `kitten hints` binding: it scans the
+# target window's visible text for diff/task/paste refs and opens them in the
+# browser. Doing it here (rather than launching the hints kitten) avoids
+# nesting an interactive kitten under this overlay, and works the same inside
+# tmux / over ssh because it reads the rendered screen. Left \b would still
+# allow a match inside a longer identifier (the S,D in "SD1234567"), so use a
+# negative lookbehind instead.
+ARTIFACT_RE = re.compile(r"(?<![A-Za-z0-9])([DTP])(\d{7,})")
 ARTIFACT_URLS = {
     "D": "https://www.internalfb.com/diff/D{num}",
     "T": "https://www.internalfb.com/tasks/?t={num}",
+    "P": "https://www.internalfb.com/intern/paste/P{num}/",
 }
 
 
@@ -655,7 +737,7 @@ def _artifact_labels(n):
 
 
 def _bi_open_artifact(action, rc, target, fd=None, bg=None):
-    """Leap-style picker: label every D\u2026/T\u2026 ref in place on our OWN backdrop
+    """Leap-style picker: label every D\u2026/T\u2026/P\u2026 ref in place on our OWN backdrop
     (no second kitten, so nothing can cover the labels), then open the pick.
     With multi=True, keep the picker open and open each pick in the background
     (opened labels turn green); esc when done."""
@@ -668,7 +750,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             hits.append({"row": i + 1, "col": m.end() + 1,  # just AFTER the ref
                          "kind": m.group(1), "num": m.group(2), "tok": m.group(0)})
     if not hits:
-        return "\u26a0 no D\u2026 / T\u2026 reference on screen"
+        return "\u26a0 no D\u2026 / T\u2026 / P\u2026 reference on screen"
     # Always label (even a single hit) so there's a visible pick step and we
     # never silently open a browser tab.
     by_label = {}
@@ -693,7 +775,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             _out(f"\x1b[1;{max(1, cols - len(tag) + 1)}H" + MODE_TAG + tag + RESET)
             hint = " type labels to queue \u00b7 esc opens them "
         else:
-            hint = " open diff/task \u00b7 type a label \u00b7 esc cancels "
+            hint = " open diff/task/paste \u00b7 type a label \u00b7 esc cancels "
         _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT + hint + RESET + "\x1b[?7h")
 
     draw_labels()
@@ -744,11 +826,13 @@ def _show_error(text):
         for ln in str(text).splitlines():
             _out(ln + "\r\n")
         _out("\r\n\x1b[2mlogged to " + _log_path() + "\r\npress any key to close\x1b[0m\r\n")
+        _flush()
         try:
             os.read(fd, 1)
         except Exception:
             pass
         _out("\x1b[?1049l")
+        _flush()
         if old is not None:
             try:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old)
@@ -784,13 +868,15 @@ def _run(args):
 
     rc = getattr(main, "remote_control", None)
     log(f"remote_control present: {rc is not None}")
-    target = resolve_target(rc)
-    bg = capture_backdrop(rc, target)
-    log(f"backdrop captured: {bg is not None}")
+
+    scene = Scene(rc)
 
     fd = tty_fd()
     old = termios.tcgetattr(fd)
-    tty.setraw(fd)
+    # setraw() defaults to TCSAFLUSH, which DISCARDS anything typed while the
+    # kitten was starting up -- the reason ⌘I felt like it dropped keys. TCSANOW
+    # keeps the queue, so typing ⌘I o before the panel appears still works.
+    tty.setraw(fd, termios.TCSANOW)
     _out("\x1b[?1049h\x1b[?25l")
     try:
         stack = ["root"]
@@ -800,7 +886,22 @@ def _run(args):
                 stack = ["root"]
             mode = modes[stack[-1]]
             crumb = " \u203a ".join(modes[m]["title"] for m in stack)
-            draw(mode, crumb, note, bg)
+            # Typed-ahead key waiting? Skip the frame entirely: no flash, and we
+            # act on it as fast as the kitten can start.
+            if pending(fd):
+                # Typed ahead: don't draw at all (no flash) and don't pay for the
+                # backdrop -- just act on the queued key.
+                log("typeahead pending -- skipping draw")
+            elif scene.have_bg():
+                draw(mode, crumb, note, scene.bg())
+            else:
+                # First frame: paint the menu straight away rather than sitting on
+                # ~140ms of remote-control round trips first, then fill the
+                # backdrop in behind it. Two atomic frames; the panel is identical
+                # in both, so all the user sees appear is the frozen terminal.
+                draw(mode, crumb, note, None)
+                if not pending(fd):        # unless they've already typed by now
+                    draw(mode, crumb, note, scene.bg())
             note = None
 
             key = read_key(fd)
@@ -827,6 +928,11 @@ def _run(args):
                 else:
                     note = f"unknown mode: {action['target']}"
                 continue
+
+            # From here on we need the real window id, and builtins need the
+            # backdrop to paint over; fetch them now (memoized).
+            target = scene.target()
+            bg = scene.bg() if kind == "builtin" or kind == "prompt" else scene.bg_if_cheap()
 
             if kind == "builtin":
                 fn = BUILTINS.get(action["name"])
@@ -859,6 +965,7 @@ def _run(args):
             return ""
     finally:
         _out("\x1b[?25h\x1b[?1049l")
+        _flush()
         try:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
         except Exception:
