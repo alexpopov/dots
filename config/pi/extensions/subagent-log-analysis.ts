@@ -15,8 +15,8 @@ import { basename, join } from "node:path";
 // the whole thing can be handed to another AI session to answer "why did this
 // supervise loop behave this way?".
 //
-// This is a from-our-conventions port of Ivan Gromov's analysis-log.ts
-// (fbsource/users/iv/ivangromov/subagent/analysis-log.ts). Structure and
+// This is a from-our-conventions port of Ivan Gromov's analysis-log.ts.
+// Structure and
 // logic are ported; the imports are @earendil-works/pi-coding-agent (NOT
 // @mariozechner), the command-dispatch + getArgumentCompletions shape mirrors
 // our projects.ts, and the run-dir layout it folds in is the one written by

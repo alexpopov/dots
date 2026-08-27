@@ -4,8 +4,7 @@ import { basename } from "node:path";
 // Print a "↻ resume: pi --session <id>" hint to stderr when pi exits, so
 // you can easily resume after Ctrl+C / Ctrl+D / or any other quit.
 //
-// Adapted from Ivan Gromov's resume-hint extension
-// (fbsource/users/iv/ivangromov/resume-hint).
+// Adapted from Ivan Gromov's resume-hint extension.
 //
 // Why process.on("exit") and not pi's session_shutdown event:
 // session_shutdown fires BEFORE the TUI tears down. Anything we print there

@@ -29,8 +29,7 @@ import { randomUUID } from "node:crypto";
 //   /projects edit-entrypoint → open PROJECT.md in $EDITOR
 //   /projects kb              → print KB path
 //
-// Trimmed port of Ivan Gromov's design at
-// fbsource/users/iv/ivangromov/projects/DESIGN.md. v1 deliberately skips:
+// Trimmed port of Ivan Gromov's design doc. v1 deliberately skips:
 //   • closed/reopen lifecycle
 //   • per-project session list and auto-association
 //   • settings.json overrides for registry / kb paths (uses fixed defaults)

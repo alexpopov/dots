@@ -19,7 +19,7 @@ import { type ExtensionAPI, isToolCallEventType } from "@earendil-works/pi-codin
 //
 // Implemented via the `tool_call` hook, which fires before a tool runs and
 // can veto it with { block, reason }. Applies to the bash tool only; hg is
-// untouched (the fbsource workflow allows `hg amend`).
+// untouched (that workflow allows `hg amend`).
 //
 // Active in child sessions (subagents / side-kicks) too — deliberately NOT
 // recursion-guarded, since the point is to enforce the rule everywhere.

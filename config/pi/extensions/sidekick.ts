@@ -107,7 +107,7 @@ async function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<{ timedOut
 // --- settings loading -------------------------------------------------------
 // Read ~/.pi/agent/settings.json (global) and ./.pi/settings.json (project).
 // Project keys override global keys, per-block (matches Ivan's pattern in
-// fbsource/users/iv/ivangromov/subagent/supervise.ts). Defaults are
+// his supervise-loop). Defaults are
 // preserved: with no settings present, behavior is identical to a fresh
 // install. Each call site reads settings at execute() time so /reload
 // picks up changes.
