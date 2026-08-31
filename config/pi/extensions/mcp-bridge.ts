@@ -57,6 +57,11 @@ interface ServerCfg {
   // `mcp_connect` tool (not just the human via /mcp connect). Off by default so a
   // server is never agent-spawnable unless explicitly blessed.
   agentConnect?: boolean;
+  // When true, this server is auto-connected in SUBAGENT children (PI_AGENT_TEAM_CHILD=1)
+  // so a fresh subagent comes up with it already available -- e.g. the indexed code-search
+  // servers, so subagent-search-guard can block grep and redirect here. Declarative: tag a
+  // server once in mcp.json and every subagent gets it, no extension edit per tool.
+  subagentConnect?: boolean;
   // One-line summary of what this server's tools are for; shown to the model in the
   // mcp_connect tool description so it knows when to load them.
   hint?: string;
@@ -71,6 +76,7 @@ interface ServerCfg {
 interface BridgeConfig {
   servers: Record<string, ServerCfg>;
   autoConnect: string[];
+  subagentConnect: string[];
 }
 
 function loadConfig(): BridgeConfig {
@@ -91,7 +97,11 @@ function loadConfig(): BridgeConfig {
   } catch {
     /* no override — fine */
   }
-  return { servers, autoConnect };
+  // Per-server, declarative: servers tagged `subagentConnect: true` are auto-connected
+  // in subagent children. Add a new search tool to mcp.json with this flag and every
+  // subagent gets it -- nothing in the extensions needs to change.
+  const subagentConnect = Object.entries(servers).filter(([, c]) => c.subagentConnect).map(([n]) => n);
+  return { servers, autoConnect, subagentConnect };
 }
 
 /** Minimal MCP stdio client: JSON-RPC 2.0, newline-delimited. Validated against real servers. */
@@ -402,8 +412,10 @@ export default function mcpBridge(pi: ExtensionAPI) {
   // is what makes a connection survive re-init instead of dropping to "tool not
   // found". Bad/slow servers are caught so they never block startup.
   pi.on("session_start", async (_e: any, ctx: any) => {
-    const { servers, autoConnect } = loadConfig();
+    const { servers, autoConnect, subagentConnect } = loadConfig();
     const envAuto = (process.env.PI_MCP_AUTOCONNECT || "").split(",").map((s) => s.trim()).filter(Boolean);
+    // Subagent children get the code-search set declared in mcp.json (no hard-coded list).
+    const childAuto = process.env.PI_AGENT_TEAM_CHILD === "1" ? subagentConnect : [];
     let remembered: string[] = [];
     try {
       for (const entry of ctx?.sessionManager?.getEntries?.() ?? []) {
@@ -414,7 +426,7 @@ export default function mcpBridge(pi: ExtensionAPI) {
       }
     } catch { /* no session manager / print mode */ }
     for (const n of remembered) intended.add(n); // repopulate memory for future persists
-    for (const n of new Set<string>([...autoConnect, ...envAuto, ...remembered])) {
+    for (const n of new Set<string>([...autoConnect, ...childAuto, ...envAuto, ...remembered])) {
       if (!servers[n]) continue;
       try { await connectServer(n, servers[n], false); } catch { /* never block startup */ }
     }
