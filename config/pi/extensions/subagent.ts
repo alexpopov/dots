@@ -1344,7 +1344,11 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   // bash grandchildren alive — and those grandchildren inherit the stdio pipes,
   // which is what used to make (J) hang forever after an Esc or a timeout.
   const child = spawn("pi", args, {
-    env: { ...process.env, PI_AGENT_TEAM_CHILD: "1" },
+    // PI_MCP_AUTOCONNECT: give the child the indexed code-search MCP (a14/a16)
+    // up front, so subagent-search-guard can block tree-walking grep/find and
+    // redirect to a<ver>__search_files without the model hitting a cold connect.
+    // Override/disable with PI_SUBAGENT_MCP (e.g. "a16", or "" for none).
+    env: { ...process.env, PI_AGENT_TEAM_CHILD: "1", PI_MCP_AUTOCONNECT: process.env.PI_SUBAGENT_MCP ?? "a14,a16" },
     stdio: ["ignore", "pipe", "pipe"],
     detached: true,
   });

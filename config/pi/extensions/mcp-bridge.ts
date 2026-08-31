@@ -395,12 +395,15 @@ export default function mcpBridge(pi: ExtensionAPI) {
   }
 
   // On session_start, reconnect: (a) servers in mcp.json "autoConnect" (always-on,
-  // config-driven), and (b) servers the user had connected before an extension
-  // re-init (/reload, /resume, /fork), replayed from the persisted "mcp-connected"
-  // snapshot. This is what makes a connection survive re-init instead of dropping
-  // to "tool not found". Bad/slow servers are caught so they never block startup.
+  // config-driven), (b) servers named in $PI_MCP_AUTOCONNECT (env-driven -- how
+  // subagent children get code search auto-connected; see subagent.ts), and
+  // (c) servers the user had connected before an extension re-init (/reload,
+  // /resume, /fork), replayed from the persisted "mcp-connected" snapshot. This
+  // is what makes a connection survive re-init instead of dropping to "tool not
+  // found". Bad/slow servers are caught so they never block startup.
   pi.on("session_start", async (_e: any, ctx: any) => {
     const { servers, autoConnect } = loadConfig();
+    const envAuto = (process.env.PI_MCP_AUTOCONNECT || "").split(",").map((s) => s.trim()).filter(Boolean);
     let remembered: string[] = [];
     try {
       for (const entry of ctx?.sessionManager?.getEntries?.() ?? []) {
@@ -411,7 +414,7 @@ export default function mcpBridge(pi: ExtensionAPI) {
       }
     } catch { /* no session manager / print mode */ }
     for (const n of remembered) intended.add(n); // repopulate memory for future persists
-    for (const n of new Set<string>([...autoConnect, ...remembered])) {
+    for (const n of new Set<string>([...autoConnect, ...envAuto, ...remembered])) {
       if (!servers[n]) continue;
       try { await connectServer(n, servers[n], false); } catch { /* never block startup */ }
     }
