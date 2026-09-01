@@ -2829,16 +2829,23 @@ async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle>
   const tools = parseToolsCsv(opts.tools);
 
   const modelRuntime = await ModelRuntime.create();
+  // A fresh ModelRuntime only has the built-in (unauthenticated) model catalogue.
+  // At Meta the working auth is NOT an API key (auth.json is empty, ANTHROPIC_API_KEY
+  // is a placeholder) -- it's the AI-Gateway config (baseUrl + X-Meta-AI-Gateway-*
+  // headers) held in the PARENT's registered providers. Copy each registered provider
+  // config from ctx.modelRegistry onto the child runtime so it inherits the gateway
+  // credentials, then rebuild + refresh availability. Best-effort: if this fails the
+  // child still starts and a bad-auth call surfaces as a caught prompt error, not a
+  // crash. (registerNativeProvider is unusable here -- getRegisteredNativeProvider
+  // returns undefined -- so we use the provider CONFIG + registerProvider.)
   try {
-    const providers = new Set<string>(["anthropic"]); // Meta default gateway provider
-    const mp = model?.provider ?? (opts.model ? splitModelSpec(opts.model).provider : undefined);
-    if (mp) providers.add(mp);
-    for (const p of providers) {
-      const auth = await registry?.getProviderAuth?.(p);
-      const key = auth?.apiKey ?? auth?.key;
-      if (key) await modelRuntime.setRuntimeApiKey(p, key);
+    for (const id of (registry?.getRegisteredProviderIds?.() ?? [])) {
+      const cfg = registry?.getRegisteredProviderConfig?.(id);
+      if (cfg) (modelRuntime as any).registerProvider(cfg);
     }
-  } catch { /* seeding is best-effort; see note above */ }
+    (modelRuntime as any).rebuildProviders?.();
+    await (modelRuntime as any).refresh?.();
+  } catch { /* see note: child still starts; bad auth surfaces as a caught prompt error */ }
 
   const { session } = await withAgentChildEnv(async () => {
     const resourceLoader = new DefaultResourceLoader({ cwd: opts.cwd, agentDir: getAgentDir() });
