@@ -1,9 +1,8 @@
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
@@ -2740,14 +2739,12 @@ interface CreateSdkAgentOpts {
   cwd: string;
   healthTimeoutMs: number;
   onEvent?: (e: SdkEvent) => void;
-  // Reuse the PARENT session's authenticated registry/auth. Critical at Meta:
-  // auth flows through the AI Gateway via a runtime API key the parent fetches
-  // (auth.json is empty and ANTHROPIC_API_KEY is a placeholder). A fresh
-  // AuthStorage.create() would not have that runtime key and every model call
-  // would 401 ("invalid x-api-key"). Pass ctx.modelRegistry here so the child
-  // in-process session shares the parent's credentials.
+  // Reuse the PARENT session's authenticated registry. Critical at Meta: auth
+  // flows through the AI Gateway via a runtime API key the parent fetched
+  // (auth.json is empty, ANTHROPIC_API_KEY is a placeholder). We seed that key
+  // into the child's ModelRuntime via setRuntimeApiKey (see createSdkAgent),
+  // else every model call 401s ("invalid x-api-key"). Pass ctx.modelRegistry.
   modelRegistry?: any;
-  authStorage?: any;
 }
 
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
@@ -2820,20 +2817,35 @@ function sdkMessageText(message: any): string {
 }
 
 async function createSdkAgent(opts: CreateSdkAgentOpts): Promise<SdkAgentHandle> {
-  // Prefer the parent's authenticated objects (see CreateSdkAgentOpts note).
-  // Fall back to fresh instances only when no parent registry was threaded in.
-  const authStorage = opts.authStorage ?? opts.modelRegistry?.authStorage ?? AuthStorage.create();
-  const modelRegistry = opts.modelRegistry ?? ModelRegistry.create(authStorage);
-  const model = await resolveModelSpec(modelRegistry, opts.model);
+  // pi 0.84 replaced createAgentSession's authStorage/modelRegistry options with an
+  // async modelRuntime (AuthStorage is no longer exported -- calling it was the
+  // "AuthStorage.create internal fault" that broke the side-kick). We still resolve
+  // the model against the parent's ctx.modelRegistry, then seed the parent's runtime
+  // KEY into a fresh ModelRuntime so the in-process child shares the gateway
+  // credential (see CreateSdkAgentOpts note). Best-effort: a missing key surfaces
+  // later as a caught prompt error, never a hard crash at setup.
+  const registry = opts.modelRegistry;
+  const model = await resolveModelSpec(registry, opts.model);
   const tools = parseToolsCsv(opts.tools);
+
+  const modelRuntime = await ModelRuntime.create();
+  try {
+    const providers = new Set<string>(["anthropic"]); // Meta default gateway provider
+    const mp = model?.provider ?? (opts.model ? splitModelSpec(opts.model).provider : undefined);
+    if (mp) providers.add(mp);
+    for (const p of providers) {
+      const auth = await registry?.getProviderAuth?.(p);
+      const key = auth?.apiKey ?? auth?.key;
+      if (key) await modelRuntime.setRuntimeApiKey(p, key);
+    }
+  } catch { /* seeding is best-effort; see note above */ }
 
   const { session } = await withAgentChildEnv(async () => {
     const resourceLoader = new DefaultResourceLoader({ cwd: opts.cwd, agentDir: getAgentDir() });
     await resourceLoader.reload();
     return await createAgentSession({
       cwd: opts.cwd,
-      authStorage,
-      modelRegistry,
+      modelRuntime,
       ...(model ? { model } : {}),
       ...(tools ? { tools } : {}),
       resourceLoader,
@@ -2965,9 +2977,9 @@ interface LiveLoopState {
   cancelCurrent?: () => void;
   requestRender?: () => void;
   abort?: () => void;
-  // Parent's authenticated registry (carries the runtime gateway API key), so
-  // in-process role agents share the parent's credentials instead of building
-  // a fresh unauthenticated AuthStorage. See CreateSdkAgentOpts.
+  // Parent's authenticated registry (resolves the runtime gateway API key via
+  // getProviderAuth), so in-process role agents seed the parent's credential into
+  // their ModelRuntime instead of coming up unauthenticated. See createSdkAgent.
   modelRegistry?: any;
 }
 
