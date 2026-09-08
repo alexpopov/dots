@@ -91,6 +91,84 @@ function truncateDeep(value: any, seen: WeakSet<object> = new WeakSet()): any {
   return out;
 }
 
+// --- message normalization (Ivan's normalizeMessage, adapted) --------------
+// Flatten a message's content into readable text: plain text, [thinking], and
+// [toolCall name {...}] inline. Returns the (truncated) text plus how much was
+// dropped, so the analyst knows when a message was clipped.
+interface TextBlob {
+  text: string;
+  truncated: boolean;
+  originalChars: number;
+}
+
+function textBlob(content: any, maxChars: number = MAX_FIELD_CHARS): TextBlob {
+  let s = "";
+  if (typeof content === "string") {
+    s = content;
+  } else if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const p of content) {
+      if (p?.type === "text") parts.push(p.text ?? "");
+      else if (p?.type === "thinking") parts.push(`[thinking]\n${p.thinking ?? ""}`);
+      else if (p?.type === "toolCall") parts.push(`[toolCall ${p.name ?? "?"}] ${JSON.stringify(p.arguments ?? {})}`);
+    }
+    s = parts.join("\n");
+  }
+  if (s.length <= maxChars) return { text: s, truncated: false, originalChars: s.length };
+  return { text: `${s.slice(0, maxChars)}\n[truncated ${s.length - maxChars} chars]`, truncated: true, originalChars: s.length };
+}
+
+function toolCallsFrom(content: any): Array<{ id?: string; name: string; arguments: unknown }> {
+  if (!Array.isArray(content)) return [];
+  const out: Array<{ id?: string; name: string; arguments: unknown }> = [];
+  for (const p of content) {
+    if (p?.type === "toolCall") out.push({ id: p.id, name: p.name ?? "?", arguments: p.arguments ?? {} });
+  }
+  return out;
+}
+
+// Turn one raw session entry into a compact, flat, analyzable event. Known types
+// (message / custom_message / custom / compaction / branch_summary) get a
+// purpose-built shape; anything unrecognized falls back to the lossless
+// raw-truncated form so nothing is silently dropped. `source` is root | child.
+function normalizeEntry(entry: any, source: "root" | "child"): Record<string, unknown> {
+  const t = entry?.type;
+  const base = { source, entryId: entry?.id, parentId: entry?.parentId, timestamp: entry?.timestamp };
+  if (t === "custom_message") {
+    return { kind: "custom_message", ...base, customType: entry.customType, content: textBlob(entry.content), display: entry.display, details: truncateDeep(entry.details) };
+  }
+  if (t === "custom") {
+    return { kind: "custom", ...base, customType: entry.customType, data: truncateDeep(entry.data) };
+  }
+  if (t === "compaction") {
+    return { kind: "compaction", ...base, firstKeptEntryId: entry.firstKeptEntryId, tokensBefore: entry.tokensBefore, summary: truncate(String(entry.summary ?? "")), details: truncateDeep(entry.details) };
+  }
+  if (t === "branch_summary") {
+    return { kind: "branch_summary", ...base, fromId: entry.fromId, summary: truncate(String(entry.summary ?? "")), details: truncateDeep(entry.details) };
+  }
+  if (t === "message") {
+    const m = entry.message ?? {};
+    return {
+      kind: "message",
+      ...base,
+      role: m.role,
+      model: m.model,
+      provider: m.provider,
+      stopReason: m.stopReason,
+      errorMessage: m.errorMessage,
+      usage: m.usage,
+      toolName: m.toolName,
+      toolCallId: m.toolCallId,
+      isError: m.isError,
+      content: textBlob(m.content),
+      toolCalls: toolCallsFrom(m.content),
+      details: m.role === "toolResult" ? truncateDeep(m.details) : undefined,
+    };
+  }
+  // Unknown type: keep it, lossless-ish.
+  return { kind: "entry", source, type: t, ...truncateDeep(entry) };
+}
+
 function safeRead(filePath: string): string {
   return readFileSync(filePath, "utf8");
 }
@@ -242,9 +320,10 @@ function appendArtifact(
   });
 }
 
-// One child session .jsonl under sessions/ → a digest of each entry as a
-// { kind:"child-entry" } line. Big fields truncated. A parse failure on one
-// line becomes an {kind:"error"} line and we keep going.
+// One child session .jsonl under sessions/ → a { kind:"child-session-start" }
+// frame, one normalized event per entry (source:"child", tagged with runDir +
+// sessionFile), then a { kind:"child-session-end" } frame. A parse failure on
+// one line becomes an {kind:"error"} line and we keep going.
 function appendChildSession(
   lines: string[],
   runDir: string,
@@ -258,28 +337,26 @@ function appendChildSession(
     pushError(lines, absFile, err);
     return;
   }
+  const entries: any[] = [];
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
-    let entry: any;
     try {
-      entry = JSON.parse(line);
+      entries.push(JSON.parse(line));
     } catch (err) {
       pushLine(lines, {
         kind: "error",
         file: absFile,
-        message: `child-session parse error: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        message: `child-session parse error: ${err instanceof Error ? err.message : String(err)}`,
       });
-      continue;
     }
-    pushLine(lines, {
-      kind: "child-entry",
-      runDir,
-      sessionFile: relFile,
-      entry: truncateDeep(entry),
-    });
   }
+  // Frame the child transcript so the analyst knows which run/session a block of
+  // normalized entries belongs to (Ivan's child_session_start/end).
+  pushLine(lines, { kind: "child-session-start", runDir, sessionFile: relFile, entries: entries.length });
+  for (const entry of entries) {
+    pushLine(lines, { ...normalizeEntry(entry, "child"), runDir, sessionFile: relFile });
+  }
+  pushLine(lines, { kind: "child-session-end", runDir, sessionFile: relFile });
 }
 
 // One run dir → a { kind:"run-dir" } header, then one line per interesting
@@ -338,7 +415,7 @@ function buildExport(ctx: any): { lines: string[]; runDirs: string[] } {
   }
   for (const entry of branch) {
     try {
-      pushLine(lines, { kind: "entry", ...truncateDeep(entry) });
+      pushLine(lines, normalizeEntry(entry, "root"));
     } catch (err) {
       pushError(lines, sessionFile ?? "(entry)", err);
     }
@@ -439,20 +516,20 @@ function readEventObjs(filePath: string): any[] {
   return out;
 }
 
-// Flatten one exported event's message text + whether it errored. A root "entry"
-// line spreads the session entry at top level; a "child-entry" nests it under
-// .entry. Folds in thinking, summaries, and errorMessage so the failure net and
-// the analyst both see them.
+// Flatten one normalized event's message text + whether it errored. Reads the
+// TextBlob content.text (root and child events share the same normalized shape),
+// folding in summaries and errorMessage so the failure net and the analyst both
+// see them.
 function eventSignal(obj: any): { text: string; isError: boolean } {
-  const e = obj?.kind === "child-entry" ? obj.entry : obj;
-  const msg = e?.message ?? e;
-  const content = msg?.content ?? e?.content;
+  // Normalized events carry content as a TextBlob {text} and flags at top level.
+  const c = obj?.content;
   let text = "";
-  if (typeof content === "string") text = content;
-  else if (Array.isArray(content)) text = content.map((p: any) => p?.text ?? p?.thinking ?? "").join("\n");
-  if (typeof e?.summary === "string") text += `\n${e.summary}`;
-  if (typeof msg?.errorMessage === "string") text += `\n${msg.errorMessage}`;
-  const isError = msg?.isError === true || msg?.stopReason === "error";
+  if (typeof c === "string") text = c;
+  else if (c && typeof c.text === "string") text = c.text;
+  else if (Array.isArray(c)) text = c.map((p: any) => p?.text ?? p?.thinking ?? "").join("\n");
+  if (typeof obj?.summary === "string") text += `\n${obj.summary}`;
+  if (typeof obj?.errorMessage === "string") text += `\n${obj.errorMessage}`;
+  const isError = obj?.isError === true || obj?.stopReason === "error";
   return { text, isError };
 }
 
@@ -476,14 +553,15 @@ function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): strin
     const k = String(ev?.kind ?? "?");
     counts[k] = (counts[k] ?? 0) + 1;
   }
+  const FAIL_KINDS = new Set(["message", "custom_message", "compaction", "branch_summary", "entry"]);
   const failures: string[] = [];
   for (const ev of events) {
-    if (ev?.kind !== "entry" && ev?.kind !== "child-entry") continue;
+    if (!FAIL_KINDS.has(String(ev?.kind))) continue;
     const { text, isError } = eventSignal(ev);
     if (!isError && !FAILURE_RE.test(text)) continue;
-    const id = ev.id ?? ev.entry?.id ?? "";
-    const src = ev.kind === "child-entry" ? `child ${basename(String(ev.sessionFile ?? ""))}` : "root";
-    failures.push(`- ${src} ${id}: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
+    const id = ev.entryId ?? ev.id ?? "";
+    const src = ev.source === "child" ? `child ${basename(String(ev.sessionFile ?? ""))}` : "root";
+    failures.push(`- ${src} ${ev.kind}${id ? ` ${id}` : ""}: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
   }
 
   const lines: string[] = [];
@@ -532,8 +610,11 @@ function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): strin
   lines.push("");
   lines.push(
     "Feed the JSONL above to another AI session. Each line is one object " +
-      "tagged by `kind` (root-session, entry, run-dir, artifact, child-entry, " +
-      "error). Trace the supervise loop: dispatcher plan → user-approved-plan " +
+      "tagged by `kind` (root-session, message, custom_message, custom, " +
+      "compaction, branch_summary, run-dir, artifact, child-session-start, " +
+      "child-session-end, error). Messages carry flattened content.text (text + " +
+      "[thinking] + [toolCall]) and a toolCalls[]. Trace the supervise loop: " +
+      "dispatcher plan → user-approved-plan " +
       "→ executor reports → oracle runs → supervisor verdicts → summary, and " +
       "correlate decisions with the evidence patches.",
   );
