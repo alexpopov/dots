@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -124,17 +125,50 @@ function superviseRunRoots(cwd: string): string[] {
   ];
 }
 
-// Discover every supervise run dir reachable for this cwd. A run dir is an
-// immediate child directory of one of the roots above.
-function discoverRunDirs(cwd: string): string[] {
+// Run dirs the SESSION itself points at: `details.runDir` on any entry, and any
+// `Artifacts: <path>` string in message text. (Ivan's idea — catches runs that
+// live outside the standard roots: a custom artifactRoot, or a run from a
+// different cwd — which a root-glob alone would miss.)
+function runDirsFromSession(ctx: any): string[] {
+  const out = new Set<string>();
+  let branch: any[] = [];
+  try {
+    branch = ctx.sessionManager?.getBranch?.() ?? [];
+  } catch {
+    branch = [];
+  }
+  for (const e of branch) {
+    const details = (e as any)?.message?.details ?? (e as any)?.details;
+    if (typeof details?.runDir === "string") out.add(details.runDir);
+    const content = (e as any)?.message?.content ?? (e as any)?.content;
+    let text = "";
+    if (typeof content === "string") text = content;
+    else if (Array.isArray(content)) text = content.map((p: any) => p?.text ?? "").join("\n");
+    for (const m of text.matchAll(/Artifacts:\s*(\S+)/g)) out.add(m[1]);
+  }
+  return [...out];
+}
+
+// Discover every supervise run dir reachable for this session: the two standard
+// roots for this cwd (immediate child dirs) UNION anything the session points
+// at (runDirsFromSession), filtered to real directories and deduped.
+function discoverRunDirs(ctx: any): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const root of superviseRunRoots(cwd)) {
-    for (const name of listDirNames(root)) {
-      const full = join(root, name);
-      if (seen.has(full)) continue;
+  const add = (full: string) => {
+    if (!seen.has(full)) {
       seen.add(full);
       out.push(full);
+    }
+  };
+  for (const root of superviseRunRoots(ctx.cwd)) {
+    for (const name of listDirNames(root)) add(join(root, name));
+  }
+  for (const d of runDirsFromSession(ctx)) {
+    try {
+      if (existsSync(d) && statSync(d).isDirectory()) add(d);
+    } catch {
+      /* skip unreadable / non-dir */
     }
   }
   return out.sort();
@@ -311,7 +345,7 @@ function buildExport(ctx: any): { lines: string[]; runDirs: string[] } {
   }
 
   // 3. supervise run dirs + their artifacts (+ child sessions).
-  const runDirs = discoverRunDirs(ctx.cwd);
+  const runDirs = discoverRunDirs(ctx);
   for (const runDir of runDirs) {
     try {
       appendRunDir(lines, runDir);
@@ -381,6 +415,47 @@ function digestRunDir(runDir: string): RunDigest {
   return digest;
 }
 
+// Broad net for the failure shortlist (Ivan's regex): matches benign mentions
+// too, on purpose — it's a starting point for the analyst, not a verdict.
+const FAILURE_RE = /failed|error|timed out|health check/i;
+
+// Re-read the JSONL we just wrote, as parsed objects (skip unparseable lines).
+function readEventObjs(filePath: string): any[] {
+  const out: any[] = [];
+  let raw = "";
+  try {
+    raw = readFileSync(filePath, "utf8");
+  } catch {
+    return out;
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
+}
+
+// Flatten one exported event's message text + whether it errored. A root "entry"
+// line spreads the session entry at top level; a "child-entry" nests it under
+// .entry. Folds in thinking, summaries, and errorMessage so the failure net and
+// the analyst both see them.
+function eventSignal(obj: any): { text: string; isError: boolean } {
+  const e = obj?.kind === "child-entry" ? obj.entry : obj;
+  const msg = e?.message ?? e;
+  const content = msg?.content ?? e?.content;
+  let text = "";
+  if (typeof content === "string") text = content;
+  else if (Array.isArray(content)) text = content.map((p: any) => p?.text ?? p?.thinking ?? "").join("\n");
+  if (typeof e?.summary === "string") text += `\n${e.summary}`;
+  if (typeof msg?.errorMessage === "string") text += `\n${msg.errorMessage}`;
+  const isError = msg?.isError === true || msg?.stopReason === "error";
+  return { text, isError };
+}
+
 function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): string {
   const sessionId = rootSessionId(ctx);
   let entryCount = 0;
@@ -389,8 +464,27 @@ function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): strin
   } catch {
     entryCount = 0;
   }
-  const runDirs = discoverRunDirs(ctx.cwd);
+  const runDirs = discoverRunDirs(ctx);
   const digests = runDirs.map(digestRunDir);
+
+  // Re-read the JSONL to tally event kinds and net for failures (Ivan's idea:
+  // give the analyst — human or AI — a shortlist + counts to start from instead
+  // of scanning the whole log).
+  const events = readEventObjs(jsonlAbsPath);
+  const counts: Record<string, number> = {};
+  for (const ev of events) {
+    const k = String(ev?.kind ?? "?");
+    counts[k] = (counts[k] ?? 0) + 1;
+  }
+  const failures: string[] = [];
+  for (const ev of events) {
+    if (ev?.kind !== "entry" && ev?.kind !== "child-entry") continue;
+    const { text, isError } = eventSignal(ev);
+    if (!isError && !FAILURE_RE.test(text)) continue;
+    const id = ev.id ?? ev.entry?.id ?? "";
+    const src = ev.kind === "child-entry" ? `child ${basename(String(ev.sessionFile ?? ""))}` : "root";
+    failures.push(`- ${src} ${id}: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
+  }
 
   const lines: string[] = [];
   lines.push(`# Subagent log analysis — ${sessionId}`);
@@ -400,10 +494,30 @@ function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): strin
   lines.push(`- supervise run dirs: ${runDirs.length}`);
   lines.push(`- JSONL: ${jsonlAbsPath} (${lineCount} lines)`);
   lines.push("");
+  lines.push("## Event counts");
+  lines.push("");
+  const countKeys = Object.keys(counts).sort();
+  if (countKeys.length === 0) lines.push("_(no events)_");
+  else for (const k of countKeys) lines.push(`- ${k}: ${counts[k]}`);
+  lines.push("");
+  lines.push("## Potential failures / errors");
+  lines.push("");
+  lines.push(
+    "_Broad net: any entry with isError / stopReason=error, or whose text " +
+      "matches failed|error|timed out|health check. Includes benign mentions._",
+  );
+  lines.push("");
+  if (failures.length === 0) {
+    lines.push("(none detected)");
+  } else {
+    for (const f of failures.slice(0, 50)) lines.push(f);
+    if (failures.length > 50) lines.push(`- … and ${failures.length - 50} more`);
+  }
+  lines.push("");
   lines.push("## Supervise runs");
   lines.push("");
   if (digests.length === 0) {
-    lines.push("_No supervise run dirs found for this cwd._");
+    lines.push("_No supervise run dirs found for this session._");
   } else {
     for (const d of digests) {
       lines.push(`### ${basename(d.path)}`);
@@ -422,6 +536,17 @@ function writeMarkdown(ctx: any, jsonlAbsPath: string, lineCount: number): strin
       "error). Trace the supervise loop: dispatcher plan → user-approved-plan " +
       "→ executor reports → oracle runs → supervisor verdicts → summary, and " +
       "correlate decisions with the evidence patches.",
+  );
+  lines.push("");
+  lines.push("## Suggested analysis prompt");
+  lines.push("");
+  lines.push(
+    "Analyze the JSONL log referenced above. Focus on why child executor / " +
+      "subagent agents underperformed compared with interactive root-agent " +
+      "work. Compare prompt packets, inherited context, tool usage, steering, " +
+      "supervisor feedback, health/timeout events, oracle evidence, and " +
+      "workspace diffs. Call out where the orchestration leaked — lost context, " +
+      "missing tools, premature reaping, or a child that never got the fast path.",
   );
   lines.push("");
 
@@ -469,7 +594,7 @@ export default function (pi: ExtensionAPI) {
           } catch {
             sessionFile = "(ephemeral)";
           }
-          const runDirs = discoverRunDirs(ctx.cwd);
+          const runDirs = discoverRunDirs(ctx);
           ctx.ui.notify(
             [
               "subagent log analysis",
