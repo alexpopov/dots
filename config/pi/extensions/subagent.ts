@@ -1318,7 +1318,7 @@ async function runOnePi(opts: RunOnePiOptions): Promise<any> {
   // default to saving a one-turn session into ~/.pi/agent/sessions/ and
   // pollute the /resume picker.
   const args: string[] = ["--mode", "json"];
-  if (opts.model) args.push("--model", opts.model);
+  if (opts.model) args.push("--model", normalizeModelSpec(opts.model) ?? opts.model);
   if (opts.tools) args.push("--tools", opts.tools);
   let childSessionFile: string | undefined;
   if (opts.mode === "inherit") {
@@ -2762,25 +2762,59 @@ function splitModelSpec(spec: string): { provider?: string; id: string } {
   return { id: s };
 }
 
+// A bare, unprefixed Claude id (or family alias) resolves against ALL providers
+// when handed to `pi --model`, and on this host that can land on a provider with
+// no working key (amazon-bedrock / cloudflare-ai-gateway) -> an instant 401. Pin
+// the common Claude case to the gateway-authed `anthropic` provider. Anything
+// already provider-qualified (has a "/") or non-Claude is left untouched.
+const CLAUDE_BARE_RE = /^(claude|sonnet|opus|haiku)[\w.\-]*$/i;
+function normalizeModelSpec(spec: string | undefined): string | undefined {
+  if (!spec) return spec;
+  const s = spec.trim();
+  if (!s || s.includes("/")) return spec; // empty or already provider-qualified
+  const { id } = splitModelSpec(s); // id = spec minus any :thinking suffix
+  return CLAUDE_BARE_RE.test(id) ? `anthropic/${s}` : spec;
+}
+
 // Resolve a model string to a Model object via the registry. Returns
 // undefined when unspecified OR unresolvable — caller then omits `model`
 // and createAgentSession falls back to the settings default.
 async function resolveModelSpec(registry: any, spec: string | undefined): Promise<any | undefined> {
   if (!spec) return undefined;
-  const { provider, id } = splitModelSpec(spec);
+  const { provider, id } = splitModelSpec(normalizeModelSpec(spec) ?? spec);
   try {
     if (provider) {
       const found = registry.find?.(provider, id);
       if (found) return found;
+      // Fall through: an explicit provider that didn't resolve still gets the
+      // avail scan below, which is bounded to models that have a key (no no-key
+      // provider), so it can't reintroduce the 401 footgun.
     }
     const avail = (await registry.getAvailable?.()) ?? [];
     const lc = id.toLowerCase();
     const idOf = (m: any) => String(m?.id ?? m?.model ?? "").toLowerCase();
-    return (
-      avail.find((m: any) => idOf(m) === lc) ??
-      avail.find((m: any) => idOf(m).includes(lc)) ??
-      avail.find((m: any) => String(m?.name ?? "").toLowerCase().includes(lc))
-    );
+    const providerOf = (m: any) => String(m?.provider ?? m?.providerId ?? "");
+    // Prefer a provider with configured auth among the matches, so a tie doesn't
+    // resolve to a present-but-dead key by array order. Best-effort and sync; if
+    // the registry doesn't expose hasConfiguredAuth this no-ops (treats all as ok).
+    const authed = (m: any) => {
+      try { return registry.hasConfiguredAuth?.(providerOf(m)) !== false; } catch { return true; }
+    };
+    const matches = [
+      ...avail.filter((m: any) => idOf(m) === lc),
+      ...avail.filter((m: any) => idOf(m).includes(lc)),
+      ...avail.filter((m: any) => String(m?.name ?? "").toLowerCase().includes(lc)),
+    ];
+    const picked = matches.find(authed) ?? matches[0];
+    if (!picked) {
+      // A given-but-unresolved spec silently falls back to the session default;
+      // leave a breadcrumb pointing at the usual fix.
+      console.warn(
+        `[subagent] model '${spec}' did not resolve to an available model; using ` +
+          `the session default. Pin it with an explicit provider, e.g. anthropic/${id}.`,
+      );
+    }
+    return picked;
   } catch {
     return undefined;
   }
