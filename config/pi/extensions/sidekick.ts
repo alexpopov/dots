@@ -297,16 +297,26 @@ export default function (pi: ExtensionAPI) {
   const stopAgentsPoll = () => { if (agentsPoll) { clearInterval(agentsPoll); agentsPoll = null; } };
   const renderAgentsWidget = () => {
     const c = agentsCtx;
-    if (!c?.ui?.setWidget) return;
+    // c.ui access throws on stale ctx after reload (assertActive) — and this
+    // runs on a timer, so disarm instead of letting it exit pi.
+    let cui: any;
+    try {
+      cui = c?.ui;
+    } catch {
+      if (c === agentsCtx) agentsCtx = null;
+      stopAgentsPoll();
+      return;
+    }
+    if (!cui?.setWidget) return;
     const runs = liveRuns();
     const sks = liveSidekicks();
     if (runs.length === 0 && sks.length === 0) {
-      try { c.ui.setWidget("live-agents", undefined); } catch {}
+      try { cui.setWidget("live-agents", undefined); } catch {}
       return;
     }
     const now = Date.now();
     try {
-      c.ui.setWidget("live-agents", (_tui: any, theme: any) => ({
+      cui.setWidget("live-agents", (_tui: any, theme: any) => ({
         render: () => {
           const head: string[] = [];
           if (runs.length) head.push(`${runs.length} subagent${runs.length > 1 ? "s" : ""}`);

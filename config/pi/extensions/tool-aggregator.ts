@@ -131,6 +131,17 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
+  pi.on("session_shutdown", () => {
+    lastCtx = null;
+    stopPolling();
+  });
+
+  // Reload/session replacement swaps the ctx out from under the poll timer.
+  // Adopt the fresh one; until it arrives renderWidget self-disarms on stale.
+  pi.on("session_start", (_event: any, ctx: any) => {
+    lastCtx = ctx;
+  });
+
   pi.on("agent_start", (_event: any, ctx: any) => {
     counts = new Map();
     errorList = [];
@@ -190,10 +201,23 @@ export default function (pi: ExtensionAPI) {
   });
 
   function renderWidget(ctx: any) {
+    if (!ctx) return;
+    // ctx.ui access throws once the ctx goes stale after a reload or session
+    // replacement — and this runs on a timer, so an uncaught throw exits pi
+    // (uncaughtException). Drop the frame and disarm instead; the next tool
+    // event re-arms with a fresh ctx. A widget frame must never kill pi.
+    let ui: any;
+    try {
+      ui = ctx.ui;
+    } catch {
+      if (ctx === lastCtx) lastCtx = null;
+      stopPolling();
+      return;
+    }
     const summary = formatSummary(counts);
     const errors = [...errorList];
     const running = Array.from(inFlight.values());
-    ctx.ui.setWidget(WIDGET_KEY, (_tui: any, theme: any) => ({
+    ui.setWidget(WIDGET_KEY, (_tui: any, theme: any) => ({
       render: () => {
         const runningSuffix = running.length > 0
           ? `  ${theme.fg("accent", `(${running.length} running)`)}`
