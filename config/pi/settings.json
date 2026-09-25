@@ -2,23 +2,20 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-5",
   "theme": "alexpopov",
-  "lastChangelogVersion": "0.84.1",
+  "lastChangelogVersion": "0.86.1",
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": true,
   "showHardwareCursor": true,
   "outputPad": 0,
   "skills": [
-    "~/.claude/skills",
-    "~/.claude/agent-market/plugins/aosp-upgrade/skills"
+    "~/.claude/skills"
   ],
   "compaction": {
     "reserveTokens": 32768,
     "keepRecentTokens": 50000
   },
-  "subagent": {
-    "timeoutSeconds": 900
-  },
-  "council": {
-    "timeoutSeconds": 900
-  }
+  "packages": [
+    "npm:pi-fabric",
+    "npm:pi-subagents@0.71.0"
+  ]
 }

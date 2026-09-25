@@ -599,11 +599,13 @@ EOF
   mkdir -p "$HOME/.ollama"
   ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml" || _fail_error "Failed to symlink ollama config"
 
-  # pi also refuses to use XDG. settings.json gets `lastChangelogVersion`
-  # written back to it by pi after updates; expect periodic dirty-file
-  # churn in dots.
+  # pi also refuses to use XDG. settings.json: symlink the portable copy here
+  # unless a machine-local REAL file already exists (a private overlay can
+  # materialize one: this baseline + machine-specific keys). Never clobber it.
   mkdir -p "$HOME/.pi/agent/themes" "$HOME/.pi/agent/extensions"
-  ln -sf "$DOTS_CONFIG_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json" || _fail_error "Failed to symlink pi settings"
+  if [[ -L "$HOME/.pi/agent/settings.json" || ! -e "$HOME/.pi/agent/settings.json" ]]; then
+    ln -sf "$DOTS_CONFIG_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json" || _fail_error "Failed to symlink pi settings"
+  fi
   ln -sf "$DOTS_CONFIG_DIR/pi/keybindings.json" "$HOME/.pi/agent/keybindings.json" || _fail_error "Failed to symlink pi keybindings"
 
   # pi themes and extensions - per-item symlinks so each dir can hold
