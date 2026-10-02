@@ -15,7 +15,7 @@
     "keepRecentTokens": 50000
   },
   "packages": [
-    "npm:pi-fabric",
-    "npm:pi-subagents@0.71.0"
+    "npm:pi-fabric@0.104.1",
+    "npm:pi-subagents@0.74.0"
   ]
 }
