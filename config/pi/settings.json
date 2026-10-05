@@ -16,6 +16,6 @@
   },
   "packages": [
     "npm:pi-fabric@0.104.1",
-    "npm:pi-subagents@0.74.0"
+    "npm:pi-subagents@0.75.0"
   ]
 }
