@@ -661,6 +661,99 @@ ARTIFACT_URLS = {
     "P": "https://www.internalfb.com/intern/paste/P{num}/",
 }
 
+# Plain URLs, so this picker doubles as `open_url_with_hints` -- which matters
+# because kitty's own click/hints URL detection operates on the grid and can't
+# rejoin a URL that tmux hard-wrapped across two rows. We can: see _join_wrap.
+# Excluded chars are the ones that in practice bracket a URL in prose/logs
+# rather than belong to it.
+URL_RE = re.compile(
+    r"(?:https?|ftps?|file|ssh|sftp|git)://[^\s<>\"'`\\|{}\^\[\]]+"
+    r"|mailto:[^\s<>\"'`\\|{}\^\[\]]+"
+    r"|(?<![A-Za-z0-9.@/])www\.[^\s<>\"'`\\|{}\^\[\]]+"
+)
+# Trailing punctuation that is nearly always sentence/markup, not URL. Closing
+# brackets are only stripped when unbalanced, so .../foo_(bar) survives.
+_URL_TRAIL = ".,;:!?\u2026'\"\u201c\u201d\u2019"
+_URL_PAIRS = {")": "(", "]": "[", "}": "{", ">": "<"}
+_NONSPACE = re.compile(r"\S*")
+_HAS_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _trim_url(text):
+    while text:
+        c = text[-1]
+        if c in _URL_TRAIL:
+            text = text[:-1]
+        elif c in _URL_PAIRS and text.count(_URL_PAIRS[c]) < text.count(c):
+            text = text[:-1]
+        else:
+            break
+    return text
+
+
+def _join_wrap(lines, i, end, text, cols, consumed):
+    """Follow a URL across tmux's hard wraps.
+
+    tmux (and `less`, and anything that draws its own grid) emits each visual
+    row as a real line, so a long URL arrives as N unrelated fragments and
+    every URL-detector in the terminal sees only the first one. If a match runs
+    to the right edge of a full-width row, glue on the next row's leading
+    non-space run, and keep going while that run also fills its row. Rows we
+    swallow get recorded in `consumed` so the tail doesn't also become its own
+    (broken) hit.
+    """
+    j = i
+    while (end >= len(lines[j]) and len(lines[j]) >= cols
+           and j + 1 < len(lines)):
+        frag = _NONSPACE.match(lines[j + 1]).group(0)
+        if not frag:
+            break
+        text += frag
+        j += 1
+        consumed[j] = max(consumed.get(j, 0), len(frag))
+        end = len(frag)
+    return text
+
+
+def _scan_hits(lines, cols, artifacts=True, urls=True):
+    """All openable things on screen, in reading order.
+
+    Each hit is {row, col (1-based, where its label gets stamped), url, tok}.
+    URLs are matched first so that a D-number *inside* a URL
+    (.../diff/D1234567) doesn't also show up as a separate artifact hit.
+    """
+    hits = []
+    consumed = {}    # row index -> leading chars already eaten by a wrapped URL
+    spans = {}       # row index -> [(start, end)] covered by a URL match
+    if urls:
+        for i, line in enumerate(lines):
+            for m in URL_RE.finditer(line):
+                if m.start() < consumed.get(i, 0):
+                    continue
+                spans.setdefault(i, []).append((m.start(), m.end()))
+                text = _trim_url(_join_wrap(lines, i, m.end(), m.group(0),
+                                            cols, consumed))
+                if not text:
+                    continue
+                url = text if _HAS_SCHEME.match(text) else "https://" + text
+                short = text if len(text) <= 44 else text[:41] + "\u2026"
+                # Label on the URL's first char: the tail is often off at the
+                # right edge (or on another row entirely) after a wrap.
+                hits.append({"row": i + 1, "col": m.start() + 1,
+                             "url": url, "tok": short})
+    if artifacts:
+        for i, line in enumerate(lines):
+            for m in ARTIFACT_RE.finditer(line):
+                if m.start() < consumed.get(i, 0):
+                    continue
+                if any(s <= m.start() < e for s, e in spans.get(i, ())):
+                    continue
+                hits.append({"row": i + 1, "col": m.end(),  # ON the ref's last digit
+                             "url": ARTIFACT_URLS[m.group(1)].format(num=m.group(2)),
+                             "tok": m.group(0)})
+    hits.sort(key=lambda h: (h["row"], h["col"]))
+    return hits
+
 
 def _open_url(url, background=False):
     # macOS 'open -g' opens in the background (browser doesn't steal focus) --
@@ -703,11 +796,10 @@ def _open_urls(urls, background=False):
     return ok
 
 
-def _open_artifact(kind, num, tok, background=False):
-    url = ARTIFACT_URLS.get(kind, "").format(num=num)
-    if url and _open_url(url, background=background):
-        return f"\u2713 opening {tok}"
-    return f"\u26a0 couldn't open {tok}"
+def _open_hit(hit, background=False):
+    if hit["url"] and _open_url(hit["url"], background=background):
+        return f"\u2713 opening {hit['tok']}"
+    return f"\u26a0 couldn't open {hit['tok']}"
 
 
 def _screen_lines(rc, target):
@@ -736,21 +828,27 @@ def _artifact_labels(n):
     return ["".join(p) for p in itertools.product(_LEAP_ALPHABET, repeat=2)][:n]
 
 
+_WHAT_LABEL = {"all": "link / D\u2026 / T\u2026 / P\u2026", "links": "link",
+               "artifacts": "D\u2026 / T\u2026 / P\u2026"}
+
+
 def _bi_open_artifact(action, rc, target, fd=None, bg=None):
-    """Leap-style picker: label every D\u2026/T\u2026/P\u2026 ref in place on our OWN backdrop
-    (no second kitten, so nothing can cover the labels), then open the pick.
-    With multi=True, keep the picker open and open each pick in the background
-    (opened labels turn green); esc when done."""
+    """Leap-style picker: label every URL / D\u2026 / T\u2026 / P\u2026 ref in place on our
+    OWN backdrop (no second kitten, so nothing can cover the labels), then open
+    the pick. With multi=True, keep the picker open and open each pick in the
+    background (opened labels turn green); esc when done.
+
+    action["what"] selects the scan: "all" (default), "links", "artifacts"."""
     multi = bool(action.get("multi"))
+    what = action.get("what", "all")
     if target is None:
         return "\u26a0 couldn't find the terminal window"
-    hits = []
-    for i, line in enumerate(_screen_lines(rc, target)):
-        for m in ARTIFACT_RE.finditer(line):
-            hits.append({"row": i + 1, "col": m.end(),  # ON the ref's last digit
-                         "kind": m.group(1), "num": m.group(2), "tok": m.group(0)})
+    cols, rows = _term_size()
+    hits = _scan_hits(_screen_lines(rc, target), cols,
+                      artifacts=what in ("all", "artifacts"),
+                      urls=what in ("all", "links"))
     if not hits:
-        return "\u26a0 no D\u2026 / T\u2026 / P\u2026 reference on screen"
+        return "\u26a0 no " + _WHAT_LABEL.get(what, "match") + " on screen"
     # Always label (even a single hit) so there's a visible pick step and we
     # never silently open a browser tab.
     by_label = {}
@@ -758,7 +856,6 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         h["label"] = lab
         by_label[lab] = h
 
-    cols, rows = _term_size()
     queued = []      # hits picked in multi mode; all opened at once on esc
     picked = set()   # labels already queued (drawn green)
 
@@ -778,7 +875,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             _out(f"\x1b[1;{max(1, cols - len(tag) + 1)}H" + MODE_TAG + tag + RESET)
             hint = " type labels to queue \u00b7 esc opens them "
         else:
-            hint = " open diff/task/paste \u00b7 type a label \u00b7 esc cancels "
+            hint = " open " + _WHAT_LABEL.get(what, "match") + " \u00b7 type a label \u00b7 esc cancels "
         _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT + hint + RESET + "\x1b[?7h")
 
     draw_labels()
@@ -790,8 +887,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             continue
         if k in ("quit", "back") or (multi and k == "enter"):  # esc / \u21b5 / \u2303C: done
             if queued:                          # open the whole queue at once
-                _open_urls([ARTIFACT_URLS.get(h["kind"], "").format(num=h["num"])
-                            for h in queued], background=True)
+                _open_urls([h["url"] for h in queued], background=True)
             return _CLOSE
         if k in ("enter", "ignore") or len(k) != 1:
             continue
@@ -803,7 +899,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         if typed in by_label and len(cands) == 1:
             h = by_label[typed]
             if not multi:
-                _open_artifact(h["kind"], h["num"], h["tok"])
+                _open_hit(h)
                 return _CLOSE
             if typed not in picked:             # queue it; opened together on esc
                 picked.add(typed)

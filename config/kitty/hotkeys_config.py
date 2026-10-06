@@ -82,13 +82,24 @@ def copy(what="cmd_output"):
     return {"kind": "builtin", "name": "copy", "what": what}
 
 
-def open_artifact(multi=False):
-    # Scan the terminal's visible text for Meta diff/task/paste refs (Dxxxxxxx
-    # / Txxxxxxx / Pxxxxxxx) and open them in the browser -- the in-menu port of iTerm's
-    # ⌘-click Smart Selection. One match opens immediately; several show a
-    # one-keypress picker. Rules/URLs live in hotkeys.py (_bi_open_artifact).
+def open_artifact(multi=False, what="all"):
+    # Scan the terminal's visible text for openable things and label each one
+    # leap-style; the key you type opens it in the browser.
+    #
+    #   what="artifacts"  Meta refs -- Dxxxxxxx / Txxxxxxx / Pxxxxxxx (the
+    #                     in-menu port of iTerm's ⌘-click Smart Selection)
+    #   what="links"      plain URLs (http(s), www., mailto:, ssh, file, …)
+    #   what="all"        both (default)
+    #
+    # The "links" scan is our replacement for kitty's `open_url_with_hints`.
+    # Worth having as well as ⌘-click because it reads the *rendered screen*,
+    # so it can stitch a URL back together after tmux hard-wrapped it across
+    # rows -- exactly the case where clicking picks up only half the URL. (It
+    # also means no second kitten nests under this overlay.) Rules and URL
+    # templates live in hotkeys.py (_scan_hits / ARTIFACT_URLS).
+    #
     # multi=True keeps the picker open, opening each pick in the background.
-    d = {"kind": "builtin", "name": "open_artifact"}
+    d = {"kind": "builtin", "name": "open_artifact", "what": what}
     if multi:
         d["multi"] = True
     return d
@@ -104,8 +115,10 @@ MODES = {
             ",": ("rename tab",          ask("New tab title", rc("set-tab-title"))),
             "y": ("copy last cmd+output", copy("cmd_output")),
             "c": ("Copy",                go("copy")),
-            "o": ("open diff/task/paste ↗",       open_artifact()),
-            "O": ("open many diff/task/pastes ↗", open_artifact(multi=True)),
+            "o": ("open link/diff/task ↗",      open_artifact()),
+            "O": ("open many links/diffs ↗",    open_artifact(multi=True)),
+            "u": ("open URL only ↗",            open_artifact(what="links")),
+            "d": ("open diff/task/paste ↗",     open_artifact(what="artifacts")),
             "r": ("reload kitty config", act("load_config_file")),
         },
     },
