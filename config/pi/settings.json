@@ -2,6 +2,7 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-5",
   "theme": "alexpopov",
+  "tuiMode": "regular",
   "lastChangelogVersion": "0.86.1",
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": true,
