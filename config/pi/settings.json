@@ -3,7 +3,7 @@
   "defaultModel": "claude-opus-5",
   "theme": "alexpopov",
   "tuiMode": "regular",
-  "lastChangelogVersion": "0.86.1",
+  "lastChangelogVersion": "1.0.4",
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": true,
   "showHardwareCursor": true,
