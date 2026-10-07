@@ -47,6 +47,19 @@ opt.cmdheight = 1
 opt.updatetime = 300 -- diagnostic message time
 opt.signcolumn = "no"
 
+-- Mouse fully off, wheel included. Re-asserted on VimEnter/BufEnter because
+-- lazy-loaded plugins can turn it back on.
+local function _disable_mouse()
+  vim.opt.mouse = ""
+  vim.opt.mousescroll = "ver:0,hor:0"
+  for _, k in ipairs({ "<ScrollWheelUp>", "<ScrollWheelDown>", "<ScrollWheelLeft>", "<ScrollWheelRight>",
+    "<S-ScrollWheelUp>", "<S-ScrollWheelDown>", "<C-ScrollWheelUp>", "<C-ScrollWheelDown>" }) do
+    vim.keymap.set({ "", "i", "c", "t" }, k, "<Nop>", { silent = true })
+  end
+end
+_disable_mouse()
+vim.api.nvim_create_autocmd({ "VimEnter", "BufEnter" }, { callback = _disable_mouse })
+
 -- Show tabs as visible characters
 opt.list = true
 opt.listchars = { tab = ">-" }
