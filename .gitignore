@@ -88,3 +88,6 @@ tags
 # Persistent undo
 [._]*.un~
 
+
+# pi/fabric runtime state written into the cwd
+.pi/
