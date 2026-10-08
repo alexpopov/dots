@@ -571,7 +571,6 @@ function manage {
     "Preview"
     "Safari"
     "Sheets"
-    "Slack"
     "Spark"
     "Telegram"
     "Things"
