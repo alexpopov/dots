@@ -1,11 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-  createBashTool,
-  createEditTool,
-  createLsTool,
-  createReadTool,
-  createWriteTool,
-} from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 
 // Aggregate per-tool render output into a single live widget above the
@@ -16,8 +9,9 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 // tools when renderShell:"self" is set).
 //
 // Layers:
-//   1. Per-tool: wrap each built-in tool so renderCall/renderResult return
-//      nothing visible — both success and error.
+//   1. Per-tool: a pi.registerToolRenderer() resolver (pi >= 1.0.1) draws
+//      the core tools' calls as nothing — success and error. Renderer only:
+//      the tools themselves stay pi's own, so their results are unchanged.
 //   2. Live widget: pinned above the editor; updated on every
 //      tool_execution_end with running counts. Errors get one extra line
 //      each, prefixed `  ✗ <tool>: <first line of error>`. Cleared at
@@ -55,49 +49,23 @@ const EMPTY = { render: () => [], invalidate: () => {} };
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_TOOL_AGG_DISABLE === "1") return;
 
-  const cwd = process.cwd();
-
-  // (1) Per-tool: wrap each built-in to suppress all rendering. Errors are
-  // surfaced via the widget instead (cleaner: one place for tool info).
+  // (1) Per-tool: draw core tool calls as nothing; the widget shows them
+  // instead (one place for tool info, errors included). This used to be done
+  // by re-registering read/bash/edit/write/ls with blank renderers, which also
+  // replaced the tools themselves (codemode then got plain text back from
+  // bash instead of its structured result) and could not cover grep/find,
+  // which Meta's bundled extension owns. A renderer resolver has neither
+  // problem. Other tools fall through to next() untouched.
   //
   // TODO: dedupe identical errors in the widget. When N parallel tools fail
-  // with the same message (e.g. `sl status` outside a repo, all returning
-  // "not a repo"), we currently show N lines. A small per-error-hash map
-  // would collapse dupes to `✗ sl: not in a repo (×N)`.
-  //
-  // Note: `grep` and `find` are owned by Meta's bundled extension at
-  // /usr/local/bin/pi_cli/extensions/meta, and pi rejects re-registration
-  // across extensions (unlike override-of-built-ins). Skip them; the
-  // widget still tracks them via tool_execution_end, but each call still
-  // renders with Meta's upstream renderer. Same applies to anything else
-  // a Meta bundled extension claims later.
-  const builtins: Array<{ name: string; create: (cwd: string) => any }> = [
-    { name: "read", create: createReadTool },
-    { name: "bash", create: createBashTool },
-    { name: "edit", create: createEditTool },
-    { name: "write", create: createWriteTool },
-    { name: "ls", create: createLsTool },
-  ];
-
-  for (const { name, create } of builtins) {
-    const original = create(cwd);
-    pi.registerTool({
-      name,
-      label: name,
-      description: original.description,
-      parameters: original.parameters,
-      async execute(toolCallId: string, params: any, signal: any, onUpdate: any, ctx: any) {
-        return original.execute(toolCallId, params, signal, onUpdate, ctx);
-      },
-      renderShell: "self",
-      renderCall: () => EMPTY,
-      // Errors are surfaced via the widget (tool_execution_end hook), not
-      // inline — testing showed renderResult isn't reliably called for
-      // errored tools in our renderShell:"self" setup. Putting the error
-      // in the widget is also more consistent: one place for all tool info.
-      renderResult: () => EMPTY,
-    });
-  }
+  // with the same message (e.g. `sl status` outside a repo), we show N lines;
+  // a per-error-hash map could collapse them to `✗ sl: not in a repo (×N)`.
+  const QUIET = new Set(["read", "bash", "edit", "write", "ls", "grep", "find"]);
+  pi.registerToolRenderer((toolName: string, next: () => any) =>
+    QUIET.has(toolName)
+      ? { renderShell: "self", renderCall: () => EMPTY, renderResult: () => EMPTY }
+      : next(),
+  );
 
   // (2-3) Per-agent (per user prompt) state. Reset on agent_start, updated
   // on tool_execution_end. Widget persists past agent_end until the next
