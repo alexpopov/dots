@@ -97,7 +97,7 @@ These casks ship an installer .pkg and need a real sudo prompt, so they
 cannot be installed by any script running over a non-interactive ssh --
 run this one from a terminal you are sitting in front of:
 
-    brew install --cask karabiner-elements choosy adobe-acrobat-reader
+    brew install --cask karabiner-elements choosy
 
 Google Chrome is intentionally not in the Brewfile. On a Meta-provisioned
 Mac it comes from MDM / Managed Software Center and is patched there;

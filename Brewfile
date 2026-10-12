@@ -67,7 +67,6 @@ cask "whatsapp"
 cask "discord"
 cask "superwhisper"
 cask "steam"
-cask "adobe-acrobat-reader" # pkg installer, needs sudo
 cask "spark-app"            # email (the cask "spark" was renamed)
 cask "textual"              # IRC
 cask "there"                # timezones in the menu bar

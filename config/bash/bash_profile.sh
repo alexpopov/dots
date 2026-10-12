@@ -187,7 +187,60 @@ if [[ $- == *i* ]]; then
   bind -r '\C-l'
 fi
 
-[ -f ~/.config/fzf/fzf.bash ] && source ~/.config/fzf/fzf.bash
+# fzf shell integration. Where these bindings live has drifted repeatedly
+# across fzf versions and install methods, which is why this ended up checked
+# in two different places with two different answers:
+#
+#   fzf >= 0.48   `fzf --bash` prints them; bootstrap caches that output in
+#                 ~/.config/fzf/fzf.bash
+#   older fzf     the git-clone install script wrote ~/.fzf.bash
+#   homebrew      ships them as files under $(brew --prefix)/opt/fzf/shell/
+#   distro pkgs   /usr/share/{fzf,doc/fzf/examples}/...
+#
+# Take the first that exists and stop. Only complain when fzf is actually
+# installed and none of them are, and only on a terminal -- a warning here
+# lands in the output of every non-interactive ssh.
+_dots_source_fzf() {
+  local f
+  for f in \
+      "$HOME/.config/fzf/fzf.bash" \
+      "$HOME/.fzf.bash"
+  do
+    if [ -r "$f" ]; then . "$f"; return 0; fi
+  done
+
+  # Package-manager layouts: key bindings and completion are separate files,
+  # so source both rather than returning after the first.
+  local d found=
+  for d in \
+      "${HOMEBREW_PREFIX:-/opt/homebrew}/opt/fzf/shell" \
+      "/usr/local/opt/fzf/shell" \
+      "/usr/share/fzf/shell" \
+      "/usr/share/fzf" \
+      "/usr/share/doc/fzf/examples"
+  do
+    if [ -r "$d/key-bindings.bash" ]; then
+      . "$d/key-bindings.bash"
+      [ -r "$d/completion.bash" ] && . "$d/completion.bash"
+      found=1
+      break
+    fi
+  done
+  [ -n "$found" ] && return 0
+
+  # Last resort: generate them on the fly (fzf >= 0.48 only).
+  if command -v fzf >/dev/null 2>&1 && fzf --bash >/dev/null 2>&1; then
+    source <(fzf --bash)
+    return 0
+  fi
+
+  if command -v fzf >/dev/null 2>&1 && [ -t 1 ]; then
+    echo "Warning: fzf is installed but no bash bindings were found."
+    echo "Run ~/dots/bootstrap.sh to generate ~/.config/fzf/fzf.bash"
+  fi
+  return 1
+}
+_dots_source_fzf
 
 # Platform-specific support
 BASH_CONFIG_DIR="$HOME/.config/bash"

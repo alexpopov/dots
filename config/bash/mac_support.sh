@@ -13,20 +13,9 @@ function jk_mac_fix_brew {
     chmod u+w /usr/local/bin /usr/local/lib /usr/local/sbin
 }
 
-# Add bash keybindings for fzf.
-# bash_profile.sh already sources ~/.config/fzf/fzf.bash, which is where
-# bootstrap's export_fzf_bindings writes them. This block only exists for the
-# older ~/.fzf.bash location, and must not warn when the dots path is in use --
-# on a fresh Mac it printed the warning on every single shell, including every
-# non-interactive ssh.
-if [ -f ~/.fzf.bash ]; then
-  source ~/.fzf.bash
-elif [ ! -f ~/.config/fzf/fzf.bash ] && [ -t 1 ]; then
-  echo "Warning: no fzf bash bindings found."
-  echo "Run ~/dots/bootstrap.sh, or create them directly:"
-  echo
-  echo '  mkdir -p ~/.config/fzf && fzf --bash > ~/.config/fzf/fzf.bash'
-fi
+# fzf bindings are handled once, for every platform, by _dots_source_fzf in
+# bash_profile.sh. Do not add a second copy here -- that is exactly how the
+# ~/.fzf.bash vs ~/.config/fzf/fzf.bash drift happened.
 
 # Bash completion
 [[ -r "/usr/local/etc/bash_completion" ]] && . "/usr/local/etc/bash_completion"

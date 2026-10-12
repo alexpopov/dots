@@ -525,18 +525,54 @@ function sync_submodules {
     || _log_warn "git submodule update failed (network?). Run ${color_blue}git -C ~/dots submodule update --init --recursive${color_reset} later."
 }
 
+# Cache fzf's bash bindings at ONE path, ~/.config/fzf/fzf.bash, which is the
+# first thing _dots_source_fzf looks for. fzf has moved these around: `fzf
+# --bash` only exists from 0.48, before that the bindings shipped as separate
+# key-bindings.bash / completion.bash files. Handle both so an old box does not
+# silently end up with no bindings at all.
 function export_fzf_bindings {
-  local fzf_config_path="$HOME/.config/fzf/"
+  local fzf_config_path="$HOME/.config/fzf"
+  local dest="$fzf_config_path/fzf.bash"
   local log_func=
-  if [[ -f $fzf_config_path/fzf.bash ]]; then 
+  if [[ -f "$dest" ]]; then
     log_func="_log_btw"
   else
     log_func="_log_info"
   fi
+
+  if ! command -v fzf >/dev/null 2>&1; then
+    _log_warn "No ${color_blue}fzf${color_reset} on PATH; skipping its bash bindings"
+    return 0
+  fi
+
   mkdir -p "$fzf_config_path"
-  fzf --bash > "$fzf_config_path"/fzf.bash || _fail_error "fzf --bash failed; is fzf too old?"
-  "$log_func" "Exporting latest ${color_blue}fzf${color_reset} bash bindings:"
-  "$log_func" "${color_blue}source $fzf_config_path${color_reset} for bindings"
+
+  if fzf --bash >/dev/null 2>&1; then
+    fzf --bash > "$dest" || { _fail_error "fzf --bash failed"; return 1; }
+  else
+    # fzf < 0.48: stitch the shipped files together into the same cache file.
+    local d found=
+    for d in \
+        "$(brew --prefix 2>/dev/null)/opt/fzf/shell" \
+        /usr/local/opt/fzf/shell \
+        /usr/share/fzf/shell \
+        /usr/share/fzf \
+        /usr/share/doc/fzf/examples
+    do
+      if [[ -r "$d/key-bindings.bash" ]]; then
+        cat "$d/key-bindings.bash" > "$dest"
+        [[ -r "$d/completion.bash" ]] && cat "$d/completion.bash" >> "$dest"
+        found=1
+        break
+      fi
+    done
+    if [[ -z "$found" ]]; then
+      _log_warn "fzf is too old for ${color_blue}--bash${color_reset} and its shell/ files were not found; no bindings written"
+      return 0
+    fi
+  fi
+
+  "$log_func" "Exported ${color_blue}fzf${color_reset} bash bindings to ${color_blue}$dest"
 }
 
 function create_links {
@@ -797,7 +833,7 @@ function install_brew_bundle {
 
   # Casks whose payload is an installer .pkg need a real sudo prompt, so they
   # can never be installed from a script running over a non-interactive ssh.
-  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader"
+  local pkg_casks="karabiner-elements choosy"
   local still_missing="" c
   for c in $pkg_casks; do
     brew list --cask "$c" >/dev/null 2>&1 || still_missing="$still_missing $c"
@@ -946,7 +982,7 @@ function configure_macos_defaults {
   is_mac || return 0
 
   # Stop Photos / Image Capture from auto-launching and grabbing a tethered
-  # camera's single PTP session on connect \u2014 the main cause of EOS Utility
+  # camera's single PTP session on connect -- the main cause of EOS Utility
   # freezing or failing to detect the R5. Per-host (does not sync via iCloud),
   # so it must be set once on each Mac. See bin/scripts/eos-fix for recovery.
   if defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool YES; then
