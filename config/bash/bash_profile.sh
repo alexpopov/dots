@@ -252,6 +252,16 @@ elif grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
   [ -f "$BASH_CONFIG_DIR/pi_support.sh" ] && . "$BASH_CONFIG_DIR/pi_support.sh"
 fi
 
+# Optional Meta-only extras. They are not in this repo and never will be --
+# they live in ~/dotfiles, which is separate and internal. Source them when
+# present and stay silent when not: they are absent on every personal machine
+# by design, and the old hand-written ~/.bash_profile printed a WARNING for
+# each one on every single shell, including non-interactive ssh.
+for _dots_extra in "$HOME/dotfiles/fbcode_support.sh" "$HOME/dotfiles/macbook_support.sh"; do
+  [ -r "$_dots_extra" ] && . "$_dots_extra"
+done
+unset _dots_extra
+
 # Mercurial support (only if hg is installed)
 command -v hg >/dev/null 2>&1 && [ -f "$BASH_CONFIG_DIR/hg_support.sh" ] && . "$BASH_CONFIG_DIR/hg_support.sh"
 
