@@ -981,16 +981,16 @@ sys.stdout.buffer.write(plistlib.dumps(root))
   # Settings is open on the Keyboard pane it holds the domain and silently
   # reverts an import.
   local still_on
-  still_on="$(defaults read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>/dev/null \
+  still_on="$(defaults export com.apple.symbolichotkeys - 2>/dev/null \
     | python3 -c '
-import sys, re
-t = sys.stdin.read()
-on = []
-for i in ("60", "64", "65"):
-    m = re.search(r"\n    %s =\s*\{(.*?)\n    \};" % i, t, re.S)
-    if m and "enabled = 0" not in m.group(1):
-        on.append(i)
-print(",".join(on))
+import plistlib, sys
+raw = sys.stdin.buffer.read()
+try:
+    keys = plistlib.loads(raw).get("AppleSymbolicHotKeys", {})
+except Exception:
+    sys.exit(0)        # unreadable: fail open rather than cry wolf
+print(",".join(i for i in ("60", "64", "65")
+               if keys.get(i, {}).get("enabled", True)))
 ' 2>/dev/null)"
   if [[ -n "$still_on" ]]; then
     _log_warn "symbolichotkeys ${color_blue}$still_on${color_reset} did not stick -- close System Settings and re-run"
@@ -1029,9 +1029,13 @@ function configure_macos_defaults {
   _configure_macos_trackpad
   _configure_macos_hotkeys
 
-  # These three are per-login UI agents that re-read their prefs only on
-  # launch, and they relaunch themselves immediately. Nothing the user is
-  # working in gets touched. Set MACOS_NO_RESTART_UI=1 to skip.
+  # Dock and Finder re-read their prefs only on launch, and relaunch
+  # themselves immediately; nothing the user is working in gets touched.
+  # These two are cosmetic-pending -- the settings are already written and
+  # will appear at the next login anyway -- so MACOS_NO_RESTART_UI=1 skips
+  # them. It does NOT skip the SystemUIServer restart in
+  # _configure_macos_hotkeys: that one is load-bearing, the Spotlight hotkey
+  # stays bound to cmd-space until SystemUIServer is restarted.
   if [[ -z "${MACOS_NO_RESTART_UI:-}" ]]; then
     for agent in Dock Finder; do
       killall "$agent" >/dev/null 2>&1
