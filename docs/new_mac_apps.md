@@ -45,6 +45,19 @@ personal
 : `anki` `notion` `telegram` `whatsapp` `discord` `superwhisper` `steam`
   `adobe-acrobat-reader` `spark` `textual` `there`
 
+### Installed, but only from a terminal you are sitting in front of
+
+`karabiner-elements`, `choosy` and `adobe-acrobat-reader` ship an installer
+`.pkg`; `google-chrome` has to `chgrp` the bundle provisioning already put in
+`/Applications`. All four shell out to `sudo`, which has no tty under a
+scripted/ssh run, so they fail there and nowhere else:
+
+```bash
+brew install --cask karabiner-elements choosy adobe-acrobat-reader google-chrome
+```
+
+`bootstrap.sh` checks for exactly these at the end and prints the command.
+
 ### Needs a human
 
 | app | where from | note |
@@ -56,6 +69,7 @@ personal
 | AvocadoApp | vendor | no cask |
 | Wally | <https://ergodox-ez.com/pages/wally> | ZSA flasher; `keymapp` is the newer one and *is* in the Brewfile |
 | Meta Quest Remote Desktop | `brew install --cask meta-quest-remote-desktop` | a cask exists; left out of the Brewfile because it is situational |
+| WezTerm | `brew install --cask wezterm@nightly` | the stable cask is pinned to a 2024 build and refuses to install over a newer WezTerm.app |
 
 ### Do NOT install by hand
 

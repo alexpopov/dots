@@ -99,6 +99,9 @@ run this one from a terminal you are sitting in front of:
 
     brew install --cask karabiner-elements choosy adobe-acrobat-reader
 
+(google-chrome joins them on a provisioned Mac: adopting the copy that
+provisioning installed runs chgrp on the bundle, which also needs sudo.)
+
 After installing, two things still need a human (no API for them):
   1. System Settings > Privacy & Security > Input Monitoring: enable
      Karabiner-Elements. That is what makes caps_lock an escape; the

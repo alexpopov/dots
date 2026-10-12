@@ -772,7 +772,9 @@ function install_brew_bundle {
 
   # Casks whose payload is an installer .pkg need a real sudo prompt, so they
   # can never be installed from a script running over a non-interactive ssh.
-  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader"
+  # google-chrome is in the list because a provisioned Mac already has it, and
+  # adopting it runs `chgrp admin` on the bundle -- sudo again.
+  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader google-chrome"
   local still_missing="" c
   for c in $pkg_casks; do
     brew list --cask "$c" >/dev/null 2>&1 || still_missing="$still_missing $c"
