@@ -55,7 +55,9 @@ else
   if [ "$GO" = "--go" ]; then
     echo
     echo ">>> brew bundle install (casks may prompt for your password)"
-    brew bundle install --file="$BREWFILE" --no-upgrade
+    # --adopt: take over apps a provisioning run already put in /Applications
+    # (Chrome, WezTerm) instead of failing with "the existing App is different".
+    HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$BREWFILE" --no-upgrade
   else
     echo
     echo "Dry run. Re-run with --go to install, or just:"
@@ -90,6 +92,12 @@ Not available via Homebrew -- fetch these by hand:
     Flipper, MetaCodex, Microsoft Defender/Outlook, Slack 2, WAU,
     Help@ Remote Support, fido2-macos, Webex, Cisco Secure Client
 ------------------------------------------------------------------------
+
+These casks ship an installer .pkg and need a real sudo prompt, so they
+cannot be installed by any script running over a non-interactive ssh --
+run this one from a terminal you are sitting in front of:
+
+    brew install --cask karabiner-elements choosy adobe-acrobat-reader
 
 After installing, two things still need a human (no API for them):
   1. System Settings > Privacy & Security > Input Monitoring: enable

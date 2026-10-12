@@ -762,8 +762,25 @@ function install_brew_bundle {
   _log_info "Installing apps from ${color_blue}$brewfile${color_reset} (casks may prompt for sudo)"
   # --no-upgrade: install only what is missing. Re-running bootstrap should not
   # silently drag every app to a new major version.
-  brew bundle install --file="$brewfile" --no-upgrade \
+  # --adopt: a provisioned Mac already has some of these (Chrome, WezTerm).
+  # Without it brew refuses with "It seems the existing App is different from
+  # the one being installed" and the whole bundle reports failure. Scoped to
+  # this one command -- HOMEBREW_CASK_OPTS is appended to *every* cask
+  # subcommand, and `brew list --cask --adopt` is an error.
+  HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade \
     || _log_warn "Some Brewfile entries failed; see ${color_blue}brew bundle check --file=$brewfile --verbose"
+
+  # Casks whose payload is an installer .pkg need a real sudo prompt, so they
+  # can never be installed from a script running over a non-interactive ssh.
+  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader"
+  local still_missing="" c
+  for c in $pkg_casks; do
+    brew list --cask "$c" >/dev/null 2>&1 || still_missing="$still_missing $c"
+  done
+  if [[ -n "$still_missing" ]]; then
+    _log_warn "Needs a real terminal (pkg installer + sudo):${color_blue}$still_missing"
+    _log_warn "Run it yourself:${color_blue} brew install --cask$still_missing"
+  fi
 }
 
 #    __  ___            ____  ____    __      ____         ____
