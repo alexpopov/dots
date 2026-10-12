@@ -9,6 +9,10 @@ brew "lazygit"
 brew "mosh"
 brew "neovim"
 brew "ripgrep"
+# macOS 26 ships openrsync as /usr/bin/rsync: no --info, no -X, and it cannot
+# overwrite an existing read-only file (every git pack object), so re-running a
+# copy dies with EACCES. Real rsync 3 for machine-to-machine transfers.
+brew "rsync"
 brew "the_silver_searcher"
 brew "tmux"
 brew "tree"
