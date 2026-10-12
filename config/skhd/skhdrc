@@ -195,7 +195,7 @@ m_yabai_config < r : yabai_utils.sh reload_config back_to_default
 
 m_actions < p : alert.sh debug
 m_actions < m [
-"Google Chrome" : alert.sh simple "Move Tab"; yabai_utils.sh run_hs 'alp.getCurrentApp():selectMenuItem({"Tab", "Move Tab to New Window"})' back_to_default
+"Google Chrome" : alert.sh simple "Move Tab"; yabai_utils.sh run_hs 'alp.actions.chrome.moveTabToNewWindow()' back_to_default
 ]
 # comma, like in tmux to rename tab
 m_actions < 0x2B [
