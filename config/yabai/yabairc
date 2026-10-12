@@ -88,6 +88,7 @@ for app in \
     "Developer" \
     "Xcode" \
     "Icon Composer" \
+    "AppStreamer" \
 ; do
     yabai -m rule --add app="$app" manage=off
 done
