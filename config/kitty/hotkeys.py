@@ -924,7 +924,12 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     the pick. With multi=True, keep the picker open and open each pick in the
     background (opened labels turn green); esc when done.
 
-    action["what"] selects the scan: "all" (default), "links", "artifacts"."""
+    action["what"] selects the scan: "all" (default), "links", "artifacts".
+
+    Labels identify a REFERENCE, not a screen position: if D1234567 appears
+    five times, all five occurrences carry the same letter (and light up green
+    together once queued). Assignment walks the screen bottom-up, so the
+    shortest//easiest labels land on the most recent output."""
     multi = bool(action.get("multi"))
     what = action.get("what", "all")
     if target is None:
@@ -937,10 +942,21 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         return "\u26a0 no " + _WHAT_LABEL.get(what, "match") + " on screen"
     # Always label (even a single hit) so there's a visible pick step and we
     # never silently open a browser tab.
+    #
+    # One label per distinct artifact, assigned bottom-up (newest output gets
+    # the first letters of the alphabet). Within a row we still go left to
+    # right -- that's how the line reads.
     by_label = {}
-    for h, lab in zip(hits, _artifact_labels(len(hits))):
+    label_of = {}
+    labels = _artifact_labels(len({(h["kind"], h["num"]) for h in hits}))
+    for h in sorted(hits, key=lambda h: (-h["row"], h["col"])):
+        ref = (h["kind"], h["num"])
+        lab = label_of.get(ref)
+        if lab is None:
+            lab = labels[len(label_of)]
+            label_of[ref] = lab
+            by_label[lab] = h      # representative occurrence; only kind/num is used
         h["label"] = lab
-        by_label[lab] = h
 
     queued = []      # hits picked in multi mode; all opened at once on esc
     picked = set()   # labels already queued (drawn green)
