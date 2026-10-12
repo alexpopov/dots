@@ -83,6 +83,57 @@ except Exception as e:  # pragma: no cover
         return deco
 
 
+# ── the backdrop, for free, at spawn ───────────────────────────────────────
+# The panel floats over a "photograph" of the window ⌘I was pressed in. Getting
+# that photograph used to cost two remote-control round trips (`ls` to find the
+# parent window, then `get-text` to read it) = ~155ms during which the overlay
+# window sat there blank -- the white flash.
+#
+# Instead we ask kitty to hand us the parent window's formatted text on STDIN at
+# spawn time: that's what the `@result_handler(type_of_input='ansi')` annotation
+# at the bottom of this file buys us. It costs nothing and it's already here
+# before we draw the first frame. (Keys are read from /dev/tty, never stdin, so
+# handing stdin over to kitty is free.)
+def _read_stdin_bg(budget=0.25):
+    """Drain kitty's screen dump off stdin. Bounded: kitty writes it and closes
+    immediately, but a plain read() would hang the panel forever if that ever
+    stopped being true, so we give up after `budget` seconds and fall back to the
+    remote-control capture."""
+    if sys.stdin.isatty():
+        return None
+    fd = sys.stdin.fileno()
+    os.set_blocking(fd, False)
+    chunks, deadline = [], time.monotonic() + budget
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            log("stdin backdrop read timed out")
+            break
+        if not select.select([fd], [], [], left)[0]:
+            continue
+        try:
+            b = os.read(fd, 1 << 16)
+        except BlockingIOError:
+            continue
+        if not b:                      # EOF: kitty is done
+            break
+        chunks.append(b)
+    return b"".join(chunks).decode("utf-8", "replace") if chunks else None
+
+
+try:
+    _STDIN_BG = _read_stdin_bg()
+    log(f"backdrop from stdin: {0 if _STDIN_BG is None else len(_STDIN_BG)} bytes")
+except Exception as e:
+    _STDIN_BG = None
+    log(f"stdin backdrop read failed: {e!r}")
+
+# The window ⌘I was pressed in, as a remote-control match spec. kitty can name
+# it directly (we are an overlay; it is the window under us), so we never pay for
+# an `ls` round trip just to learn its id.
+TARGET_SPEC = "state:overlay_parent"
+
+
 # ── palette (truecolor; a light "card" that reads on any theme) ─────────────
 BG_PANEL = "\x1b[48;2;245;246;248m"
 FG_TEXT  = "\x1b[38;2;45;45;50m"
@@ -440,14 +491,19 @@ def resolve_target(rc):
             wid = tab_target(tab)
             if wid is not None:
                 log(f"resolved target window id: {wid}")
-                return wid
+                return f"id:{wid}"
     log("resolve_target: no non-self window found")
     return None
 
 
 class Scene:
-    """Memoized, on-demand access to the two slow startup round trips: `ls` (which
-    window were we invoked from) and `get-text` (photograph it for the backdrop).
+    """Memoized, on-demand access to the window we were invoked from and to a
+    photograph of it (the backdrop the panel floats over).
+
+    Both used to be slow remote-control round trips. Now the target is just the
+    `state:overlay_parent` match spec (free) and the backdrop normally arrives on
+    stdin at spawn (free); the `ls`/`get-text` paths are fallbacks for when the
+    kitten runs outside kitty's kitten machinery.
 
     Deliberately NOT threaded: a kitten's remote control is carried over the tty
     as escape sequences, so issuing it from a worker thread races with the frames
@@ -462,31 +518,61 @@ class Scene:
 
     def target(self):
         if not self._have_target:
-            self._target = resolve_target(self._rc)
+            # As a kitten we are an overlay, so kitty can name our parent window
+            # for us -- no round trip. Only fall back to `ls` if we're somehow
+            # not running as a kitten (manual invocation, debugging).
+            self._target = TARGET_SPEC if _HAVE_KITTEN_UI else resolve_target(self._rc)
             self._have_target = True
+            log(f"target spec: {self._target!r}")
         return self._target
 
     def bg(self):
         if not self._have_bg:
-            self._bg = capture_backdrop(self._rc, self.target())
+            self._bg = _STDIN_BG if _STDIN_BG is not None else \
+                capture_backdrop(self._rc, self.target())
             self._have_bg = True
             log(f"backdrop captured: {self._bg is not None}")
         return self._bg
 
     def have_bg(self):
-        return self._have_bg
+        # Cheap-to-get counts as "have": with the stdin backdrop there's no round
+        # trip to defer, so the first frame can be complete.
+        return self._have_bg or _STDIN_BG is not None
 
     def bg_if_cheap(self):
-        """The backdrop only if we already have it -- for frames we don't want to
-        stall (a repaint while the user is mid-typeahead)."""
-        return self._bg if self._have_bg else None
+        """The backdrop only if getting it can't stall us -- for frames we don't
+        want to block (a repaint while the user is mid-typeahead)."""
+        if self._have_bg:
+            return self._bg
+        return _STDIN_BG          # None unless kitty handed it to us at spawn
+
+
+def _timed_rc(rc):
+    """Wrap main.remote_control so hotkeys.log shows what each round trip costs.
+
+    Worth knowing when tuning latency: remote_control is a subprocess.run of the
+    ~50MB `kitten` binary talking to kitty over the tty. A warm call is ~20ms, but
+    the FIRST one of a kitten's life measures ~125ms -- a one-time tax (binary
+    cold start + the round trip having to wait on kitty's main loop, which is busy
+    creating our overlay window). Whichever call goes first pays it, so the goal
+    is to have no RC call at all before the first frame -- not merely fewer."""
+    if rc is None:
+        return None
+
+    def call(argv, **kw):
+        t = time.monotonic()
+        try:
+            return rc(argv, **kw)
+        finally:
+            log(f"rc {argv[0] if argv else '?'} took {(time.monotonic() - t) * 1000:.0f}ms")
+    return call
 
 
 def capture_backdrop(rc, target):
     if rc is None or target is None:
         return None
     try:
-        cp = rc(["get-text", "--match", f"id:{target}", "--extent", "screen", "--ansi"],
+        cp = rc(["get-text", "--match", target, "--extent", "screen", "--ansi"],
                 capture_output=True)
         if cp.returncode == 0:
             return cp.stdout.decode("utf-8", "replace")
@@ -528,7 +614,7 @@ def run_action(action, rc, target, text=None):
         rest = list(action["a"]) + ([text] if text is not None else [])
         argv = ["action"]
         if target:
-            argv += ["--match", f"id:{target}"]
+            argv += ["--match", target]
         argv += rest
         return _run_rc(rc, argv)
     if kind == "rc":
@@ -585,7 +671,7 @@ def _window_runs_tmux(rc, target):
     if rc is None or target is None:
         return False
     try:
-        cp = rc(["ls", "--match", f"id:{target}"], capture_output=True)
+        cp = rc(["ls", "--match", target], capture_output=True)
         if cp.returncode != 0:
             return False
         data = json.loads(cp.stdout)
@@ -611,14 +697,14 @@ def _bi_copy(action, rc, target, fd=None, bg=None):
     # through it -- so for the "last command + output" case, delegate to tmux's
     # own binding by injecting the prefix+key (see TMUX_COPY_KEYS).
     if what == "cmd_output" and _window_runs_tmux(rc, target):
-        err = _run_rc(rc, ["send-key", "--match", f"id:{target}", *TMUX_COPY_KEYS])
+        err = _run_rc(rc, ["send-key", "--match", target, *TMUX_COPY_KEYS])
         if err:
             return f"\u26a0 tmux delegate failed: {err}"
         return "\u2713 copied via tmux (last command + output)"
 
     def gt(extent):
         try:
-            cp = rc(["get-text", "--match", f"id:{target}", "--extent", extent],
+            cp = rc(["get-text", "--match", target, "--extent", extent],
                     capture_output=True)
         except Exception as e:
             log(f"get-text {extent} raised: {e!r}")
@@ -807,7 +893,7 @@ def _screen_lines(rc, target):
     if rc is None or target is None:
         return []
     try:
-        cp = rc(["get-text", "--match", f"id:{target}", "--extent", "screen"],
+        cp = rc(["get-text", "--match", target, "--extent", "screen"],
                 capture_output=True)
         if cp.returncode != 0:
             log(f"_screen_lines get-text rc={cp.returncode}")
@@ -955,6 +1041,22 @@ def main(args):
         return ""
 
 
+# The whole point of this annotation is `type_of_input`: it makes kitty pipe the
+# formatted (ANSI) text of the window ⌘I was pressed in into our STDIN when it
+# spawns us, which is what lets the first frame already contain the backdrop (see
+# _STDIN_BG at the top). handle_result itself runs inside the kitty process after
+# main() returns and has nothing to do -- every action was already performed via
+# remote control from inside main().
+try:
+    from kittens.tui.handler import result_handler
+
+    @result_handler(type_of_input="ansi")
+    def handle_result(args, answer, target_window_id, boss):
+        pass
+except Exception as e:  # pragma: no cover
+    log(f"result_handler unavailable: {e!r}")
+
+
 def _run(args):
     try:
         modes = _load_modes(args)
@@ -965,7 +1067,7 @@ def _run(args):
         _show_error(f"config error: {e}\n\n{tb}")
         return ""
 
-    rc = getattr(main, "remote_control", None)
+    rc = _timed_rc(getattr(main, "remote_control", None))
     log(f"remote_control present: {rc is not None}")
 
     scene = Scene(rc)
@@ -992,12 +1094,15 @@ def _run(args):
                 # backdrop -- just act on the queued key.
                 log("typeahead pending -- skipping draw")
             elif scene.have_bg():
+                # Normal path: the backdrop came in on stdin at spawn, so the very
+                # first frame is already complete -- the user never sees a blank
+                # screen, just their frozen terminal with the panel over it.
                 draw(mode, crumb, note, scene.bg())
             else:
-                # First frame: paint the menu straight away rather than sitting on
-                # ~140ms of remote-control round trips first, then fill the
-                # backdrop in behind it. Two atomic frames; the panel is identical
-                # in both, so all the user sees appear is the frozen terminal.
+                # Fallback only (no stdin backdrop): paint the menu straight away
+                # rather than sitting on ~140ms of remote-control round trips
+                # first, then fill the backdrop in behind it. Two atomic frames;
+                # the panel is identical in both.
                 draw(mode, crumb, note, None)
                 if not pending(fd):        # unless they've already typed by now
                     draw(mode, crumb, note, scene.bg())
