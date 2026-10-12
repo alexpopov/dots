@@ -742,12 +742,169 @@ Host github.com
   _log_warn "${color_blue}git remote set-url origin git@github.com:alexpopov/dots.git"
 }
 
-# print packages as words
+# Install the GUI apps listed in the Brewfile. The formulae in there mostly
+# duplicate what _install_package already did (harmless -- brew is idempotent);
+# the casks are the point. A freshly provisioned Mac has none of
+# Alfred/Karabiner/kitty/Ghostty, and every macOS tweak below then has nothing
+# to act on.
+function install_brew_bundle {
+  is_mac || return 0
+  command -v brew >/dev/null 2>&1 || { _log_warn "No ${color_blue}brew${color_reset}; skipping Brewfile"; return 0; }
+
+  local brewfile="$DOTS_DIR/Brewfile"
+  [[ -f "$brewfile" ]] || { _log_warn "No ${color_blue}$brewfile${color_reset}; skipping"; return 0; }
+
+  if brew bundle check --file="$brewfile" >/dev/null 2>&1; then
+    _log_btw "Already installed: ${color_blue}everything in the Brewfile${color_reset}. Skipping!"
+    return 0
+  fi
+
+  _log_info "Installing apps from ${color_blue}$brewfile${color_reset} (casks may prompt for sudo)"
+  # --no-upgrade: install only what is missing. Re-running bootstrap should not
+  # silently drag every app to a new major version.
+  brew bundle install --file="$brewfile" --no-upgrade \
+    || _log_warn "Some Brewfile entries failed; see ${color_blue}brew bundle check --file=$brewfile --verbose"
+}
+
+#    __  ___            ____  ____    __      ____         ____
+#   /  |/  /__ _ _____ / __ \/ __/___/ /__ __/ _/__ ___ __/ / /____
+#  / /|_/ / _ `/ __/ _ \ /_/ /\ \/___/ / // / _/ _ `/ // / / __(_-<
+# /_/  /_/\_,_/\__/\___/____/___/  /_/\_,_/_/ \_,_/\_,_/_/\__/___/
+#
+# Every value below was read off the old MacBook with `defaults read` rather
+# than invented. Keep it that way: change the setting in System Settings, read
+# the new value, paste it here.
+#
+# NOT scriptable, still manual after this runs:
+#   - Karabiner-Elements needs Input Monitoring granted (System Settings >
+#     Privacy & Security). Its config -- caps_lock -> escape, escape -> f20 --
+#     is in dots/config/karabiner and is already symlinked by create_links, so
+#     granting the permission is the only step.
+#   - yabai's scripting addition needs SIP partially disabled.
+#   - Alfred's own cmd-space hotkey is set inside Alfred (its prefs live in
+#     ~/Library/Application Support/Alfred). This script only frees the key by
+#     switching Spotlight's shortcut off.
+function _defw {
+  # _defw <domain> <key> <type> <value...>   -- use `-g` for NSGlobalDomain
+  local domain="$1" key="$2"; shift 2
+  defaults write "$domain" "$key" "$@" 2>/dev/null \
+    || _log_warn "Could not set ${color_blue}$domain $key"
+}
+
+function _configure_macos_keyboard {
+  # KeyRepeat=2 is faster than the System Settings slider can go.
+  _defw -g KeyRepeat -int 2
+  _defw -g InitialKeyRepeat -int 15
+  # Holding a key repeats it instead of opening the accent picker -- required
+  # for vim-style navigation to feel right in every text field.
+  _defw -g ApplePressAndHoldEnabled -bool false
+  _log_info "macOS: fast key repeat, press-and-hold off"
+}
+
+function _configure_macos_finder {
+  _defw -g AppleShowAllExtensions -bool true
+  _defw com.apple.finder ShowPathbar -bool true
+  _defw com.apple.finder ShowStatusBar -bool true
+  _defw com.apple.finder DisableAllAnimations -bool true
+  _defw com.apple.finder FXPreferredViewStyle -string clmv  # column view
+  _defw com.apple.finder FXDefaultSearchScope -string SCcf  # search this folder
+  _defw com.apple.finder NewWindowTarget -string PfHm       # new windows open ~
+  _defw com.apple.finder ShowHardDrivesOnDesktop -bool true
+  _defw com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
+  _defw com.apple.finder ShowRemovableMediaOnDesktop -bool false
+  _log_info "macOS: Finder column view, path + status bar, all extensions"
+}
+
+function _configure_macos_dock {
+  _defw com.apple.dock orientation -string left
+  _defw com.apple.dock tilesize -int 41
+  _defw com.apple.dock autohide -bool false
+  _defw com.apple.dock show-recents -bool false
+  _defw com.apple.dock mru-spaces -bool false   # never reorder spaces (yabai)
+  _defw com.apple.dock showLaunchpadGestureEnabled -bool false
+  _defw com.apple.dock showAppExposeGestureEnabled -bool true
+  _log_info "macOS: Dock on the left, 41px, no recents, fixed space order"
+}
+
+function _configure_macos_trackpad {
+  # Tap-to-click lives in three places: the built-in trackpad, external
+  # Bluetooth ones, and a global mirror that the login window reads.
+  _defw com.apple.AppleMultitouchTrackpad Clicking -bool true
+  _defw com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+  _defw -g com.apple.mouse.tapBehavior -int 1
+  _defw com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool true
+  # Three-finger swipes stay off so skhd/yabai own space switching.
+  _defw com.apple.AppleMultitouchTrackpad TrackpadThreeFingerHorizSwipeGesture -int 0
+  _defw com.apple.AppleMultitouchTrackpad TrackpadThreeFingerVertSwipeGesture -int 0
+  _log_info "macOS: tap to click, three-finger drag, no swipe gestures"
+}
+
+# com.apple.symbolichotkeys is one nested dict keyed by numeric action id, so a
+# plain `defaults write` of a single id would clobber every other one. Export
+# the whole domain, merge in Python, import it back.
+#
+#   64, 65   Spotlight and its Finder search window -> OFF, which is what frees
+#            cmd-space for Alfred. This is the setting people forget.
+#   60       select previous input source (cmd-space)      -> OFF, same reason
+#   61       select next input source (cmd-opt-space)      -> ON
+#   164      Launchpad                                     -> OFF
+#   15-26    the Universal Access zoom / contrast / invert hotkeys -> OFF; they
+#            collide with everything and only ever fire by accident.
+function _configure_macos_hotkeys {
+  command -v python3 >/dev/null 2>&1 \
+    || { _log_warn "No python3; skipping ${color_blue}symbolichotkeys"; return 0; }
+
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/symbolichotkeys.XXXXXX")" || return 0
+
+  if ! defaults export com.apple.symbolichotkeys - 2>/dev/null \
+       | python3 -c '
+import plistlib, sys
+
+OFF = list(range(15, 27)) + [60, 64, 65, 164]
+ON  = [61]
+
+raw = sys.stdin.buffer.read()
+try:
+    root = plistlib.loads(raw) if raw.strip() else {}
+except Exception:
+    root = {}
+if not isinstance(root, dict):
+    root = {}
+
+keys = root.setdefault("AppleSymbolicHotKeys", {})
+for i in OFF:
+    keys.setdefault(str(i), {})["enabled"] = False
+for i in ON:
+    keys.setdefault(str(i), {})["enabled"] = True
+
+sys.stdout.buffer.write(plistlib.dumps(root))
+' > "$tmp"; then
+    _log_warn "Could not build the symbolichotkeys plist; leaving it alone"
+    rm -f "$tmp"
+    return 0
+  fi
+
+  # Sanity check: never import an empty or truncated plist over the domain.
+  if ! plutil -lint "$tmp" >/dev/null 2>&1 || [[ ! -s "$tmp" ]]; then
+    _log_warn "Generated symbolichotkeys plist is not valid; leaving it alone"
+    rm -f "$tmp"
+    return 0
+  fi
+
+  if defaults import com.apple.symbolichotkeys "$tmp"; then
+    _log_info "macOS: Spotlight hotkey off (cmd-space is Alfred's), Launchpad + zoom hotkeys off"
+  else
+    _log_warn "Could not import ${color_blue}com.apple.symbolichotkeys"
+  fi
+  rm -f "$tmp"
+}
+
 function configure_macos_defaults {
   is_mac || return 0
 
   # Stop Photos / Image Capture from auto-launching and grabbing a tethered
-  # camera's single PTP session on connect — the main cause of EOS Utility
+  # camera's single PTP session on connect \u2014 the main cause of EOS Utility
   # freezing or failing to detect the R5. Per-host (does not sync via iCloud),
   # so it must be set once on each Mac. See bin/scripts/eos-fix for recovery.
   if defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool YES; then
@@ -755,6 +912,27 @@ function configure_macos_defaults {
   else
     _log_warn "Could not set Image Capture disableHotPlug"
   fi
+
+  _configure_macos_keyboard
+  _configure_macos_finder
+  _configure_macos_dock
+  _configure_macos_trackpad
+  _configure_macos_hotkeys
+
+  # These three are per-login UI agents that re-read their prefs only on
+  # launch, and they relaunch themselves immediately. Nothing the user is
+  # working in gets touched. Set MACOS_NO_RESTART_UI=1 to skip.
+  if [[ -z "${MACOS_NO_RESTART_UI:-}" ]]; then
+    for agent in Dock Finder SystemUIServer; do
+      killall "$agent" >/dev/null 2>&1
+    done
+    _log_info "Restarted Dock, Finder and SystemUIServer to apply the new defaults"
+  else
+    _log_warn "MACOS_NO_RESTART_UI set: log out and back in for the defaults to apply"
+  fi
+
+  _log_warn "Manual, cannot be scripted: grant ${color_blue}Karabiner-Elements${color_reset} Input Monitoring (that is what makes caps_lock an escape)"
+  _log_warn "Manual, cannot be scripted: set Alfred's hotkey to ${color_blue}cmd-space${color_reset} (Alfred > Preferences > General)"
 }
 
 # Upstream kitty's icon is... not great. DinkDonk/kitty-icon is a nicer
@@ -957,9 +1135,7 @@ function ensure_homebrew {
 }
 
 TODOs=(
-  "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred"
-  "Other Mac apps: Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin"
-  "Mac-specific utilities: skhd, yabai"
+  "Mac App Store apps still need a human: Things 3, MindNode, Final Cut Pro"
   "File with platform-specific TODOs and only print per platform"
   "Use tuned on Fedora to use less power?"
 )
@@ -1032,6 +1208,8 @@ done
 
 create_links
 ensure_shell_sources_dots
+
+install_brew_bundle      # macOS only: GUI apps (casks) from the Brewfile
 
 configure_macos_defaults  # no-op on non-macOS
 
