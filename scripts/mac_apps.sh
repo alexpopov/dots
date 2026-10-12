@@ -99,8 +99,10 @@ run this one from a terminal you are sitting in front of:
 
     brew install --cask karabiner-elements choosy adobe-acrobat-reader
 
-(google-chrome joins them on a provisioned Mac: adopting the copy that
-provisioning installed runs chgrp on the bundle, which also needs sudo.)
+Google Chrome is intentionally not in the Brewfile. On a Meta-provisioned
+Mac it comes from MDM / Managed Software Center and is patched there;
+installing the cask over it needs sudo and takes updates away from the
+fleet. bootstrap.sh installs it only on a personal Mac that lacks it.
 
 After installing, two things still need a human (no API for them):
   1. System Settings > Privacy & Security > Input Monitoring: enable

@@ -50,7 +50,10 @@ cask "iterm2"
 # or leave the existing one alone.
 
 # dev
-cask "google-chrome"
+# google-chrome is deliberately NOT here. On a Meta-provisioned Mac it is
+# installed and updated by MDM/Managed Software Center; adopting that copy
+# needs sudo and fights the thing that keeps it patched. bootstrap.sh installs
+# it only on a personal Mac that does not already have it.
 cask "android-studio"
 cask "intellij-idea"
 cask "cyberduck"

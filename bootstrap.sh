@@ -742,6 +742,29 @@ Host github.com
   _log_warn "${color_blue}git remote set-url origin git@github.com:alexpopov/dots.git"
 }
 
+# Chrome is a special case and is deliberately absent from the Brewfile.
+# On a Meta-provisioned Mac it arrives via MDM / Managed Software Center and is
+# patched from there; installing the cask on top means brew tries to adopt the
+# managed bundle (`chgrp -hR admin`, which needs sudo) and then owns updates
+# for an app the fleet expects to control. So: only on a personal Mac, and only
+# when it is genuinely missing.
+function _install_google_chrome {
+  is_mac || return 0
+  command -v brew >/dev/null 2>&1 || return 0
+
+  if [[ -d "/Applications/Google Chrome.app" ]]; then
+    _log_btw "Already installed: ${color_blue}Google Chrome${color_reset} (leaving it alone). Skipping!"
+    return 0
+  fi
+  if is_work_computer; then
+    _log_warn "No Chrome on this work Mac: install it from ${color_blue}Managed Software Center${color_reset}, not brew"
+    return 0
+  fi
+
+  _log_info "Installing ${color_blue}Google Chrome"
+  brew install --cask google-chrome || _log_warn "Could not install Google Chrome"
+}
+
 # Install the GUI apps listed in the Brewfile. The formulae in there mostly
 # duplicate what _install_package already did (harmless -- brew is idempotent);
 # the casks are the point. A freshly provisioned Mac has none of
@@ -770,11 +793,11 @@ function install_brew_bundle {
   HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade \
     || _log_warn "Some Brewfile entries failed; see ${color_blue}brew bundle check --file=$brewfile --verbose"
 
+  _install_google_chrome
+
   # Casks whose payload is an installer .pkg need a real sudo prompt, so they
   # can never be installed from a script running over a non-interactive ssh.
-  # google-chrome is in the list because a provisioned Mac already has it, and
-  # adopting it runs `chgrp admin` on the bundle -- sudo again.
-  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader google-chrome"
+  local pkg_casks="karabiner-elements choosy adobe-acrobat-reader"
   local still_missing="" c
   for c in $pkg_casks; do
     brew list --cask "$c" >/dev/null 2>&1 || still_missing="$still_missing $c"
