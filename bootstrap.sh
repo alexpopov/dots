@@ -492,7 +492,7 @@ function setup_tmux_plugins {
 
   # Pick up newly-installed plugins in any already-running server.
   if command -v tmux >/dev/null 2>&1 && tmux has-session 2>/dev/null; then
-    tmux source-file "$HOME/.tmux.conf" >/dev/null 2>&1 \
+    tmux source-file "$HOME/.config/tmux/tmux.conf" >/dev/null 2>&1 \
       && _log_info "Reloaded tmux.conf in the running server"
   fi
 }
@@ -886,6 +886,76 @@ function platform_specific_packages {
   echo "${packages[@]}"
 }
 
+function ensure_xcode_clt {
+  # Homebrew (and git) need the Command Line Tools. `xcode-select --install`
+  # only *launches* a GUI installer and returns immediately, so waiting is on
+  # us -- otherwise the first brew/git call races an incomplete install.
+  is_mac || return 0
+
+  if xcode-select -p >/dev/null 2>&1 && [[ -d "$(xcode-select -p 2>/dev/null)" ]]; then
+    _log_btw "Already installed: ${color_blue}Xcode Command Line Tools${color_reset}. Skipping!"
+    return 0
+  fi
+
+  _log_info "Installing ${color_blue}Xcode Command Line Tools${color_reset}"
+  xcode-select --install 2>/dev/null
+
+  _log_info "Waiting for the Command Line Tools installer to finish (accept the GUI prompt)"
+  local waited=0
+  while ! xcode-select -p >/dev/null 2>&1; do
+    sleep 10
+    waited=$((waited + 10))
+    if (( waited % 60 == 0 )); then
+      _log_btw "still waiting for Command Line Tools... (${waited}s)"
+    fi
+    if (( waited >= 1800 )); then
+      _fail_error "Command Line Tools did not finish installing after 30 minutes"
+      return 1
+    fi
+  done
+  _log_info "Command Line Tools ready at ${color_blue}$(xcode-select -p)${color_reset}"
+}
+
+function ensure_homebrew {
+  # This script calls `brew` in many places but historically assumed it was
+  # already present -- on a brand new Mac that fails at the first package.
+  # Install it if missing, and make it usable in THIS shell: the installer
+  # does not touch the PATH of the running session.
+  is_mac || return 0
+
+  local brew_bin=""
+  if command -v brew >/dev/null 2>&1; then
+    brew_bin="$(command -v brew)"
+  elif [[ -x /opt/homebrew/bin/brew ]]; then       # Apple Silicon
+    brew_bin=/opt/homebrew/bin/brew
+  elif [[ -x /usr/local/bin/brew ]]; then          # Intel
+    brew_bin=/usr/local/bin/brew
+  fi
+
+  if [[ -z "$brew_bin" ]]; then
+    _log_info "Installing ${color_blue}Homebrew${color_reset}"
+    # NONINTERACTIVE avoids the "press RETURN" prompt; the installer still
+    # asks for sudo once to create /opt/homebrew.
+    if ! NONINTERACTIVE=1 /bin/bash -c \
+        "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+      _fail_error "Failed to install ${color_blue}Homebrew"
+      return 1
+    fi
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+      [[ -x "$candidate" ]] && brew_bin="$candidate" && break
+    done
+    [[ -z "$brew_bin" ]] && { _fail_error "Homebrew installed but ${color_blue}brew${color_reset} not found"; return 1; }
+  else
+    _log_btw "Already installed: ${color_blue}Homebrew${color_reset} ($brew_bin). Skipping!"
+  fi
+
+  # Put brew on PATH for the remainder of this run (idempotent).
+  eval "$("$brew_bin" shellenv)"
+
+  command -v brew >/dev/null 2>&1 \
+    || { _fail_error "${color_blue}brew${color_reset} still not on PATH after shellenv"; return 1; }
+}
+
 TODOs=(
   "implement Mac app downloads with ${color_blue}brew --cask, e.g. Alfred"
   "Other Mac apps: Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin"
@@ -908,6 +978,11 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
 fi
 
 mkdir -p $HOME/{.local/{bin,share},.config/}
+
+# macOS prerequisites. Must run before any _install_package call, since the
+# macOS path of _install_package shells out to `brew`.
+ensure_xcode_clt
+ensure_homebrew
 
 # Acquire sudo ONCE, up front, in a clean terminal, then keep the timestamp
 # warm in the background. Individual `sudo` calls later won't re-prompt.
