@@ -970,12 +970,44 @@ sys.stdout.buffer.write(plistlib.dumps(root))
     return 0
   fi
 
-  if defaults import com.apple.symbolichotkeys "$tmp"; then
-    _log_info "macOS: Spotlight hotkey off (cmd-space is Alfred's), Launchpad + zoom hotkeys off"
-  else
+  if ! defaults import com.apple.symbolichotkeys "$tmp"; then
     _log_warn "Could not import ${color_blue}com.apple.symbolichotkeys"
+    rm -f "$tmp"
+    return 0
   fi
   rm -f "$tmp"
+
+  # Read it back through cfprefsd rather than trusting the write: if System
+  # Settings is open on the Keyboard pane it holds the domain and silently
+  # reverts an import.
+  local still_on
+  still_on="$(defaults read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>/dev/null \
+    | python3 -c '
+import sys, re
+t = sys.stdin.read()
+on = []
+for i in ("60", "64", "65"):
+    m = re.search(r"\n    %s =\s*\{(.*?)\n    \};" % i, t, re.S)
+    if m and "enabled = 0" not in m.group(1):
+        on.append(i)
+print(",".join(on))
+' 2>/dev/null)"
+  if [[ -n "$still_on" ]]; then
+    _log_warn "symbolichotkeys ${color_blue}$still_on${color_reset} did not stick -- close System Settings and re-run"
+    return 0
+  fi
+
+  # SystemUIServer only reads this domain at launch, so without a restart the
+  # Spotlight shortcut keeps working and cmd-space stays taken -- which is
+  # exactly the "I had to turn it off by hand" failure. Restart it here rather
+  # than at the end of configure_macos_defaults, which is skippable: this one
+  # is not cosmetic, the setting simply does not take effect otherwise.
+  if killall SystemUIServer >/dev/null 2>&1; then
+    _log_info "macOS: Spotlight hotkey off (cmd-space is free for Alfred), Launchpad + zoom hotkeys off"
+  else
+    _log_info "macOS: Spotlight hotkey off in prefs"
+    _log_warn "Could not restart SystemUIServer: cmd-space stays bound to Spotlight until you log out"
+  fi
 }
 
 function configure_macos_defaults {
@@ -1001,10 +1033,10 @@ function configure_macos_defaults {
   # launch, and they relaunch themselves immediately. Nothing the user is
   # working in gets touched. Set MACOS_NO_RESTART_UI=1 to skip.
   if [[ -z "${MACOS_NO_RESTART_UI:-}" ]]; then
-    for agent in Dock Finder SystemUIServer; do
+    for agent in Dock Finder; do
       killall "$agent" >/dev/null 2>&1
     done
-    _log_info "Restarted Dock, Finder and SystemUIServer to apply the new defaults"
+    _log_info "Restarted Dock and Finder to apply the new defaults"
   else
     _log_warn "MACOS_NO_RESTART_UI set: log out and back in for the defaults to apply"
   fi
