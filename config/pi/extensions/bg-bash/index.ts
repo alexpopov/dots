@@ -113,6 +113,7 @@ export default function (pi: ExtensionAPI) {
 			"After starting a job, do NOT poll it and do NOT sleep waiting for it — the exit notification wakes you. Do other work, or end the turn.",
 			'If a remote job only exposes a status command, keep the polling in the shell so it costs no context: bash_background("until <status-check>; do sleep 70; done").',
 			"Chain the follow-up into the command itself when it is cheap (e.g. `<build> && <smoke test>`) rather than waking up twice.",
+			"A background launch ALWAYS returns 'Started background job <id>'. If your result has no job id, you called foreground bash — the command already finished; inspect its output, never claim it is still running.",
 			"The job id, pid, and log path are for you, not the user — don't relay them unless asked.",
 		],
 		parameters: Type.Object({
