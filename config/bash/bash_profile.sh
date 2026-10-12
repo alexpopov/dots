@@ -179,8 +179,13 @@ fi
 alias dv="pushd \$(jk_choose_dirs_v)"
 
 # Unbinds '\C-l'; usually it clears the screen. I find I do it by accident
-# too often when I think I'm in vim
-bind -r '\C-l'
+# too often when I think I'm in vim.
+# Only in an interactive shell: readline does not exist otherwise, and `bind`
+# prints "warning: line editing not enabled" into the output of every
+# non-interactive ssh, which corrupts anything that parses it.
+if [[ $- == *i* ]]; then
+  bind -r '\C-l'
+fi
 
 [ -f ~/.config/fzf/fzf.bash ] && source ~/.config/fzf/fzf.bash
 
