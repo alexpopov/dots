@@ -15,14 +15,33 @@ function _hs_exit_action {
     fi
 }
 
+# PERF: the mode-exit UI (hammerspoon "Done" pill + `skhd -k escape`) used to
+# run *before* the actual yabai command, putting ~150ms of process spawns in
+# front of the thing you are waiting to see. We now record the intent and run
+# it from an EXIT trap, so the yabai call goes first. Call sites unchanged.
+#
+# Side effects of deferring, both intentional:
+#   - paths that `return` early now still run the teardown
+#   - the skhd mode stays active ~30ms longer
+_deferred_exit_pending=""
+_deferred_exit_action=""
+_deferred_exit_context=""
+
+function _run_deferred_exit {
+    [ -n "$_deferred_exit_pending" ] || return 0
+    _deferred_exit_pending=""
+    if [ -n "$_deferred_exit_action" ]; then
+        _hs_exit_action "$_deferred_exit_action" "$_deferred_exit_context"
+    fi
+    skhd -k "escape"
+}
+
 function maybe_back_to_normal {
     if [ "$1" = "back_to_default" ]; then
-        local action_name="$2"
-        local context="$3"
-        if [ -n "$action_name" ]; then
-            _hs_exit_action "$action_name" "$context"
-        fi
-        skhd -k "escape"
+        _deferred_exit_action="$2"
+        _deferred_exit_context="$3"
+        _deferred_exit_pending=1
+        trap _run_deferred_exit EXIT
     fi
 }
 
