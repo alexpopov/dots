@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+#
+# tmux-restore-guard — stop tmux-resurrect from restoring twice into the same
+# server, and repair the layout damage if it ever does.
+#
+# What went wrong across the macOS 26 update, in order:
+#
+#   1. resurrect's restore ran twice on one server. Continuum starts a restore
+#      every time tpm (re-)sources the config -- a plain `prefix C-r` reload is
+#      enough -- and its only guard is "is another tmux SERVER running".
+#   2. The second pass raced the first: `pane_exists` said no for a pane the
+#      first pass was still creating, so it created a duplicate. Every pane
+#      resurrect creates ends with `resize-pane -U 999` ("minimize window so
+#      more panes can fit"), which flattens the existing ones to one row.
+#   3. `restore_window_properties` then tried to undo that by applying the
+#      saved layout string, and failed: "have 3 panes but need 2". Resurrect
+#      calls it as `restore_window_properties >/dev/null 2>&1`, so the error
+#      vanished and the window kept the minimized geometry -- a 1-row pi pane
+#      that looked like an empty split.
+#
+# Subcommands
+#   arm    clear continuum's halt file IF this is a new tmux server.
+#          Runs from tmux.conf, synchronously, BEFORE tpm loads continuum.
+#   done   record this server as restored, set the halt file so no later
+#          re-source restores again, then check/repair layouts.
+#          Runs from @resurrect-hook-post-restore-all.
+#   check  report layout problems without touching anything.
+#   repair check AND re-apply the saved layouts. Only meaningful right after
+#          a restore: the "saved layout" is whatever the last continuum save
+#          captured, so running this later re-imposes a 15-minute-old (or,
+#          after a bad restore, a damaged) geometry on a window you may have
+#          since fixed by hand.
+#
+# The halt file path is continuum's own (hardcoded in its variables.sh as
+# ${HOME}/tmux_no_auto_restore); we just manage its lifecycle. `prefix R`
+# still restores manually -- that calls resurrect directly and never consults
+# the halt file, which is what you want for a deliberate restore.
+
+set -uo pipefail
+
+HALT_FILE="$HOME/tmux_no_auto_restore"
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pi-tmux"
+PID_FILE="$STATE_DIR/restored-server-pid"
+
+resurrect_dir() {
+  local opt
+  opt="$(tmux show-option -gqv @resurrect-dir 2>/dev/null)"
+  if [ -n "$opt" ]; then printf '%s' "${opt/#\~/$HOME}"
+  else printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/tmux/resurrect"; fi
+}
+
+# pid alone could theoretically repeat across a reboot; pair it with the
+# server's start time so "same server" can never be a false positive.
+server_id() { tmux display-message -p '#{pid}:#{start_time}' 2>/dev/null; }
+
+log() {
+  mkdir -p "$(resurrect_dir)" 2>/dev/null
+  printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$(resurrect_dir)/restore-guard.log"
+  printf '%s\n' "$*"
+}
+
+warn() {
+  log "$*"
+  tmux display-message "restore-guard: $*" 2>/dev/null
+}
+
+# ── arm / done ────────────────────────────────────────────────────────────
+
+cmd_arm() {
+  local now prev
+  now="$(server_id)"; prev="$(cat "$PID_FILE" 2>/dev/null)"
+  if [ -n "$now" ] && [ "$now" = "$prev" ]; then
+    # Same server we already restored into: leave the halt file in place so
+    # this config re-source does NOT trigger a second restore.
+    exit 0
+  fi
+  rm -f "$HALT_FILE"
+}
+
+cmd_done() {
+  mkdir -p "$STATE_DIR" 2>/dev/null
+  server_id > "$PID_FILE" 2>/dev/null
+  : > "$HALT_FILE"
+  cmd_check --repair
+}
+
+# ── layout check / repair ─────────────────────────────────────────────────
+
+cmd_check() {
+  local repair=0
+  [ "${1:-}" = "--repair" ] && repair=1
+
+  local file; file="$(resurrect_dir)/last"
+  [ -r "$file" ] || return 0
+
+  local sess win layout saved actual first_sep
+  while IFS=$'\t' read -r _ sess win _ _ _ layout _; do
+    [ -n "${layout:-}" ] || continue
+    tmux list-panes -t "$sess:$win" >/dev/null 2>&1 || continue
+
+    saved="$(awk -F'\t' -v s="$sess" -v w="$win" \
+             '$1=="pane" && $2==s && $3==w' "$file" | wc -l | tr -d ' ')"
+    actual="$(tmux list-panes -t "$sess:$win" 2>/dev/null | wc -l | tr -d ' ')"
+
+    if [ "$saved" = "$actual" ]; then
+      [ "$repair" = 1 ] || continue
+      # Idempotent right after a restore: re-applying the saved layout costs
+      # nothing when it's already correct, and fixes it when resurrect's own
+      # attempt failed (it swallows the error).
+      if ! tmux select-layout -t "$sess:$win" "$layout" 2>/dev/null; then
+        warn "$sess:$win layout string rejected (panes=$actual)"
+      fi
+      continue
+    fi
+
+    # Fewer panes than the save means you closed something -- not damage.
+    # The restore-damage signature is EXTRA panes, which is also the only
+    # case where select-layout refuses and the window stays minimized.
+    if [ "$actual" -lt "$saved" ] 2>/dev/null; then continue; fi
+
+    warn "$sess:$win has $actual panes, saved $saved — layout NOT restored. Close the extras, then: tmux select-layout -t $sess:$win '$layout'"
+
+    # Can't restore the real layout without killing panes (never automatic).
+    # But leaving resurrect's "minimize everything" geometry in place hides
+    # whole panes, so spread them out in the saved ORIENTATION instead --
+    # only when something is actually degenerate.
+    if [ "$repair" = 1 ] && tmux list-panes -t "$sess:$win" -F '#{pane_height}' 2>/dev/null | awk '$1<=2{f=1} END{exit !f}'; then
+      case "$layout" in
+        *'{'*) first_sep="{" ;;
+        *'['*) first_sep="[" ;;
+        *) first_sep="" ;;
+      esac
+      # Whichever bracket comes first is the window's top-level split:
+      # { = left/right, [ = top/bottom.
+      if [ -n "$first_sep" ]; then
+        case "$layout" in
+          *'['*'{'*) [ "${layout%%\[*}" != "$layout" ] && first_sep="[" ;;
+        esac
+      fi
+      case "$first_sep" in
+        '[') tmux select-layout -t "$sess:$win" even-vertical 2>/dev/null ;;
+        *)   tmux select-layout -t "$sess:$win" even-horizontal 2>/dev/null ;;
+      esac
+      log "$sess:$win spread to an even layout so no pane is hidden"
+    fi
+  done < <(grep '^window' "$file" 2>/dev/null)
+}
+
+case "${1:-}" in
+  arm) cmd_arm ;;
+  done) cmd_done ;;
+  check) cmd_check ;;
+  repair) cmd_check --repair ;;
+  *) echo "usage: tmux-restore-guard {arm|done|check|repair}" >&2; exit 2 ;;
+esac
