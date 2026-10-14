@@ -1,7 +1,12 @@
-import { type ExtensionAPI, isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// git-guard — block rewriting a commit MESSAGE via `git commit --amend`,
-// while still allowing content-only amends.
+// git-guard — bash command guards for agent footguns:
+//   1. Block rewriting a commit MESSAGE via `git commit --amend` (drops the
+//      `Differential Revision:` trailer -> next submit creates a duplicate diff).
+//   2. Block self-matching `pgrep -f`, `pkill -f`, and `ps | grep` patterns
+//      that lack the `[x]` bracket idiom (pi runs `/bin/bash -c "<cmd>"`, whose
+//      own argv contains the literal pattern -> `pgrep -f` always reports
+//      running and `pkill -f` kills the agent's own subshell with exit 137).
 //
 // Rationale: when the agent amends the commit MESSAGE, it tends to drop the
 // `Differential Revision:` trailer. With that trailer gone, the next
@@ -63,14 +68,87 @@ export function amendBlockReason(command: string): string | null {
   return null;
 }
 
+// Returns a block reason when `pgrep -f`, `pkill -f`, or `ps | grep` uses a
+// literal pattern that will match the parent `/bin/bash -c "<command>"` wrapper
+// spawned by pi. Using a bracket class (`[f]oo`) prevents the regex from
+// matching its own source text in `/bin/bash -c`.
+export function procSelfMatchBlockReason(command: string): string | null {
+  const cmdPrefix = /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|timeout\s+\S+)\s+)*(?:\S*\/)?/;
+
+  for (const raw of command.split(/[;\n|&]+/)) {
+    const seg = raw.trim();
+    const m = new RegExp(`^${cmdPrefix.source}(pgrep|pkill)\\b(.*)$`).exec(seg);
+    if (!m) continue;
+    const [, tool, rest] = m;
+    const hasFullFlag = /(?:^|\s)(?:-[a-zA-Z0-9]*f[a-zA-Z0-9]*|--full)\b/.test(rest);
+    const hasScopedParent = /(?:^|\s)(?:-[a-zA-Z0-9]*P|--parent)\b/.test(rest);
+    if (hasFullFlag && !hasScopedParent && !/\[[^\]\s]+\]/.test(rest)) {
+      return (
+        `Blocked by git-guard: \`${tool} -f\` without a \`[x]\` bracket pattern matches the ` +
+        `parent \`/bin/bash -c "..."\` shell that pi spawned to run this command ` +
+        (tool === "pkill"
+          ? "(killing your own subshell with exit 137). "
+          : "(always matching itself and reporting the process as running even after it exited). ") +
+        `Use a character class on one literal character so the regex does not match its own command line, ` +
+        `e.g. \`${tool} -f "[f]oo"\` instead of \`${tool} -f "foo"\` (or drop \`-f\` if matching the 15-char process name is enough).`
+      );
+    }
+  }
+
+  // Also check `ps ... | grep <pat>` pipelines without `[x]` or `grep -v`.
+  for (const stmt of command.split(/[;\n&]+/)) {
+    const stages = stmt.split("|").map((s) => s.trim());
+    if (stages.length < 2) continue;
+    const psIdx = stages.findIndex((s) => new RegExp(`^${cmdPrefix.source}ps\\b`).test(s));
+    if (psIdx === -1) continue;
+    const tail = stages.slice(psIdx + 1);
+    const hasGrepV = tail.some((s) => /\b(?:e?grep)\b.*(?:^|\s)-[a-zA-Z]*v/.test(s));
+    if (hasGrepV) continue;
+    for (const stage of tail) {
+      const gm = new RegExp(`^${cmdPrefix.source}(e?grep)\\b(.*)$`).exec(stage);
+      if (!gm) continue;
+      if (!/\[[^\]\s]+\]/.test(gm[2])) {
+        return (
+          "Blocked by git-guard: `ps ... | grep <pat>` without a `[x]` bracket pattern matches " +
+          "both `grep` itself and the parent `/bin/bash -c` command line. " +
+          "Use `ps ... | grep \"[f]oo\"` or `pgrep -af \"[f]oo\"`."
+        );
+      }
+    }
+  }
+
+  return null;
+}
+
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_GIT_AMEND_GUARD === "0") return;
 
   pi.on("tool_call", async (event: any) => {
-    if (!isToolCallEventType("bash", event)) return;
+    if (event.toolName !== "bash" && event.toolName !== "bash_background") return;
     const command = event.input?.command;
     if (typeof command !== "string") return;
-    const reason = amendBlockReason(command);
+    const reason = amendBlockReason(command) ?? procSelfMatchBlockReason(command);
     if (reason) return { block: true, reason };
   });
+}
+
+if (process.argv[1]?.endsWith("git-guard.ts")) {
+  const check = (cond: unknown, msg: string) => {
+    if (!cond) throw new Error(`Assertion failed: ${msg}`);
+  };
+  // Real self-matching commands from session transcripts:
+  check(procSelfMatchBlockReason(`pkill -9 -f "platform-tools/fastboot" 2>/dev/null; sleep 2`), "pkill -f");
+  check(procSelfMatchBlockReason(`date +%H:%M:%S; pgrep -af "stanley-mainline" | head -2`), "pgrep -af");
+  check(procSelfMatchBlockReason(`pgrep -f "lunch stanley-mainline" >/dev/null && echo RUNNING || echo DONE`), "pgrep -f");
+  check(procSelfMatchBlockReason(`ps aux | grep "stanley-mainline" | head -3`), "ps | grep");
+  // Safe / bracketed forms:
+  check(procSelfMatchBlockReason(`pgrep -f "lunch stanley-main[user]debug" >/dev/null && echo RUNNING || echo DONE`) === null, "pgrep [x]");
+  check(procSelfMatchBlockReason(`pkill -9 -f "[p]latform-tools/fastboot"`) === null, "pkill [x]");
+  check(procSelfMatchBlockReason(`ps aux | grep "[c]lang\\|[n]inja\\|[r]be" | head -3`) === null, "ps | grep [x]");
+  check(procSelfMatchBlockReason(`ps aux | grep fastboot | grep -v grep`) === null, "grep -v grep");
+  check(procSelfMatchBlockReason(`pgrep ninja`) === null, "pgrep no -f");
+  check(procSelfMatchBlockReason(`pgrep -P 12345 -f foo`) === null, "pgrep -P");
+  check(amendBlockReason(`git commit --amend --no-edit`) === null, "amend --no-edit");
+  check(amendBlockReason(`git commit --amend -m "bad"`), "amend -m");
+  console.log("git-guard: all checks passed");
 }
