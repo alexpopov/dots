@@ -32,6 +32,7 @@ tmux.conf                 # Root-level shim that sources config/tmux/tmux.conf (
 bin/scripts/              # Utility scripts (yabai_utils, tmux_claude, git helpers) -> ~/.local/bin/scripts
   pi-tmux-sessions        # saves pane -> pi session map for tmux-resurrect; prints resume hints after a restore
   tmux-restore-guard      # one resurrect restore per tmux server (continuum re-restores on every config reload) + layout repair
+  tmux-ensure-wm          # starts skhd/yabai if they aren't running (resurrect only restores what it saw in a pane)
 ```
 
 ## Conventions

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# tmux-ensure-wm — make sure skhd and yabai are actually running, in panes of
+# the Main session where their logs are visible.
+#
+# Why this exists: `@resurrect-processes '"~skhd" yabai'` only restores a
+# program that resurrect SAW in a pane when it saved. If the window manager
+# was started some other way (by hand, from a pane that was later closed, by
+# launchd), the save records a plain `bash` and the restore faithfully brings
+# back... a plain bash. That's exactly what happened across the macOS update:
+# resurrect restored the layout perfectly and the desktop came back with no
+# window manager.
+#
+# tmux-macbook-main.sh can't cover it either: it builds Main from scratch only
+# when Main doesn't exist, and after a continuum restore it always does.
+#
+# So: check for the processes themselves, and start whatever is missing. Both
+# checks are by process name, so this is safe to run repeatedly (every
+# restore, every config reload, by hand) and it will never start a second
+# copy -- including when skhd is already running outside tmux.
+#
+# Usage: tmux-ensure-wm [-n|--dry-run]
+#
+# Slots in the `yabai` window: pane 0 = skhd, pane 1 = yabai. Missing panes
+# are created; a pane that's busy with something else is left alone and a new
+# one is split off instead.
+
+set -uo pipefail
+
+SESSION="Main"
+WINDOW="yabai"
+
+DRY=0
+case "${1:-}" in -n|--dry-run) DRY=1 ;; esac
+
+say() { printf 'tmux-ensure-wm: %s\n' "$*"; }
+
+tmux has-session -t "$SESSION" 2>/dev/null || { say "no $SESSION session; nothing to do"; exit 0; }
+
+# Locate the window by NAME, not index: the index moves around across
+# restores, and typing `yabai` into the wrong window would be unfortunate.
+win="$(tmux list-windows -t "$SESSION" -F "#{window_index}$(printf '\t')#{window_name}" 2>/dev/null \
+       | awk -v n="$WINDOW" -F'\t' '$2 == n { print $1; exit }')"
+if [ -z "$win" ]; then
+  if [ "$DRY" = 1 ]; then
+    say "would create window $SESSION:$WINDOW"
+    win="?"
+  else
+    win="$(tmux new-window -d -t "$SESSION" -n "$WINDOW" -c "$HOME" -P -F '#{window_index}')"
+    say "created window $SESSION:$win ($WINDOW)"
+  fi
+fi
+
+target="$SESSION:$win"
+
+pane_cmd() { tmux display-message -p -t "$1" '#{pane_current_command}' 2>/dev/null; }
+pane_exists() {
+  tmux list-panes -t "$target" -F '#{pane_index}' 2>/dev/null | grep -qx "$1"
+}
+
+# Pick the pane for a slot: the slot's own pane if it's free (sitting at a
+# shell), otherwise a freshly split one.
+pick_pane() {
+  local slot="$1" cur
+  if pane_exists "$slot"; then
+    cur="$(pane_cmd "$target.$slot")"
+    case "$cur" in
+      *sh) printf '%s.%s' "$target" "$slot"; return 0 ;;
+    esac
+  fi
+  if [ "$DRY" = 1 ]; then printf '%s.<new>' "$target"; return 0; fi
+  tmux split-window -d -t "$target" -c "$HOME" -P -F '#{pane_id}'
+}
+
+ensure() {
+  local proc="$1" slot="$2" cmd="$3" pane
+  if pgrep -x "$proc" >/dev/null 2>&1; then
+    say "$proc already running (pid $(pgrep -x "$proc" | head -1))"
+    return 0
+  fi
+  pane="$(pick_pane "$slot")"
+  if [ "$DRY" = 1 ]; then
+    say "would start $proc in $pane: $cmd"
+  else
+    say "starting $proc in $pane"
+    tmux send-keys -t "$pane" "$cmd" C-m
+  fi
+}
+
+# Sent as literal text so `which` resolves in the pane's own shell, the same
+# way tmux-macbook-main.sh has always done it.
+ensure skhd  0 '$(which skhd) --config ~/dots/config/skhd/skhdrc'
+ensure yabai 1 'yabai'
