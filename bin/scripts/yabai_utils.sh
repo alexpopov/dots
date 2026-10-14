@@ -1,4 +1,4 @@
-#!/usr/bin/env /bin/bash
+#!/bin/bash
 
 function _hs_action {
     local name="${1// /%20}"
