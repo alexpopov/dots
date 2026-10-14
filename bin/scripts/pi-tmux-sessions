@@ -1,0 +1,591 @@
+#!/usr/bin/env bash
+#
+# pi-tmux-sessions — carry pi sessions across a tmux server restart (reboot,
+# macOS update, `tmux kill-server`), as an add-on to tmux-resurrect/continuum.
+#
+# resurrect restores the window/pane layout and cwds but starts plain shells;
+# it has no idea that a pane was running `pi`, let alone WHICH pi session. This
+# script records that mapping at save time and, after a restore, prints a
+# banner in each pane that used to hold a pi session:
+#
+#     ╭─ pi session was here ──────────────────────────────
+#     │ name    dots repo status and rebase
+#     │ cwd     ~/dots
+#     │ resume  pi --session 01a12f60
+#     ╰────────────────────────────────────────────────────
+#
+# and (by default) pre-types the resume command at the prompt WITHOUT running
+# it, so bringing a session back is one Enter and skipping it is one Ctrl-C.
+# Nothing is auto-restarted: twelve pi processes waking up at once after a
+# reboot is not a feature.
+#
+# Subcommands
+#   save      write the pane→session map (hook: @resurrect-hook-post-save-all)
+#   history   list previous snapshots of that map
+#   restore   send hints into restored panes (hook: @resurrect-hook-post-restore-all)
+#   hint      print the banner for the current pane (what `restore` sends)
+#   resume    start every saved session in its pane (manual; never hooked)
+#   list      show every saved mapping (optionally from an older snapshot)
+#   path      print the hints file path
+#
+# Where the session id comes from, best source first:
+#   1. the pi-side registry written by config/pi/extensions/tmux-pane-registry.ts
+#      (exact: pi itself reports its session file, keyed by $TMUX_PANE)
+#   2. META_3PAI_SESSION_TRACKING_FILE in the pi process's environment
+#      (exact, Meta launcher only; works for pi instances that started before
+#      the extension was installed)
+#   3. the session file in the pane's cwd whose stored session name matches the
+#      name in the pane title (pi titles panes `π - <name> - <dir>`, and the
+#      name is persisted as a `session_info` entry)
+#   4. the newest session file in the pane's cwd session dir (a guess, flagged
+#      as such — wrong whenever two pi panes share a directory)
+#
+# Env:
+#   PI_TMUX_REGISTRY_DIR   registry dir (match the extension's)
+#   PI_SESSION_DIR         pi session root (default ~/.pi/agent/sessions)
+#   PI_TMUX_PREFILL=0      don't pre-type the resume command on restore
+#   PI_TMUX_HINTS_FILE     override the hints file path (testing)
+#
+# Keep in sync with: config/pi/extensions/tmux-pane-registry.ts, config/tmux/tmux.conf
+
+# No `set -e`: this runs from a tmux hook inside resurrect's save/restore path.
+# A failure here must never break saving or restoring the actual layout.
+set -uo pipefail
+
+TAB=$'\t'
+# Field separator for the intermediate (in-memory) rows. NOT a tab: tab is IFS
+# whitespace, so bash's `read` silently collapses runs of them and an empty
+# field shifts every later field left. The on-disk file stays tab-separated
+# (it's meant to be readable) and writes "-" for empty id/short instead.
+US=$'\x1f'
+
+xdg_data() { printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}"; }
+
+registry_dir() {
+  printf '%s' "${PI_TMUX_REGISTRY_DIR:-$(xdg_data)/pi-tmux/panes}"
+}
+
+session_root() {
+  printf '%s' "${PI_SESSION_DIR:-$HOME/.pi/agent/sessions}"
+}
+
+# Mirror tmux-resurrect's own resolution so the hints file lands next to the
+# layout it belongs to (helpers.sh: @resurrect-dir, else XDG).
+resurrect_dir() {
+  local opt
+  opt="$(tmux show-option -gqv @resurrect-dir 2>/dev/null)"
+  if [ -n "$opt" ]; then
+    printf '%s' "${opt/#\~/$HOME}"
+  else
+    printf '%s' "$(xdg_data)/tmux/resurrect"
+  fi
+}
+
+hints_file() {
+  if [ -n "${PI_TMUX_HINTS_FILE:-}" ]; then
+    printf '%s' "$PI_TMUX_HINTS_FILE"
+  else
+    printf '%s/pi-sessions_last.txt' "$(resurrect_dir)"
+  fi
+}
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+# Read one key out of a `key=value` registry file.
+reg_get() {
+  local key="$1" file="$2"
+  [ -r "$file" ] || return 1
+  sed -n "s/^${key}=//p" "$file" | head -1
+}
+
+short_id() {
+  printf '%s' "$1" | tr -d '-' | cut -c1-8
+}
+
+# ~/foo instead of /Users/alexpopov/foo
+tildify() {
+  case "$1" in
+    "$HOME") printf '~' ;;
+    "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# pi's per-directory session folder: /Users/me/dots -> --Users-me-dots--
+session_dir_for_cwd() {
+  local cwd="${1#/}"
+  printf '%s/--%s--' "$(session_root)" "${cwd//\//-}"
+}
+
+# `π - some session name - dirname` (pi's terminal title) -> `some session name`.
+# Unnamed sessions title as `π - dirname`, which yields the empty string.
+name_from_title() {
+  local t="$1"
+  case "$t" in
+    "π - "*) t="${t#π - }" ;;
+    *) printf ''; return ;;
+  esac
+  case "$t" in
+    *" - "*) printf '%s' "${t% - *}" ;;
+    *) printf '' ;;
+  esac
+}
+
+# ── save ──────────────────────────────────────────────────────────────────
+
+cmd_save() {
+  local dir hints tmp
+  dir="$(resurrect_dir)"; hints="$(hints_file)"
+  mkdir -p "$dir" || return 0
+  tmp="$hints.$$.tmp"
+
+  # One ps snapshot + one awk pass: for every pane, walk its process tree and
+  # report the pid of the pi process running in it (if any). Looking at
+  # #{pane_current_command} alone is not enough — while pi runs a bash tool the
+  # pane's foreground command is `bash`, and the wrapper/real binary split
+  # (pi -> pi.real) means the pane pid is never pi itself.
+  local annotated
+  annotated="$(
+    awk -v FS='\t' '
+      function findpi(root, want,   stack, n, cur, i, m, arr, exe, base) {
+        n = 0; stack[++n] = root
+        while (n > 0) {
+          cur = stack[n--]
+          exe = cmd[cur]
+          sub(/ .*$/, "", exe)          # argv[0] only; args must not match
+          base = exe; sub(/.*\//, "", base)
+          if (base == want) return cur
+          m = split(kids[cur], arr, " ")
+          for (i = 1; i <= m; i++) if (arr[i] != "") stack[++n] = arr[i]
+        }
+        return 0
+      }
+      NR == FNR {
+        # ps snapshot: "<pid> <ppid> <command...>", whitespace separated.
+        line = $0
+        sub(/^[ \t]+/, "", line)
+        split(line, p, /[ \t]+/)
+        pid = p[1]; ppid = p[2]
+        rest = line
+        sub(/^[0-9]+[ \t]+[0-9]+[ \t]+/, "", rest)
+        cmd[pid] = rest
+        kids[ppid] = kids[ppid] " " pid
+        next
+      }
+      {
+        # Prefer the real binary over the launcher wrapper: only pi.real
+        # carries the launcher env vars the id fallback reads, and only it
+        # has a cwd worth trusting. Fall back to the wrapper so a pane still
+        # registers while pi is starting up.
+        pipid = findpi($5, "pi.real")
+        if (pipid == 0) pipid = findpi($5, "pi")
+        if (pipid == 0) next
+        # pane_id, coords, cwd, title, pi pid
+        printf "%s\t%s:%s.%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $6, $7, pipid
+      }
+    ' <(ps -axo pid=,ppid=,command=) \
+      <(tmux list-panes -a -F "#{pane_id}${TAB}#{session_name}${TAB}#{window_index}${TAB}#{pane_index}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_title}")
+  )"
+
+  # Pass 1: the sources that are exact. Unresolved panes get an empty id and
+  # are filled in by pass 2, which can then avoid ids pass 1 already claimed.
+  local rows="" claimed=" "
+  local pane_id coords cwd title pipid id short name src
+  while IFS="$TAB" read -r pane_id coords cwd title pipid; do
+    [ -n "${coords:-}" ] || continue
+    id=""; name=""; src=""
+
+    # 1. pi's own registry, keyed by pane id. Trust it only if the recorded
+    #    pid is the pi process actually running in this pane — pane ids are
+    #    recycled when the tmux server restarts.
+    local regfile reg_pid
+    regfile="$(registry_dir)/pane-$(printf '%s' "$pane_id" | tr -cd '0-9A-Za-z').conf"
+    if [ -r "$regfile" ]; then
+      reg_pid="$(reg_get pid "$regfile")"
+      id="$(reg_get id "$regfile")"
+      name="$(reg_get name "$regfile")"
+      if [ -n "$id" ] && [ "${reg_pid:-0}" = "$pipid" ]; then
+        src="pi"
+      else
+        id=""; name=""   # stale entry from a previous tmux server
+      fi
+    fi
+
+    # 2. The Meta launcher writes a START line per session to a tracking file
+    #    whose path lives in pi's environment. Same-user `ps eww` can read it.
+    if [ -z "$id" ]; then
+      local track
+      track="$(ps eww -p "$pipid" 2>/dev/null | tr ' ' '\n' \
+               | sed -n 's/^META_3PAI_SESSION_TRACKING_FILE=//p' | head -1)"
+      if [ -n "${track:-}" ] && [ -r "$track" ]; then
+        id="$(awk -F'\t' '$1=="START" && $2!="" {last=$2} END{print last}' "$track")"
+        [ -n "$id" ] && src="env"
+      fi
+    fi
+
+    [ -n "$name" ] || name="$(name_from_title "$title")"
+
+    # 3. Named sessions can be matched by name: pi titles the pane
+    #    `π - <name> - <dir>` and persists the name in a `session_info` entry.
+    #    This disambiguates several pi panes sharing a cwd, which (4) can't.
+    if [ -z "$id" ] && [ -n "$name" ]; then
+      local sdir match
+      sdir="$(session_dir_for_cwd "$cwd")"
+      if [ -d "$sdir" ]; then
+        # `"}` anchors to the end of the json object so a name quoted inside
+        # conversation text can't match. Newest first, stop at the first hit.
+        match="$(ls -t "$sdir"/*.jsonl 2>/dev/null | head -40 \
+                 | tr '\n' '\0' | xargs -0 grep -l -F "\"name\":\"$name\"}" 2>/dev/null \
+                 | head -1)"
+        if [ -n "${match:-}" ]; then
+          id="$(basename "$match" .jsonl)"; id="${id##*_}"
+          src="name"
+        fi
+      fi
+    fi
+
+    [ -n "$id" ] && claimed="$claimed$id "
+    rows="$rows$coords$US$id$US$src$US$cwd$US$name"$'\n'
+  done <<< "$annotated"
+
+  {
+    printf '# pi session hints for tmux-resurrect — written %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+    printf '# coords\tid\tshort\tsource\tcwd\tname\n'
+  } > "$tmp" || return 0
+
+  # Pass 2: last resort for whatever is left — the newest session file in the
+  # pane's cwd that no pane has claimed yet. Right for a single pi pane per
+  # directory, a coin flip otherwise, so it's flagged "guess" and the banner
+  # says so. Skipping claimed ids keeps two panes in one directory from both
+  # being told to resume the same session.
+  while IFS="$US" read -r coords id src cwd name; do
+    [ -n "${coords:-}" ] || continue
+    if [ -z "$id" ]; then
+      local sdir2 f cand
+      sdir2="$(session_dir_for_cwd "$cwd")"
+      if [ -d "$sdir2" ]; then
+        while IFS= read -r f; do
+          [ -n "$f" ] || continue
+          cand="$(basename "$f" .jsonl)"; cand="${cand##*_}"
+          case "$claimed" in *" $cand "*) continue ;; esac
+          id="$cand"; src="guess"; claimed="$claimed$id "
+          break
+        done < <(ls -t "$sdir2"/*.jsonl 2>/dev/null | head -10)
+      fi
+    fi
+    [ -n "$src" ] || src="unknown"
+    short=""
+    [ -n "$id" ] && short="$(short_id "$id")"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$coords" "${id:--}" "${short:--}" "$src" "$cwd" "$name" >> "$tmp"
+  done <<< "$rows"
+
+  # Rotate instead of overwrite. The hints only become useful AFTER a crash or
+  # reboot, and continuum keeps saving every 15 minutes once you're back up --
+  # so a plain overwrite destroys the map you still need while you're working
+  # through it (the restored panes run bare shells, so the fresh save is
+  # mostly empty). Keep one snapshot per actual change, newest as `_last`,
+  # exactly like resurrect does with the layout.
+  local stamp snapshot
+  stamp="$(date +%Y%m%dT%H%M%S)"
+  snapshot="$dir/pi-sessions_$stamp.txt"
+  if [ -e "$hints" ] && same_rows "$tmp" "$hints"; then
+    rm -f "$tmp"            # nothing changed; leave the existing snapshot alone
+  else
+    mv -f "$tmp" "$snapshot" 2>/dev/null || { rm -f "$tmp"; return 0; }
+    ln -fs "$(basename "$snapshot")" "$hints"
+  fi
+
+  # Prune: keep the newest 50 snapshots (~a day of 15-minute saves, and far
+  # more in practice since unchanged saves don't create a file).
+  ls -t "$dir"/pi-sessions_*.txt 2>/dev/null | grep -v '_last\.txt$' | tail -n +51 \
+    | tr '\n' '\0' | xargs -0 rm -f 2>/dev/null
+}
+
+# Compare two hints files ignoring the "written <date>" header, so a save that
+# found exactly the same sessions doesn't create a new snapshot every 15 min.
+same_rows() {
+  diff -q <(grep -v '^# pi session hints' "$1" 2>/dev/null) \
+          <(grep -v '^# pi session hints' "$2" 2>/dev/null) >/dev/null 2>&1
+}
+
+# ── restore ───────────────────────────────────────────────────────────────
+
+cmd_restore() {
+  local hints; hints="$(hints_file)"
+  [ -r "$hints" ] || return 0
+
+  local prefill="${PI_TMUX_PREFILL:-}"
+  if [ -z "$prefill" ]; then
+    case "$(tmux show-option -gqv @pi-restore-prefill)" in
+      off|0|false) prefill=0 ;;
+      *) prefill=1 ;;
+    esac
+  fi
+
+  local coords id short src cwd name cur
+  while IFS="$TAB" read -r coords id short src cwd name; do
+    case "$coords" in ''|'#'*) continue ;; esac
+    [ "$id" = "-" ] && id=""
+    [ "$short" = "-" ] && short=""
+    # Pane must exist and be sitting at a shell. If resurrect restored a real
+    # program there (vim, skhd, ...) typing into it would be destructive.
+    cur="$(tmux display-message -p -t "$coords" '#{pane_current_command}' 2>/dev/null)" || continue
+    case "$cur" in *sh) ;; *) continue ;; esac
+
+    # Hint each pane at most once. A restore can run more than once against
+    # the same server -- continuum re-runs it whenever tpm re-sources the
+    # config (a `prefix C-r` reload is enough) -- and without this the second
+    # pass types the resume command onto a line that already has it, leaving
+    # `pi --session 01a1156epi --session 01a1156e` at the prompt. The flag is
+    # a pane option, so it dies with the pane and a genuinely new pane in the
+    # same slot still gets its hint.
+    if [ "$(tmux show-options -pqv -t "$coords" @pi-hint-sent 2>/dev/null)" = "1" ]; then
+      continue
+    fi
+    tmux set-option -p -t "$coords" @pi-hint-sent 1 2>/dev/null
+
+    # One command per pane; `hint` does the pre-typing itself at the end, so
+    # the injected keys can't interleave with the banner it just printed.
+    local cmdline="pi-tmux-sessions hint"
+    [ "$prefill" = "1" ] && cmdline="$cmdline --prefill"
+    # Propagate a non-default hints file into the pane (testing).
+    [ -n "${PI_TMUX_HINTS_FILE:-}" ] && cmdline="PI_TMUX_HINTS_FILE=$PI_TMUX_HINTS_FILE $cmdline"
+    tmux send-keys -t "$coords" "$cmdline" C-m
+  done < "$hints"
+}
+
+# ── hint ──────────────────────────────────────────────────────────────────
+
+cmd_hint() {
+  local want prefill=0 explicit=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --prefill) prefill=1; shift ;;
+      --no-prefill) prefill=0; shift ;;
+      --file) explicit="$2"; shift 2 ;;
+      *) break ;;
+    esac
+  done
+
+  want="${1:-}"
+  if [ -z "$want" ]; then
+    want="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null)"
+  fi
+  [ -n "$want" ] || { echo "pi-tmux-sessions: not in a tmux pane" >&2; return 1; }
+
+  # Search the current map first, then walk back through older snapshots.
+  # This is what makes the hints survive the hours after a reboot: every
+  # continuum save from then on records the RESTORED panes, which are bare
+  # shells, so the current map forgets a pane as soon as you fail to resume
+  # it within 15 minutes. The snapshot that still knows is usually the last
+  # one taken before the reboot.
+  local files file row age=""
+  if [ -n "$explicit" ]; then
+    files="$explicit"
+  else
+    files="$(hint_files)"
+  fi
+
+  while IFS= read -r file; do
+    [ -n "$file" ] && [ -r "$file" ] || continue
+    row="$(lookup_row "$file" "$want")" || continue
+    [ -n "$row" ] || continue
+
+    local coords id short src cwd name
+    IFS="$TAB" read -r coords id short src cwd name <<< "$row"
+    [ "$id" = "-" ] && id=""
+    [ "$short" = "-" ] && short=""
+    # Not the live map -> say where this came from, it may be stale.
+    case "$file" in
+      *_last.txt) age="" ;;
+      *) age="$(printf '%s' "${file##*/pi-sessions_}" | sed 's/\.txt$//')" ;;
+    esac
+
+    banner "$id" "$short" "$src" "$cwd" "$name" "$age"
+    # Pre-type (but don't run) the resume command, so coming back is one
+    # Enter and skipping is one Ctrl-C. Done here, after the banner, rather
+    # than from `restore`: keys sent while the banner is still printing get
+    # echoed into the middle of it.
+    if [ "$prefill" = 1 ] && [ -n "$short" ] && [ -n "${TMUX:-}" ]; then
+      # C-u first: if anything is already on the line (a previous hint's
+      # pre-typed command), appending to it produces a garbage command.
+      tmux send-keys -t "${TMUX_PANE:-$coords}" C-u "pi --session $short"
+    fi
+    return 0
+  done <<< "$files"
+
+  echo "pi-tmux-sessions: no saved pi session for $want" >&2
+  return 1
+}
+
+# The live map first, then older snapshots, newest first.
+hint_files() {
+  printf '%s\n' "$(hints_file)"
+  ls -t "$(resurrect_dir)"/pi-sessions_*.txt 2>/dev/null | grep -v '_last\.txt$' | head -30
+}
+
+# Echo the row matching <want> (pane coords, short id or full id) from a
+# hints file, or return 1.
+lookup_row() {
+  local file="$1" want="$2" coords id short src cwd name
+  while IFS="$TAB" read -r coords id short src cwd name; do
+    case "$coords" in ''|'#'*) continue ;; esac
+    if [ "$coords" = "$want" ] || [ "$short" = "$want" ] || [ "$id" = "$want" ]; then
+      printf '%s\n' "$coords$TAB$id$TAB$short$TAB$src$TAB$cwd$TAB$name"
+      return 0
+    fi
+  done < "$file"
+  return 1
+}
+
+banner() {
+  local id="$1" short="$2" src="$3" cwd="$4" name="$5" age="${6:-}"
+  local c0="" cb="" cd=""
+  if [ -t 1 ]; then c0=$'\033[0m'; cb=$'\033[1;36m'; cd=$'\033[2m'; fi
+
+  local note=""
+  case "$src" in
+    guess) note=" ${cd}(guessed from cwd — verify with: pi --resume)${c0}" ;;
+    name)  note=" ${cd}(matched by session name)${c0}" ;;
+    env)   note=" ${cd}(from launcher env)${c0}" ;;
+    unknown) note=" ${cd}(session id unknown)${c0}" ;;
+  esac
+
+  printf '%s╭─ pi session was here ─────────────────────────────%s\n' "$cb" "$c0"
+  [ -n "$name" ] && printf '%s│%s name    %s\n' "$cb" "$c0" "$name"
+  printf '%s│%s cwd     %s\n' "$cb" "$c0" "$(tildify "$cwd")"
+  if [ -n "$short" ]; then
+    printf '%s│%s resume  %spi --session %s%s%s\n' "$cb" "$c0" "$cb" "$short" "$c0" "$note"
+    printf '%s│%s         %sfull id: %s%s\n' "$cb" "$c0" "$cd" "$id" "$c0"
+  else
+    printf '%s│%s resume  %spi --resume%s%s\n' "$cb" "$c0" "$cb" "$c0" "$note"
+  fi
+  # Only set when the row came from an older snapshot rather than the live
+  # map, i.e. the pane has since been saved as a plain shell.
+  [ -n "$age" ] && printf '%s│%s saved   %s%s (older snapshot)%s\n' \
+    "$cb" "$c0" "$cd" "$(pretty_stamp "$age")" "$c0"
+  printf '%s╰───────────────────────────────────────────────────%s\n' "$cb" "$c0"
+}
+
+# 20261012T112816 -> 2026-10-12 11:28
+pretty_stamp() {
+  case "$1" in
+    ????????T??????)
+      printf '%s-%s-%s %s:%s' "${1:0:4}" "${1:4:2}" "${1:6:2}" "${1:9:2}" "${1:11:2}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# ── resume ─────────────────────────────────────────────────────
+
+# `restore` hints and waits for you; `resume` actually starts the sessions.
+# Deliberately NOT wired into any hook: a dozen agents launching themselves
+# the moment you log in is a bad default. This is the "yes, all of them"
+# button you press by hand.
+cmd_resume() {
+  local dry=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -n|--dry-run) dry=1; shift ;;
+      *) break ;;
+    esac
+  done
+
+  local want_list="$*" files done_ids=" " n=0
+  files="$(hint_files)"
+
+  local coords cur file row id short src cwd name
+  while IFS= read -r coords; do
+    [ -n "$coords" ] || continue
+    if [ -n "$want_list" ]; then
+      case " $want_list " in *" $coords "*) ;; *) continue ;; esac
+    fi
+    # Only ever type into a pane that is sitting at a shell prompt.
+    cur="$(tmux display-message -p -t "$coords" '#{pane_current_command}' 2>/dev/null)" || continue
+    case "$cur" in *sh) ;; *) continue ;; esac
+
+    row=""
+    while IFS= read -r file; do
+      [ -n "$file" ] && [ -r "$file" ] || continue
+      row="$(lookup_row "$file" "$coords")" && break
+      row=""
+    done <<< "$files"
+    [ -n "$row" ] || continue
+
+    IFS="$TAB" read -r coords id short src cwd name <<< "$row"
+    [ "$short" = "-" ] && short=""
+    [ -n "$short" ] || continue
+    # One pane per session: an id already started in this run (or sitting in
+    # a live pane) must not be opened a second time.
+    case "$done_ids" in *" $short "*) continue ;; esac
+    done_ids="$done_ids$short "
+
+    if [ "$dry" = 1 ]; then
+      printf 'would resume %-12s %s  %s\n' "$coords" "pi --session $short" "${name:-}"
+    else
+      printf 'resuming %-12s %s  %s\n' "$coords" "pi --session $short" "${name:-}"
+      # C-u clears any hint text already pre-typed on that prompt.
+      tmux send-keys -t "$coords" C-u "pi --session $short" C-m
+    fi
+    n=$((n + 1))
+  done < <(tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null)
+
+  [ "$n" -gt 0 ] || echo "pi-tmux-sessions: nothing to resume" >&2
+}
+
+# ── list ──────────────────────────────────────────────────────────────────
+
+cmd_list() {
+  local hints; hints="${1:-$(hints_file)}"
+  # Bare timestamp or snapshot name: resolve inside the resurrect dir.
+  if [ ! -r "$hints" ] && [ -n "${1:-}" ]; then
+    case "$1" in
+      */*) ;;
+      pi-sessions_*) hints="$(resurrect_dir)/$1" ;;
+      *) hints="$(resurrect_dir)/pi-sessions_$1.txt" ;;
+    esac
+  fi
+  [ -r "$hints" ] || { echo "pi-tmux-sessions: no saved hints ($hints)" >&2; return 1; }
+  head -1 "$hints"
+  local coords id short src cwd name
+  while IFS="$TAB" read -r coords id short src cwd name; do
+    case "$coords" in ''|'#'*) continue ;; esac
+    printf '%-14s %-10s %-7s %-28s %s\n' \
+      "$coords" "$short" "$src" "$(tildify "$cwd")" "${name:-}"
+  done < "$hints"
+}
+
+# ── main ──────────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+  save) shift; cmd_save "$@" ;;
+  restore) shift; cmd_restore "$@" ;;
+  hint) shift; cmd_hint "$@" ;;
+  list) shift; cmd_list "$@" ;;
+  resume) shift; cmd_resume "$@" ;;
+  history)
+    dir="$(resurrect_dir)"
+    printf 'snapshots in %s (newest first), read one with: pi-tmux-sessions list <name>\n' "$dir"
+    ls -t "$dir"/pi-sessions_*.txt 2>/dev/null | grep -v '_last\.txt$' \
+      | while IFS= read -r f; do
+          printf '  %-28s %s sessions\n' "$(basename "$f")" \
+            "$(grep -vc '^#' "$f" 2>/dev/null)"
+        done
+    ;;
+  path) hints_file; echo ;;
+  *)
+    cat >&2 <<EOF
+usage: pi-tmux-sessions {save|restore|hint [coords|id]|list|path}
+
+  save     record which pi session runs in which tmux pane
+  restore  print/pre-type resume hints into restored panes
+  resume   actually start the saved sessions (-n to preview)
+  hint     show the saved pi session for this pane
+  list     show all saved mappings (list <snapshot> reads an older one)
+  history  list previous snapshots
+  path     print the hints file path
+EOF
+    exit 2 ;;
+esac
