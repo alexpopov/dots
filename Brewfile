@@ -23,7 +23,7 @@ brew "koekeishiya/formulae/yabai"
 # from Meta provisioning / Managed Software Center (Santa, Cyberhaven, NoMAD,
 # ClientPlatformAssistant, VS Code @ FB, Flipper, MetaCodex, Defender, Outlook,
 # Slack 2, WAU, Help@, fido2-macos) -- installing those by hand fights MDM.
-# Also not here: App Store apps (Things 3, MindNode, Keynote/Pages/Numbers) and
+# Also not here: App Store apps (Things 3, Spark mail, MindNode, Keynote/Pages/Numbers) and
 # Wally, which has no cask. Grab those from the App Store / vendor.
 
 # launcher + keyboard + window management: the stuff that makes a Mac usable
@@ -67,6 +67,5 @@ cask "whatsapp"
 cask "discord"
 cask "superwhisper"
 cask "steam"
-cask "spark-app"            # email (the cask "spark" was renamed)
 cask "textual"              # IRC
 cask "there"                # timezones in the menu bar

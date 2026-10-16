@@ -73,6 +73,8 @@ Not available via Homebrew -- fetch these by hand:
 
   Mac App Store (sign in, then "Purchased"):
     Things 3            https://culturedcode.com/things/
+    Spark (Readdle)     email -- NOT the "spark-app" cask, which is an
+                        unrelated shortcut manager
     MindNode            https://www.mindnode.com/
     Final Cut Pro       (App Store, paid)
     Dashbar             (App Store, no cask)
