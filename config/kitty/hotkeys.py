@@ -15,6 +15,7 @@
 # ===========================================================================
 
 import base64
+import dataclasses
 import importlib.util
 import json
 import os
@@ -40,6 +41,15 @@ def _log_path():
     except OSError:
         d = "/tmp"
     return os.path.join(d, "hotkeys.log")
+
+
+def _log_hint():
+    """Short, pasteable pointer at the log, for one-line error notes."""
+    p = _log_path()
+    home = os.path.expanduser("~")
+    if p.startswith(home + os.sep):
+        p = "~" + p[len(home):]
+    return "see " + p
 
 
 _LOGF = None
@@ -801,10 +811,28 @@ def _join_wrap(lines, i, end, text, cols, consumed):
     return text
 
 
-def _scan_hits(lines, cols, artifacts=True, urls=True):
-    """All openable things on screen, in reading order.
+@dataclasses.dataclass
+class Hit:
+    """One openable thing found on screen.
 
-    Each hit is {row, col (1-based, where its label gets stamped), url, tok}.
+    A plain dict here once cost a `KeyError: 'kind'` in the picker: a later
+    change read fields that an earlier refactor had already removed, and
+    nothing noticed until the menu blew up at runtime. Attributes fail loudly
+    (and statically), so keep this a dataclass.
+
+    row/col are 1-based; col is where the label gets stamped. `label` is filled
+    in by the picker, not by the scanner.
+    """
+    row: int
+    col: int
+    url: str
+    tok: str
+    label: str = ""
+
+
+def _scan_hits(lines, cols, artifacts=True, urls=True):
+    """All openable things (Hit) on screen, in reading order.
+
     URLs are matched first so that a D-number *inside* a URL
     (.../diff/D1234567) doesn't also show up as a separate artifact hit.
     """
@@ -825,8 +853,8 @@ def _scan_hits(lines, cols, artifacts=True, urls=True):
                 short = text if len(text) <= 44 else text[:41] + "\u2026"
                 # Label on the URL's first char: the tail is often off at the
                 # right edge (or on another row entirely) after a wrap.
-                hits.append({"row": i + 1, "col": m.start() + 1,
-                             "url": url, "tok": short})
+                hits.append(Hit(row=i + 1, col=m.start() + 1,
+                                url=url, tok=short))
     if artifacts:
         for i, line in enumerate(lines):
             for m in ARTIFACT_RE.finditer(line):
@@ -834,10 +862,10 @@ def _scan_hits(lines, cols, artifacts=True, urls=True):
                     continue
                 if any(s <= m.start() < e for s, e in spans.get(i, ())):
                     continue
-                hits.append({"row": i + 1, "col": m.end(),  # ON the ref's last digit
-                             "url": ARTIFACT_URLS[m.group(1)].format(num=m.group(2)),
-                             "tok": m.group(0)})
-    hits.sort(key=lambda h: (h["row"], h["col"]))
+                hits.append(Hit(row=i + 1, col=m.end(),  # ON the ref's last digit
+                                url=ARTIFACT_URLS[m.group(1)].format(num=m.group(2)),
+                                tok=m.group(0)))
+    hits.sort(key=lambda h: (h.row, h.col))
     return hits
 
 
@@ -883,9 +911,9 @@ def _open_urls(urls, background=False):
 
 
 def _open_hit(hit, background=False):
-    if hit["url"] and _open_url(hit["url"], background=background):
-        return f"\u2713 opening {hit['tok']}"
-    return f"\u26a0 couldn't open {hit['tok']}"
+    if hit.url and _open_url(hit.url, background=background):
+        return f"\u2713 opening {hit.tok}"
+    return f"\u26a0 couldn't open {hit.tok}"
 
 
 def _screen_lines(rc, target):
@@ -948,15 +976,15 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     # right -- that's how the line reads.
     by_label = {}
     label_of = {}
-    labels = _artifact_labels(len({(h["kind"], h["num"]) for h in hits}))
-    for h in sorted(hits, key=lambda h: (-h["row"], h["col"])):
-        ref = (h["kind"], h["num"])
+    labels = _artifact_labels(len({h.url for h in hits}))
+    for h in sorted(hits, key=lambda h: (-h.row, h.col)):
+        ref = h.url
         lab = label_of.get(ref)
         if lab is None:
             lab = labels[len(label_of)]
             label_of[ref] = lab
-            by_label[lab] = h      # representative occurrence; only kind/num is used
-        h["label"] = lab
+            by_label[lab] = h      # representative occurrence; only the url is used
+        h.label = lab
 
     queued = []      # hits picked in multi mode; all opened at once on esc
     picked = set()   # labels already queued (drawn green)
@@ -965,13 +993,13 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         _paint_backdrop(bg)                    # repaint the frozen terminal...
         _out("\x1b[?7l")
         for h in hits:                         # ...then stamp each label OVER the
-            if h["row"] <= rows:               # ref's last digit: the D/T/P type and
+            if h.row <= rows:                  # ref's last digit: the D/T/P type and
                                                # most of the number stay readable, and
                                                # no letter lands in the gap between
                                                # words, which breaks reading flow
-                col = min(h["col"], max(1, cols - len(h["label"]) + 1))
-                style = LABEL_DONE if h["label"] in picked else LABEL_HL
-                _out(f"\x1b[{h['row']};{col}H" + style + h["label"] + RESET)
+                col = min(h.col, max(1, cols - len(h.label) + 1))
+                style = LABEL_DONE if h.label in picked else LABEL_HL
+                _out(f"\x1b[{h.row};{col}H" + style + h.label + RESET)
         if multi:                              # tiny mode indicator, top-right corner
             tag = f" SELECT \u00b7 {len(queued)} queued "
             _out(f"\x1b[1;{max(1, cols - len(tag) + 1)}H" + MODE_TAG + tag + RESET)
@@ -989,7 +1017,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             continue
         if k in ("quit", "back") or (multi and k == "enter"):  # esc / \u21b5 / \u2303C: done
             if queued:                          # open the whole queue at once
-                _open_urls([h["url"] for h in queued], background=True)
+                _open_urls([h.url for h in queued], background=True)
             return _CLOSE
         if k in ("enter", "ignore") or len(k) != 1:
             continue
@@ -1163,7 +1191,12 @@ def _run(args):
                         note = fn(action, rc, target, fd=fd, bg=bg)
                     except Exception as e:
                         log("builtin error:\n" + traceback.format_exc())
-                        note = f"error: {e}"
+                        # Name the exception type and say where the traceback
+                        # went: a bare str(e) renders a KeyError as the utterly
+                        # opaque  error: 'kind'  with no hint that the real
+                        # stack is sitting in the log.
+                        note = (f"\u26a0 {action['name']}: {type(e).__name__}: {e}"
+                                f" \u00b7 {_log_hint()}")
                 if note is _CLOSE:
                     return ""
                 continue  # otherwise stay so the ✓/⚠ note is visible
