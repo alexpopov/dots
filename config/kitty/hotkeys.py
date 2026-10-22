@@ -762,10 +762,14 @@ ARTIFACT_URLS = {
 # rejoin a URL that tmux hard-wrapped across two rows. We can: see _join_wrap.
 # Excluded chars are the ones that in practice bracket a URL in prose/logs
 # rather than belong to it.
+# \u2500-\u259f (box drawing + block elements) are excluded as well as ASCII | :
+# tmux and nvim draw pane borders with them, and a URL ending at a pane's right
+# edge would otherwise swallow the border and the next pane's text, giving the
+# memorable .../a14_to_a17_%E2%94%82No
 URL_RE = re.compile(
-    r"(?:https?|ftps?|file|ssh|sftp|git)://[^\s<>\"'`\\|{}\^\[\]]+"
-    r"|mailto:[^\s<>\"'`\\|{}\^\[\]]+"
-    r"|(?<![A-Za-z0-9.@/])www\.[^\s<>\"'`\\|{}\^\[\]]+"
+    r"(?:https?|ftps?|file|ssh|sftp|git)://[^\s<>\"'`\\|{}\^\[\]\u2500-\u259f]+"
+    r"|mailto:[^\s<>\"'`\\|{}\^\[\]\u2500-\u259f]+"
+    r"|(?<![A-Za-z0-9.@/])www\.[^\s<>\"'`\\|{}\^\[\]\u2500-\u259f]+"
 )
 # Trailing punctuation that is nearly always sentence/markup, not URL. Closing
 # brackets are only stripped when unbalanced, so .../foo_(bar) survives.
@@ -773,6 +777,20 @@ _URL_TRAIL = ".,;:!?\u2026'\"\u201c\u201d\u2019"
 _URL_PAIRS = {")": "(", "]": "[", "}": "{", ">": "<"}
 _NONSPACE = re.compile(r"\S*")
 _HAS_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+_LEADING_WS = re.compile(r"[ \t]*")
+# A wrapped row should reach its pane's right edge, but renderers often stop a
+# character or two short (reserved column, a wrap width of cols-1).
+_WRAP_SLACK = 2
+# How much leading whitespace we'll accept on a continuation row. Agent/markdown
+# output uses a 2-4 space hanging indent; more than this is a nested block.
+_MAX_CONT_INDENT = 8
+# What a URL's continuation may consist of. Deliberately excludes whitespace and
+# the bracket/quote characters that start prose, so an ordinary indented
+# sentence under a URL is never glued on.
+_URL_TAIL = re.compile(r"[A-Za-z0-9._~%\-/#?&=+:@!$'()*,;]+\Z")
+# Vertical rules tmux/nvim draw between panes. ASCII | is left out on purpose:
+# it shows up in prose and markdown tables far more often than as a border.
+_VRULE = "\u2502\u2503\u2506\u2507\u250a\u250b\u2551"
 
 
 def _trim_url(text):
@@ -788,7 +806,7 @@ def _trim_url(text):
 
 
 def _join_wrap(lines, i, end, text, cols, consumed):
-    """Follow a URL across tmux's hard wraps.
+    """Follow a URL across hard wraps, including indented continuations.
 
     tmux (and `less`, and anything that draws its own grid) emits each visual
     row as a real line, so a long URL arrives as N unrelated fragments and
@@ -797,17 +815,47 @@ def _join_wrap(lines, i, end, text, cols, consumed):
     non-space run, and keep going while that run also fills its row. Rows we
     swallow get recorded in `consumed` so the tail doesn't also become its own
     (broken) hit.
+
+    Two wrap styles exist and they need different levels of trust:
+
+      column 0   tmux/less re-drawing a grid. The continuation starts hard
+                 against the left edge, which no prose does, so the leading
+                 non-space run is taken as-is (the original behaviour).
+
+      indented   a markdown/agent renderer wrapping a long URL under a hanging
+                 indent, e.g.
+
+                     - Manifold (renders markdown + jump links):
+                       https://host/tree/para/a14_to_a17_
+                       security_permissions_delta.md
+
+                 Here whitespace separates the halves, so joining is a guess.
+                 Only take it when the guess is nearly forced: a small indent,
+                 a row holding exactly one token, and that token made only of
+                 URL characters. An indented prose line (which has spaces) or a
+                 bullet (which starts with punctuation) stops the join.
     """
     j = i
-    while (end >= len(lines[j]) and len(lines[j]) >= cols
-           and j + 1 < len(lines)):
-        frag = _NONSPACE.match(lines[j + 1]).group(0)
-        if not frag:
+    while j + 1 < len(lines):
+        row = lines[j]
+        # The match has to run to this row's end, and the row has to reach the
+        # pane's right edge -- together, that's what a wrap looks like.
+        if end < len(row) or len(row) < cols - _WRAP_SLACK:
             break
+        nxt = lines[j + 1]
+        frag = _NONSPACE.match(nxt).group(0)
+        indent = 0
+        if not frag:                       # indented continuation: prove it
+            indent = len(_LEADING_WS.match(nxt).group(0))
+            rest = nxt[indent:]
+            if (indent > _MAX_CONT_INDENT or len(rest.split()) != 1
+                    or _HAS_SCHEME.match(rest) or not _URL_TAIL.match(rest)):
+                break
+            frag = rest
         text += frag
         j += 1
-        consumed[j] = max(consumed.get(j, 0), len(frag))
-        end = len(frag)
+        consumed[j] = max(consumed.get(j, 0), indent + len(frag))
+        end = indent + len(frag)
     return text
 
 
@@ -830,8 +878,67 @@ class Hit:
     label: str = ""
 
 
+def _border_cols(lines):
+    """Columns that look like a vertical pane border.
+
+    A border runs the height of the screen, so require the rule character in a
+    strong majority of the rows that are even long enough to reach that column.
+    A markdown table's \u2502 only spans its own few rows and won't qualify.
+    """
+    if len(lines) < 4:
+        return []
+    seen = {}
+    for row in lines:
+        for c, ch in enumerate(row):
+            if ch in _VRULE:
+                seen[c] = seen.get(c, 0) + 1
+    out = []
+    for c, n in seen.items():
+        reach = sum(1 for row in lines if len(row) > c)
+        if reach >= 4 and n >= max(3, int(reach * 0.6)):
+            out.append(c)
+    return sorted(out)
+
+
+def _segments(lines, cols):
+    """The screen split into (start, width) column ranges, one per pane.
+
+    `kitty @ get-text` hands back kitty's single composited grid, so with a tmux
+    or nvim vertical split one captured row holds several panes' text with a
+    border between them. Scanning the raw rows then lets a URL at the left
+    pane's right edge run into its neighbour, and makes "does this row reach the
+    right edge?" -- the wrap test -- ask about the window edge instead of the
+    pane edge. Scanning per segment fixes both.
+    """
+    out = []
+    start = 0
+    for c in _border_cols(lines) + [cols]:
+        if c > start:
+            out.append((start, c - start))
+        start = c + 1
+    return out or [(0, cols)]
+
+
 def _scan_hits(lines, cols, artifacts=True, urls=True):
     """All openable things (Hit) on screen, in reading order.
+
+    Each pane (column segment) is scanned on its own; hit columns are mapped
+    back to absolute screen columns so the labels still land in the right place.
+    """
+    hits = []
+    for start, width in _segments(lines, cols):
+        # rstrip: inside a split, a pane's rows are space-padded out to the
+        # border, which would make every row look full to the wrap test.
+        seg = [row[start:start + width].rstrip() for row in lines]
+        for h in _scan_segment(seg, width, artifacts, urls):
+            h.col += start
+            hits.append(h)
+    hits.sort(key=lambda h: (h.row, h.col))
+    return hits
+
+
+def _scan_segment(lines, cols, artifacts=True, urls=True):
+    """Openable things within one pane's columns.
 
     URLs are matched first so that a D-number *inside* a URL
     (.../diff/D1234567) doesn't also show up as a separate artifact hit.
