@@ -65,6 +65,21 @@ export default function (pi: ExtensionAPI) {
         let entry: any;
         try { entry = JSON.parse(line); } catch { kept.push(line); continue; }
 
+        // Give the fork its own session UUID + parentSession pointer in the
+        // line-0 header. Keeping the parent's session UUID caused both panes
+        // to stream to Devmate/Agent Home under the SAME session_id, which
+        // triggered false "Remote controlled in Agent Home" takeovers and
+        // overwrote the parent session's remote checkpoint with the fork's.
+        if (entry.type === "session") {
+          kept.push(JSON.stringify({
+            ...entry,
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            parentSession: sourceFile,
+          }));
+          continue;
+        }
+
         if (!foundPicked) {
           kept.push(line);
           if (entry.id === event.entryId) foundPicked = true;
