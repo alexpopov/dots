@@ -363,9 +363,13 @@ export default function (pi: ExtensionAPI) {
 		name: "cron_create",
 		label: "Schedule task",
 		description:
-			"Schedule a prompt to run later. Use `schedule` (5-field cron, e.g. '*/5 * * * *') for recurring or fixed-time runs, or `inSeconds` for a one-shot relative reminder (e.g. 2700 = 45 min). Set recurs=false for a one-time cron fire. The prompt runs between turns when the agent is idle. Returns the 8-char task id.",
+			"STOP — cron is the LAST resort for waiting, not the default. Climb this ladder first; use the first rung that holds: " +
+			"1) Waiting for a CONDITION (a process exits, a file appears, a job/rsync finishes, output changes)? NOT cron: use bash_background with the check kept in the shell (e.g. `while pgrep -f 'pat[-]tern'; do sleep 5; done; <verify>; echo DONE`) or `inotifywait` for file arrival — the job's exit wakes you exactly once, in seconds, with zero agent turns spent polling. For a Phabricator diff changing, use monitor_diff. " +
+			"2) Did YOU launch the job? bash_background the job itself; its exit is the event. No watcher needed. " +
+			"3) Only if the trigger is genuinely WALL-CLOCK ('at 9am', 'in 45 minutes', 'every hour', 'remind me to…') is cron right: 5-field `schedule` for recurring/fixed-time, `inSeconds` for a one-shot relative delay, recurs=false for a one-time cron fire. Each fire costs a full agent turn and granularity is ~1 minute, so never simulate condition-watching with recurring cron prompts. " +
+			"The prompt runs between turns when the agent is idle. Returns the 8-char task id.",
 		promptGuidelines: [
-			"Use cron_create when the user asks to schedule, repeat, poll, loop, or be reminded of a prompt (e.g. 'every 5 minutes', 'at 9am', 'in 45 minutes', 'remind me to ...').",
+			"Use cron_create ONLY for time-based asks ('every 5 minutes', 'at 9am', 'in 45 minutes', 'remind me to ...'). For 'when X finishes/changes/appears', use bash_background shell-side waiting or monitor_diff instead (see the ladder in the tool description).", 
 			"For relative reminders use cron_create with inSeconds; for recurring or clock-time use a cron `schedule`.",
 			"TIMEZONE: 'local' = the pi HOST's timezone (e.g. a devserver), which is often NOT the user's. Before scheduling any clock-time reminder ('at 9am', 'tomorrow morning'), CONFIRM the user's timezone — never assume the system/devserver TZ. Compute the delay against the user's clock, e.g. `TZ=<their-tz> date -d 'tomorrow 09:00'` → inSeconds.",
 		],
