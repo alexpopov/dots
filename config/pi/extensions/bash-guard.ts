@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// git-guard — bash command guards for agent footguns:
+// bash-guard — bash command guards for agent footguns:
 //   1. Block rewriting a commit MESSAGE via `git commit --amend` (drops the
 //      `Differential Revision:` trailer -> next submit creates a duplicate diff).
 //   2. Block self-matching `pgrep -f`, `pkill -f`, and `ps | grep` patterns
@@ -29,7 +29,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 // Active in child sessions (subagents / side-kicks) too — deliberately NOT
 // recursion-guarded, since the point is to enforce the rule everywhere.
 //
-// Set PI_GIT_AMEND_GUARD=0 to disable.
+// Set PI_BASH_GUARD=0 to disable.
 
 // Returns a block reason, or null to allow. Pure + unit-tested logic:
 // scan each shell segment; only a real `git ... commit ... --amend` invocation
@@ -54,14 +54,14 @@ export function amendBlockReason(command: string): string | null {
 
     if (!hasNoEdit || hasMessageFlag) {
       return (
-        "Blocked by git-guard: do NOT rewrite the commit message with `git commit --amend`. " +
+        "Blocked by bash-guard: do NOT rewrite the commit message with `git commit --amend`. " +
         "Amending the message drops the `Differential Revision:` trailer, so the next submit " +
         "creates a brand-new diff instead of updating the existing one. " +
         "To change the title / summary / test plan, edit the diff with the `meta` CLI (updates " +
         "Phabricator in place and keeps the link). " +
         "To amend only the CONTENT of the last commit, use `git commit --amend --no-edit` " +
         "(leaves the message and trailer intact). " +
-        "(Set PI_GIT_AMEND_GUARD=0 to disable this guard.)"
+        "(Set PI_BASH_GUARD=0 to disable this guard.)"
       );
     }
   }
@@ -73,7 +73,13 @@ export function amendBlockReason(command: string): string | null {
 // spawned by pi. Using a bracket class (`[f]oo`) prevents the regex from
 // matching its own source text in `/bin/bash -c`.
 export function procSelfMatchBlockReason(command: string): string | null {
-  const cmdPrefix = /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|timeout\s+\S+)\s+)*(?:\S*\/)?/;
+  // Command-position prefix: env assignments / wrappers, plus shell control
+  // openers. The openers matter — the recurring agent footgun is a wait loop
+  // (`while pgrep -f "foo"; do sleep 60; done`), where `while`/`until`/`do`/
+  // `if` precedes the pgrep and a start-anchored match alone sails past it,
+  // so the loop self-matches its own `bash -c` argv and never exits.
+  const cmdPrefix =
+    /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|timeout\s+\S+|time|command|while|until|if|elif|then|do|else|!|\(|\{|\$\()\s*)*(?:\S*\/)?/;
 
   for (const raw of command.split(/[;\n|&]+/)) {
     const seg = raw.trim();
@@ -84,7 +90,7 @@ export function procSelfMatchBlockReason(command: string): string | null {
     const hasScopedParent = /(?:^|\s)(?:-[a-zA-Z0-9]*P|--parent)\b/.test(rest);
     if (hasFullFlag && !hasScopedParent && !/\[[^\]\s]+\]/.test(rest)) {
       return (
-        `Blocked by git-guard: \`${tool} -f\` without a \`[x]\` bracket pattern matches the ` +
+        `Blocked by bash-guard: \`${tool} -f\` without a \`[x]\` bracket pattern matches the ` +
         `parent \`/bin/bash -c "..."\` shell that pi spawned to run this command ` +
         (tool === "pkill"
           ? "(killing your own subshell with exit 137). "
@@ -109,7 +115,7 @@ export function procSelfMatchBlockReason(command: string): string | null {
       if (!gm) continue;
       if (!/\[[^\]\s]+\]/.test(gm[2])) {
         return (
-          "Blocked by git-guard: `ps ... | grep <pat>` without a `[x]` bracket pattern matches " +
+          "Blocked by bash-guard: `ps ... | grep <pat>` without a `[x]` bracket pattern matches " +
           "both `grep` itself and the parent `/bin/bash -c` command line. " +
           "Use `ps ... | grep \"[f]oo\"` or `pgrep -af \"[f]oo\"`."
         );
@@ -121,7 +127,7 @@ export function procSelfMatchBlockReason(command: string): string | null {
 }
 
 export default function (pi: ExtensionAPI) {
-  if (process.env.PI_GIT_AMEND_GUARD === "0") return;
+  if (process.env.PI_BASH_GUARD === "0") return;
 
   pi.on("tool_call", async (event: any) => {
     if (event.toolName !== "bash" && event.toolName !== "bash_background") return;
@@ -132,7 +138,7 @@ export default function (pi: ExtensionAPI) {
   });
 }
 
-if (process.argv[1]?.endsWith("git-guard.ts")) {
+if (process.argv[1]?.endsWith("bash-guard.ts")) {
   const check = (cond: unknown, msg: string) => {
     if (!cond) throw new Error(`Assertion failed: ${msg}`);
   };
@@ -141,6 +147,13 @@ if (process.argv[1]?.endsWith("git-guard.ts")) {
   check(procSelfMatchBlockReason(`date +%H:%M:%S; pgrep -af "stanley-mainline" | head -2`), "pgrep -af");
   check(procSelfMatchBlockReason(`pgrep -f "lunch stanley-mainline" >/dev/null && echo RUNNING || echo DONE`), "pgrep -f");
   check(procSelfMatchBlockReason(`ps aux | grep "stanley-mainline" | head -3`), "ps | grep");
+  // Wait-loop shapes (session 01a17c8b: `while pgrep -f` self-matched for 17h):
+  check(procSelfMatchBlockReason(`while pgrep -f "soong_ui --build-mode" >/dev/null; do sleep 60; done; ./run_tests.sh`), "while pgrep -f");
+  check(procSelfMatchBlockReason(`until pgrep -f "ninja" >/dev/null; do sleep 5; done`), "until pgrep -f");
+  check(procSelfMatchBlockReason(`if pgrep -f "soong_ui"; then echo busy; fi`), "if pgrep -f");
+  check(procSelfMatchBlockReason(`while true; do pgrep -f "soong_ui" || break; sleep 5; done`), "do pgrep -f");
+  check(procSelfMatchBlockReason(`(pgrep -f "soong_ui") && echo busy`), "(pgrep -f");
+  check(procSelfMatchBlockReason(`while pgrep -f "[s]oong_ui --build-mode" >/dev/null; do sleep 60; done`) === null, "while pgrep [x]");
   // Safe / bracketed forms:
   check(procSelfMatchBlockReason(`pgrep -f "lunch stanley-main[user]debug" >/dev/null && echo RUNNING || echo DONE`) === null, "pgrep [x]");
   check(procSelfMatchBlockReason(`pkill -9 -f "[p]latform-tools/fastboot"`) === null, "pkill [x]");
@@ -150,5 +163,5 @@ if (process.argv[1]?.endsWith("git-guard.ts")) {
   check(procSelfMatchBlockReason(`pgrep -P 12345 -f foo`) === null, "pgrep -P");
   check(amendBlockReason(`git commit --amend --no-edit`) === null, "amend --no-edit");
   check(amendBlockReason(`git commit --amend -m "bad"`), "amend -m");
-  console.log("git-guard: all checks passed");
+  console.log("bash-guard: all checks passed");
 }
