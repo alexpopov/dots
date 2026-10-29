@@ -22,6 +22,23 @@
 
 set -euo pipefail
 
+# Every nvim remote call goes through a timeout: a suspended/wedged Neovim
+# accepts socket connections but never answers, which would hang us forever.
+# Override with LLM_OPEN_NVR_TIMEOUT=0 to disable (not recommended).
+REMOTE_TIMEOUT="${LLM_OPEN_NVR_TIMEOUT:-10}"
+
+# Liveness probe: does this socket answer? Never hangs.
+alive() {
+    timeout "$REMOTE_TIMEOUT" nvim --headless --server "$1" --remote-expr '1' &>/dev/null
+}
+
+# Fire-and-forget remote open: warns and continues if an instance is wedged.
+ropen() {
+    local sock="$1"; shift
+    timeout "$REMOTE_TIMEOUT" nvim --headless --server "$sock" "$@" \
+        || echo "Warning: $sock did not respond within ${REMOTE_TIMEOUT}s, skipped." >&2
+}
+
 if [[ $# -eq 0 ]]; then
     echo "Usage: llm-open-nvr [--tab|--split|--vsplit] <file> [file2 ...]" >&2
     exit 1
@@ -35,7 +52,7 @@ find_sockets() {
 
     # 1. Explicit socket
     if [[ -n "$FORCE_SOCKET" ]]; then
-        if [[ -S "$FORCE_SOCKET" ]] && nvim --headless --server "$FORCE_SOCKET" --remote-expr '1' &>/dev/null; then
+        if alive "$FORCE_SOCKET"; then
             SOCKETS+=("$FORCE_SOCKET")
         else
             echo "Error: Socket $FORCE_SOCKET is not available." >&2
@@ -46,7 +63,7 @@ find_sockets() {
 
     # 2. $NVIM env var (inside nvim's :terminal)
     if [[ -n "${NVIM:-}" ]] && [[ -S "$NVIM" ]]; then
-        if nvim --headless --server "$NVIM" --remote-expr '1' &>/dev/null; then
+        if alive "$NVIM"; then
             SOCKETS+=("$NVIM")
             return
         fi
@@ -61,7 +78,7 @@ find_sockets() {
 
         # Check named socket (e.g. nvr-dots)
         local named_sock="$HOME/.local/state/nvr-${window_name}"
-        if [[ -S "$named_sock" ]] && nvim --headless --server "$named_sock" --remote-expr '1' &>/dev/null; then
+        if [[ -S "$named_sock" ]] && alive "$named_sock"; then
             SOCKETS+=("$named_sock")
         fi
 
@@ -69,7 +86,7 @@ find_sockets() {
         local pattern="$HOME/.local/state/nvr-${session}-${window}-"
         for sock in "${pattern}"*; do
             [[ -S "$sock" ]] || continue
-            if nvim --headless --server "$sock" --remote-expr '1' &>/dev/null; then
+            if alive "$sock"; then
                 SOCKETS+=("$sock")
             else
                 rm -f "$sock"
@@ -98,7 +115,7 @@ find_sockets() {
     uid=$(id -u)
     for sock in /run/user/"$uid"/nvim.*; do
         [[ -S "$sock" ]] || continue
-        if nvim --headless --server "$sock" --remote-expr '1' &>/dev/null; then
+        if alive "$sock"; then
             SOCKETS+=("$sock")
         fi
     done
@@ -118,7 +135,7 @@ get_one_socket() {
         echo "Error: Multiple Neovim instances found:" >&2
         for s in "${SOCKETS[@]}"; do
             local cwd
-            cwd=$(nvim --headless --server "$s" --remote-expr 'getcwd()' 2>/dev/null || echo '?')
+            cwd=$(timeout "$REMOTE_TIMEOUT" nvim --headless --server "$s" --remote-expr 'getcwd()' 2>/dev/null || echo '?')
             echo "  $s  (cwd: $cwd)" >&2
         done
         echo "Use --socket <path> to pick one." >&2
@@ -151,7 +168,7 @@ case "${1:-}" in
         shift
         find_sockets
         for sock in "${SOCKETS[@]}"; do
-            nvim --server "$sock" --remote-tab "$@"
+            ropen "$sock" --remote-tab "$@"
         done
         ;;
     --split)
@@ -159,7 +176,7 @@ case "${1:-}" in
         find_sockets
         for sock in "${SOCKETS[@]}"; do
             for f in "$@"; do
-                nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:split $(printf '%q' "$f")<CR>"
+                ropen "$sock" --remote-send "<C-\\><C-N>:split $(printf '%q' "$f")<CR>"
             done
         done
         ;;
@@ -168,7 +185,7 @@ case "${1:-}" in
         find_sockets
         for sock in "${SOCKETS[@]}"; do
             for f in "$@"; do
-                nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:vsplit $(printf '%q' "$f")<CR>"
+                ropen "$sock" --remote-send "<C-\\><C-N>:vsplit $(printf '%q' "$f")<CR>"
             done
         done
         ;;
@@ -177,7 +194,7 @@ case "${1:-}" in
         if [[ $# -lt 2 ]]; then echo "Error: --diff requires two files" >&2; exit 1; fi
         find_sockets
         for sock in "${SOCKETS[@]}"; do
-            nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:tabnew $1 | diffthis | vsplit $2 | diffthis<CR>"
+            ropen "$sock" --remote-send "<C-\\><C-N>:tabnew $1 | diffthis | vsplit $2 | diffthis<CR>"
         done
         ;;
     --send)
@@ -185,14 +202,14 @@ case "${1:-}" in
         if [[ $# -eq 0 ]]; then echo "Error: --send requires keys argument" >&2; exit 1; fi
         find_sockets
         for sock in "${SOCKETS[@]}"; do
-            nvim --headless --server "$sock" --remote-send "$1"
+            ropen "$sock" --remote-send "$1"
         done
         ;;
     --expr)
         shift
         if [[ $# -eq 0 ]]; then echo "Error: --expr requires expression argument" >&2; exit 1; fi
         socket_path=$(get_one_socket)
-        exec nvim --headless --server "$socket_path" --remote-expr "$1"
+        exec timeout "$REMOTE_TIMEOUT" nvim --headless --server "$socket_path" --remote-expr "$1"
         ;;
     --line)
         shift
@@ -200,8 +217,8 @@ case "${1:-}" in
         line_num="$1"; shift
         find_sockets
         for sock in "${SOCKETS[@]}"; do
-            nvim --server "$sock" --remote-tab "$1"
-            nvim --headless --server "$sock" --remote-send "<C-\\><C-N>:${line_num}<CR>"
+            ropen "$sock" --remote-tab "$1"
+            ropen "$sock" --remote-send "<C-\\><C-N>:${line_num}<CR>"
         done
         ;;
     -*)
@@ -212,7 +229,7 @@ case "${1:-}" in
         # Default: open in new tab
         find_sockets
         for sock in "${SOCKETS[@]}"; do
-            nvim --server "$sock" --remote-tab "$@"
+            ropen "$sock" --remote-tab "$@"
         done
         ;;
 esac
