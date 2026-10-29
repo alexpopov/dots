@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# post-commit: keep the OnDemand bundle in step with this repo, automatically.
+#
+# WHY: ~/dotfiles/od/ holds RENDERED copies of dots config (tmux.conf, nvim,
+# fzf bindings, bin/) for boxes that cannot have ~/dots -- OnDemands. Those
+# renders were hand-run (od/pack-*.sh), so they went stale: on 2026-10-29 the
+# packed bundle was a day behind and silently missing content, which cost two
+# agents an afternoon. A render you can forget to run is a render that is wrong.
+#
+# DOES NOTHING unless this machine actually has a bundle to update:
+#   - no ~/dotfiles            -> exit (personal machines; the common case)
+#   - no ~/dotfiles/od/pack-all.sh -> exit (dotfiles present but no bundle)
+#   - commit touched nothing the bundle renders -> exit (most commits)
+# It NEVER fails a commit: every path exits 0, and the pack runs detached so a
+# slow or wedged pack cannot hold up `git commit`.
+#
+# Installed by bootstrap.sh via `git config core.hooksPath bin/hooks`.
+# Testing: DOTS_HOOK_DRYRUN=1 reports what it would do without packing, and
+# DOTS_HOOK_REF=<rev> evaluates the path filter against an arbitrary commit.
+
+set -uo pipefail
+
+dotfiles="$HOME/dotfiles"
+packer="$dotfiles/od/pack-all.sh"
+dry="${DOTS_HOOK_DRYRUN:-}"
+
+say() { [[ -n "$dry" ]] && echo "post-commit: $*"; }
+
+# 1. Personal machine: no ~/dotfiles at all. This is the guard that matters --
+#    nothing below should ever run on a box with no Meta config tree.
+if [[ ! -d "$dotfiles" ]]; then
+  say "no ~/dotfiles -> nothing to do"
+  exit 0
+fi
+
+# 2. dotfiles exists but carries no bundle (or an older layout).
+if [[ ! -x "$packer" ]]; then
+  say "no executable $packer -> nothing to do"
+  exit 0
+fi
+
+# 3. Did this commit touch anything the bundle actually renders? Keeps the
+#    common commit free. Paths mirror od/pack-*.sh inputs; add to this list
+#    when the bundle learns to carry something new.
+rendered_paths=(
+  'config/tmux/'
+  'config/nvim/'
+  'bin/'
+  'config/bash/'
+)
+changed=$(git diff-tree --no-commit-id --name-only -r "${DOTS_HOOK_REF:-HEAD}" 2>/dev/null)
+hit=""
+for p in "${rendered_paths[@]}"; do
+  case "$changed" in
+    *"$p"*) hit="$p"; break ;;
+  esac
+done
+if [[ -z "$hit" ]]; then
+  say "commit touches nothing the bundle renders -> nothing to do"
+  exit 0
+fi
+
+if [[ -n "$dry" ]]; then
+  echo "post-commit: WOULD repack ($hit changed) via $packer"
+  exit 0
+fi
+
+# 4. Repack detached. A post-commit hook must not block on local packing or,
+#    worse, on dotsync's network push -- so hand it off and return immediately.
+#    Output goes to a log, not the committer's terminal.
+log="${XDG_STATE_HOME:-$HOME/.local/state}/dots"
+mkdir -p "$log" 2>/dev/null
+nohup setsid "$packer" >>"$log/od-repack.log" 2>&1 </dev/null &
+disown 2>/dev/null || true
+echo "post-commit: repacking OD bundle in background ($hit changed) -> $log/od-repack.log"
+exit 0

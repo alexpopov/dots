@@ -695,6 +695,12 @@ EOF
   # binary stuff
   ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts" || _fail_error "Failed to symlink scripts"
 
+  # Git hooks for this repo (bin/hooks/post-commit keeps the OD bundle in step
+  # with config changes, and does nothing on machines with no ~/dotfiles).
+  # Idempotent: core.hooksPath is local config, so re-running just rewrites it.
+  git -C "$DOTS_DIR" config core.hooksPath "$DOTS_BIN_DIR/hooks" \
+    || _log_warn "Could not set core.hooksPath (non-fatal)"
+
   # macOS specific but doesn't hurt
   mkdir -p "$HOME/.hammerspoon/"
   ln -sf "$DOTS_CONFIG_DIR/hammerspoon/init.lua" "$HOME/.hammerspoon/" || _fail_error "Failed to symlink hammerspoon init.lua"
