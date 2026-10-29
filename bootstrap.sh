@@ -575,6 +575,29 @@ function export_fzf_bindings {
   "$log_func" "Exported ${color_blue}fzf${color_reset} bash bindings to ${color_blue}$dest"
 }
 
+# _sync_links <src> <dst>: make <dst> reflect <src> for items owned by <src>.
+# Links every item of <src> into <dst>, then prunes symlinks in <dst> that
+# point into <src> but whose target is gone (deleted/renamed upstream).
+# Foreign entries in <dst> (real files, links to other roots) are untouched,
+# so several linkers can share one dir as long as their source roots differ.
+function _sync_links {
+  local src="$1" dst="$2" item link target
+  [[ -d "$src" ]] || return 0
+  mkdir -p "$dst"
+  for item in "$src"/*; do
+    [[ -e "$item" ]] || continue
+    ln -sfn "$item" "$dst/$(basename "$item")" \
+      || _fail_error "Failed to symlink $(basename "$item")"
+  done
+  for link in "$dst"/*; do
+    [[ -L "$link" ]] || continue
+    target=$(readlink "$link")
+    case "$target" in
+      "$src"/*) [[ -e "$link" ]] || rm -f "$link" ;;
+    esac
+  done
+}
+
 function create_links {
   _log_btw "Creating links and necessary directories."
   # Make all necessary directories
@@ -646,20 +669,8 @@ EOF
 
   # pi themes and extensions - per-item symlinks so each dir can hold
   # dots-tracked items alongside machine-local or installed ones.
-  if [[ -d "$DOTS_CONFIG_DIR/pi/themes" ]]; then
-    for theme in "$DOTS_CONFIG_DIR/pi/themes"/*; do
-      [[ -e "$theme" ]] || continue
-      ln -sfn "$theme" "$HOME/.pi/agent/themes/$(basename "$theme")" \
-        || _fail_error "Failed to symlink pi theme $(basename "$theme")"
-    done
-  fi
-  if [[ -d "$DOTS_CONFIG_DIR/pi/extensions" ]]; then
-    for ext in "$DOTS_CONFIG_DIR/pi/extensions"/*; do
-      [[ -e "$ext" ]] || continue
-      ln -sfn "$ext" "$HOME/.pi/agent/extensions/$(basename "$ext")" \
-        || _fail_error "Failed to symlink pi extension $(basename "$ext")"
-    done
-  fi
+  _sync_links "$DOTS_CONFIG_DIR/pi/themes" "$HOME/.pi/agent/themes"
+  _sync_links "$DOTS_CONFIG_DIR/pi/extensions" "$HOME/.pi/agent/extensions"
 
   # Meta-only pi config (MCP servers, agent instructions) lives in ~/dotfiles/pi (synced, not public),
   # not here -- this repo is public and that config names internal binaries,
