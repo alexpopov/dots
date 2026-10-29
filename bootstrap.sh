@@ -592,7 +592,7 @@ function _sync_links {
   # Normalize slashes before prefix-matching: links minted when DOTS_DIR had
   # a trailing slash point at ".../dots//config/...", which must still count
   # as owned by this source. Raw string compare would silently skip the prune.
-  src_n=$(printf %s "$src" | tr -s '/')
+  src_n=$(printf %s "$src" | tr -s '/'); src_n=${src_n%/}
   for link in "$dst"/*; do
     [[ -L "$link" ]] || continue
     target_n=$(readlink "$link" | tr -s '/')
