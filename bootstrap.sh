@@ -668,28 +668,22 @@ EOF
   mkdir -p "$HOME/.ollama"
   ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml" || _fail_error "Failed to symlink ollama config"
 
-  # pi also refuses to use XDG. settings.json: symlink the portable copy here
-  # unless a machine-local REAL file already exists (a private overlay can
-  # materialize one: this baseline + machine-specific keys). Never clobber it.
-  mkdir -p "$HOME/.pi/agent/themes" "$HOME/.pi/agent/extensions"
-  if [[ -L "$HOME/.pi/agent/settings.json" || ! -e "$HOME/.pi/agent/settings.json" ]]; then
-    ln -sf "$DOTS_CONFIG_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json" || _fail_error "Failed to symlink pi settings"
-  fi
-  ln -sf "$DOTS_CONFIG_DIR/pi/keybindings.json" "$HOME/.pi/agent/keybindings.json" || _fail_error "Failed to symlink pi keybindings"
-
-  # pi themes and extensions - per-item symlinks so each dir can hold
-  # dots-tracked items alongside machine-local or installed ones.
-  _sync_links "$DOTS_CONFIG_DIR/pi/themes" "$HOME/.pi/agent/themes"
-  _sync_links "$DOTS_CONFIG_DIR/pi/extensions" "$HOME/.pi/agent/extensions"
-
-  # Meta-only pi config (MCP servers, agent instructions) lives in ~/dotfiles/pi (synced, not public),
-  # not here -- this repo is public and that config names internal binaries,
-  # corpora, and checkout paths. It links itself into ~/.pi/agent.
+  # ALL pi config now lives in ~/dotfiles/pi, not here -- settings baseline
+  # included (~/dotfiles/pi/base). dots used to own the portable half and the
+  # overlay merged on top, which meant two homes, a two-layer merge, and a
+  # packed od/pi bundle existing purely because OnDemands have no ~/dots.
+  # One home, one installer. link-pi-config.sh does the whole job and works
+  # identically on a devserver, an OnDemand and a Mac.
+  #
+  # Macs: ~/dotfiles is not writable from inside pi's seatbelt sandbox and has
+  # no dotsync daemon, so refreshing it is a human step, run outside pi:
+  #   dotsync2 --run-on-mac --dir "$HOME" partial-pull --paths dotfiles/pi
   local meta_pi_link="$HOME/dotfiles/pi/link-pi-config.sh"
   if [[ -x "$meta_pi_link" ]]; then
-    "$meta_pi_link" || _fail_error "Failed to link fbsource pi config"
+    "$meta_pi_link" || _fail_error "Failed to link pi config"
   elif is_work_computer; then
-    echo "NOTE: $meta_pi_link not found -- run it after fbsource is checked out"
+    echo "NOTE: $meta_pi_link not found -- pi will have NO config until it is"
+    echo "      pulled: dotsync2 --dir \"\$HOME\" partial-pull --paths dotfiles/pi"
   fi
 
   # binary stuff
