@@ -580,6 +580,9 @@ function export_fzf_bindings {
 # point into <src> but whose target is gone (deleted/renamed upstream).
 # Foreign entries in <dst> (real files, links to other roots) are untouched,
 # so several linkers can share one dir as long as their source roots differ.
+# NOTE: dotfiles/ondemand_support.sh carries a deliberate twin of this prune
+# for the OD bundle. Do NOT factor them into a shared helper: the materialize
+# block must run on boxes with no ~/dots, so it cannot source anything here.
 function _sync_links {
   local src="$1" dst="$2" item link target src_n target_n
   [[ -d "$src" ]] || return 0
