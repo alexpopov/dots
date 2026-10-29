@@ -714,27 +714,13 @@ EOF
     ln -sf "$DOTS_CONFIG_DIR/docker/config_macos.json" "$HOME/.docker/config.json" || _fail_error "Failed to symlink docker config"
   fi
 
-  # Claude skills - symlink each skill directory individually
-  mkdir -p "$HOME/.claude/skills"
-  if [[ -d "$DOTS_CONFIG_DIR/claude/skills" ]]; then
-    for skill_dir in "$DOTS_CONFIG_DIR/claude/skills"/*; do
-      if [[ -d "$skill_dir" ]]; then
-        local skill_name=$(basename "$skill_dir")
-        ln -sfn "$skill_dir" "$HOME/.claude/skills/$skill_name" || _fail_error "Failed to symlink claude skill: $skill_name"
-      fi
-    done
-  fi
-
-  # Claude slash commands - symlink each command file individually
-  mkdir -p "$HOME/.claude/commands"
-  if [[ -d "$DOTS_CONFIG_DIR/claude/commands" ]]; then
-    for command_file in "$DOTS_CONFIG_DIR/claude/commands"/*.md; do
-      if [[ -f "$command_file" ]]; then
-        local command_name=$(basename "$command_file")
-        ln -sfn "$command_file" "$HOME/.claude/commands/$command_name" || _fail_error "Failed to symlink claude command: $command_name"
-      fi
-    done
-  fi
+  # Claude skills and slash commands - per-item symlinks, so each dir can hold
+  # dots-tracked items alongside locally-installed ones (this box has 12 from
+  # dots next to 32 installed from the marketplace, which must not be touched).
+  # _sync_links also PRUNES its own stale links: skills renamed or removed in
+  # dots used to leave danglers here, and Claude reports those as broken skills.
+  _sync_links "$DOTS_CONFIG_DIR/claude/skills" "$HOME/.claude/skills"
+  _sync_links "$DOTS_CONFIG_DIR/claude/commands" "$HOME/.claude/commands"
 }
 
 function ensure_shell_sources_dots {
