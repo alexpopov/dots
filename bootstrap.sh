@@ -581,7 +581,7 @@ function export_fzf_bindings {
 # Foreign entries in <dst> (real files, links to other roots) are untouched,
 # so several linkers can share one dir as long as their source roots differ.
 function _sync_links {
-  local src="$1" dst="$2" item link target
+  local src="$1" dst="$2" item link target src_n target_n
   [[ -d "$src" ]] || return 0
   mkdir -p "$dst"
   for item in "$src"/*; do
@@ -589,11 +589,15 @@ function _sync_links {
     ln -sfn "$item" "$dst/$(basename "$item")" \
       || _fail_error "Failed to symlink $(basename "$item")"
   done
+  # Normalize slashes before prefix-matching: links minted when DOTS_DIR had
+  # a trailing slash point at ".../dots//config/...", which must still count
+  # as owned by this source. Raw string compare would silently skip the prune.
+  src_n=$(printf %s "$src" | tr -s '/')
   for link in "$dst"/*; do
     [[ -L "$link" ]] || continue
-    target=$(readlink "$link")
-    case "$target" in
-      "$src"/*) [[ -e "$link" ]] || rm -f "$link" ;;
+    target_n=$(readlink "$link" | tr -s '/')
+    case "$target_n" in
+      "$src_n"/*) [[ -e "$link" ]] || rm -f "$link" ;;
     esac
   done
 }
