@@ -583,6 +583,9 @@ function export_fzf_bindings {
 # NOTE: dotfiles/ondemand_support.sh carries a deliberate twin of this prune
 # for the OD bundle. Do NOT factor them into a shared helper: the materialize
 # block must run on boxes with no ~/dots, so it cannot source anything here.
+# Path rule (triple-found 2026-10-29: double-slash, trailing-slash,
+# unexpanded-tilde): NEVER compare or stat a path without normalizing it
+# first — expanduser, then squeeze repeated slashes, then strip one trailing.
 function _sync_links {
   local src="$1" dst="$2" item link target src_n target_n
   [[ -d "$src" ]] || return 0
