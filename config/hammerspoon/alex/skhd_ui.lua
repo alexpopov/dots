@@ -26,6 +26,8 @@ local KEY_CLR        = { red = 0.3, green = 0.45, blue = 0.7 }
 local DESC_CLR       = { white = 0.4 }
 local DONE_GREEN     = { red = 0.35, green = 0.68, blue = 0.38 }
 local DONE_TEXT_CLR  = { white = 1.0 }
+-- Terminal pill colour when the action failed. Matches error_alert.lua's red.
+local FAIL_RED       = { red = 0.78, green = 0.28, blue = 0.28 }
 local ACTION_COLOR   = { red = 0.72, green = 0.85, blue = 0.96 }
 local ACTION_TEXT_CLR = { red = 0.2, green = 0.4, blue = 0.65 }
 
@@ -254,7 +256,8 @@ end
 -- Build breadcrumb bar canvas
 -- ---------------------------------------------------------------------------
 
-local function build_bar(path, done_text, action_text)
+-- done_color defaults to DONE_GREEN; pass FAIL_RED for a failed action.
+local function build_bar(path, done_text, action_text, done_color)
     -- Measure blocks to compute total width
     local block_widths = {}
     local total_blocks_w = 0
@@ -394,7 +397,7 @@ local function build_bar(path, done_text, action_text)
             action = "fill",
             strokeWidth = 0,
             frame = { x = bx, y = by, w = done_block_w, h = block_h },
-            fillColor = DONE_GREEN,
+            fillColor = done_color or DONE_GREEN,
             roundedRectRadii = { xRadius = BLOCK_RADIUS, yRadius = BLOCK_RADIUS },
         })
 
@@ -682,6 +685,62 @@ function M:exit_with_action(name, context)
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- M:exit_with_error(name, context) -- same breadcrumb, red "Failed" pill.
+--
+-- Possible because the mode-exit UI is now emitted *after* the command has
+-- run (see _run_deferred_exit in yabai_utils.sh), so success/failure is known
+-- synchronously by the time we draw.
+--
+-- Only reports pass/fail. The detailed message is shown by error_alert.lua,
+-- which is a separate, independent module.
+-- ---------------------------------------------------------------------------
+
+local FAIL_HOLD = 1.2   -- hold a failure longer than the 0.4s "Done"
+
+function M:exit_with_error(name, context)
+    local ok, err = pcall(function()
+        if fade_timer then return end
+
+        cancel_timers()
+        if name and name ~= "" then current_action = name end
+
+        if cv_options then cv_options:delete(); cv_options = nil end
+
+        if not cv_bar or not current_mode then
+            hide()
+            return
+        end
+
+        local path = build_breadcrumb_path(current_mode)
+        if context and MODES[context] then
+            table.insert(path, MODES[context].label)
+        end
+        cv_bar:delete()
+        cv_bar = build_bar(path, "Failed", current_action, FAIL_RED)
+
+        fade_timer = timer.doAfter(FAIL_HOLD, function()
+            fade_timer = nil
+            local elapsed = 0
+            fade_timer = timer.doEvery(FADE_STEP, function()
+                elapsed = elapsed + FADE_STEP
+                local t = elapsed / FADE_DURATION
+                if t >= 1.0 then
+                    hide()
+                    return
+                end
+                local alpha = 1.0 - (t * t)
+                if cv_bar then cv_bar:alpha(alpha) end
+            end)
+        end)
+    end)
+
+    if not ok then
+        print("[skhdUI] ERROR in exit_with_error: " .. tostring(err))
+        hide()
+    end
+end
+
 -- URL event handlers: fire-and-forget triggers from skhd (no hs -c blocking)
 hs.urlevent.bind("skhdenter", function(_, params)
     if params.mode then M:enter(params.mode) end
@@ -697,6 +756,10 @@ end)
 
 hs.urlevent.bind("skhdexitaction", function(_, params)
     if params.name then M:exit_with_action(params.name, params.context) end
+end)
+
+hs.urlevent.bind("skhdexiterror", function(_, params)
+    M:exit_with_error(params.name, params.context)
 end)
 
 hs.urlevent.bind("hsalert", function(_, params)
