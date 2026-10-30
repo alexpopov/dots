@@ -668,32 +668,18 @@ EOF
   mkdir -p "$HOME/.ollama"
   ln -sf "$DOTS_CONFIG_DIR/ollama/config.toml" "$HOME/.ollama/config.toml" || _fail_error "Failed to symlink ollama config"
 
-  # ALL pi config now lives in ~/dotfiles/pi, not here -- settings baseline
-  # included (~/dotfiles/pi/base). dots used to own the portable half and the
-  # overlay merged on top, which meant two homes, a two-layer merge, and a
-  # packed od/pi bundle existing purely because OnDemands have no ~/dots.
-  # One home, one installer. link-pi-config.sh does the whole job and works
-  # identically on a devserver, an OnDemand and a Mac.
-  #
-  # Macs: ~/dotfiles is not writable from inside pi's seatbelt sandbox and has
-  # no dotsync daemon, so refreshing it is a human step, run outside pi:
-  #   dotsync2 --run-on-mac --dir "$HOME" partial-pull --paths dotfiles/pi
-  local meta_pi_link="$HOME/dotfiles/pi/link-pi-config.sh"
-  if [[ -x "$meta_pi_link" ]]; then
-    "$meta_pi_link" || _fail_error "Failed to link pi config"
-  elif is_work_computer; then
-    echo "NOTE: $meta_pi_link not found -- pi will have NO config until it is"
-    echo "      pulled: dotsync2 --dir \"\$HOME\" partial-pull --paths dotfiles/pi"
-  fi
+  # NOTE: pi config is NOT managed here. It used to be (config/pi/ plus a
+  # symlink step), but it moved out entirely, and this repo deliberately does
+  # not reach for it: dots is self-contained and knows nothing about the other
+  # config trees on a given machine. Whatever installs that config is
+  # responsible for invoking itself.
 
   # binary stuff
   ln -sfn "$DOTS_BIN_DIR/scripts" "$BIN_DIR/scripts" || _fail_error "Failed to symlink scripts"
 
-  # Git hooks for this repo (bin/hooks/post-commit keeps the OD bundle in step
-  # with config changes, and does nothing on machines with no ~/dotfiles).
-  # Idempotent: core.hooksPath is local config, so re-running just rewrites it.
-  git -C "$DOTS_DIR" config core.hooksPath "$DOTS_BIN_DIR/hooks" \
-    || _log_warn "Could not set core.hooksPath (non-fatal)"
+  # No git hooks are installed from here. core.hooksPath is left alone so that
+  # a machine-specific setup (work laptop, etc.) can own it without fighting
+  # this script -- see the NOTE above about dots being self-contained.
 
   # macOS specific but doesn't hurt
   mkdir -p "$HOME/.hammerspoon/"
