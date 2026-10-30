@@ -26,14 +26,75 @@ function _hs_exit_action {
 _deferred_exit_pending=""
 _deferred_exit_action=""
 _deferred_exit_context=""
+_deferred_exit_status=""     # "" = ok, "error" = the command failed
 
 function _run_deferred_exit {
     [ -n "$_deferred_exit_pending" ] || return 0
     _deferred_exit_pending=""
-    if [ -n "$_deferred_exit_action" ]; then
+    if [ "$_deferred_exit_status" = "error" ]; then
+        # We learned synchronously that the command failed, so close the
+        # breadcrumb with a red "Failed" pill rather than a green "Done".
+        local n="${_deferred_exit_action// /%20}"
+        local c="${_deferred_exit_context// /%20}"
+        open -g "hammerspoon://skhdExitError?name=$n&context=$c" &
+    elif [ -n "$_deferred_exit_action" ]; then
         _hs_exit_action "$_deferred_exit_action" "$_deferred_exit_context"
     fi
     skhd -k "escape"
+}
+
+# _hs_error <detail> [title]
+function _hs_error {
+    local msg="$1"
+    local title="${2:-}"
+    title="${title//%/%25}"; title="${title//&/%26}"; title="${title// /%20}"
+    # percent-encode the characters that would break a URL query value.
+    # '%' MUST be substituted first.
+    msg="${msg//%/%25}"
+    msg="${msg//&/%26}"
+    msg="${msg//#/%23}"
+    msg="${msg//+/%2B}"
+    msg="${msg//\?/%3F}"
+    msg="${msg//$'\n'/ }"
+    msg="${msg// /%20}"
+    open -g "hammerspoon://errorAlert?text=$msg&title=$title" &
+    # We know synchronously that this failed: mark the deferred mode-exit so it
+    # closes with a red "Failed" pill. The detail is in the alert above it.
+    _deferred_exit_status="error"
+}
+
+# Run `yabai -m <args>`; on failure surface yabai's own message as a red alert.
+function _yabai {
+    local err
+    if err=$(yabai -m "$@" 2>&1); then
+        [ -n "$err" ] && printf '%s\n' "$err"
+        return 0
+    fi
+    _hs_error "${err:-yabai -m $* failed}"
+    return 1
+}
+
+# Try several `yabai -m` argument strings in order; only error if all fail.
+# Used where the old code chained with `||` as a fallback, not as an error.
+function _yabai_any {
+    local attempt last
+    for attempt in "$@"; do
+        if last=$(yabai -m $attempt 2>&1); then
+            return 0
+        fi
+    done
+    _hs_error "${last:-no window}"
+    return 1
+}
+
+# Report an action label to skhd_ui. If we are going to exit the mode anyway,
+# fold the label into the deferred exit so the UI updates once instead of twice.
+function _ui_action {
+    if [ -n "$_deferred_exit_pending" ]; then
+        _deferred_exit_action="$1"
+    else
+        _hs_action "$1"
+    fi
 }
 
 function maybe_back_to_normal {
@@ -80,21 +141,19 @@ function focus_window {
     maybe_back_to_normal "$back_flag" "$action_name" "focus"
     case "$direction" in
         'stack.next')
-            yabai -m window --focus stack.next || yabai -m window --focus stack.first
+            _yabai_any "window --focus stack.next" "window --focus stack.first" || return 1
             ;;
         'stack.prev')
-            yabai -m window --focus stack.prev || yabai -m window --focus stack.last
+            _yabai_any "window --focus stack.prev" "window --focus stack.last" || return 1
             ;;
         'most_reasonable')
-            yabai -m window --focus mouse || (yabai -m window --focus largest || yabai -m window --focus first)
+            _yabai_any "window --focus mouse" "window --focus largest" "window --focus first" || return 1
             ;;
         *)
-            yabai -m window --focus $direction
+            _yabai window --focus "$direction" || return 1
             ;;
     esac
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _ui_action "$action_name"
 }
 
 function focus_display {
@@ -112,14 +171,8 @@ function focus_display {
     esac
 
     maybe_back_to_normal "$back_flag" "$action_name" "focus"
-    case "$direction" in
-        *)
-            yabai -m display --focus $direction
-            ;;
-    esac
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _yabai display --focus "$direction" || return 1
+    _ui_action "$action_name"
 }
 
 function swap_window {
@@ -139,18 +192,16 @@ function swap_window {
     maybe_back_to_normal "$back_flag" "$action_name"
     case "$direction" in
         'stack.next')
-            yabai -m window --swap stack.next || yabai -m window --swap stack.first
+            _yabai_any "window --swap stack.next" "window --swap stack.first" || return 1
             ;;
         'stack.prev')
-            yabai -m window --swap stack.prev || yabai -m window --swap stack.last
+            _yabai_any "window --swap stack.prev" "window --swap stack.last" || return 1
             ;;
         *)
-            yabai -m window --swap $direction
+            _yabai window --swap "$direction" || return 1
             ;;
     esac
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _ui_action "$action_name"
 }
 
 function warp_window {
@@ -168,14 +219,8 @@ function warp_window {
     esac
 
     maybe_back_to_normal "$back_flag" "$action_name"
-    case "$direction" in
-        *)
-            yabai -m window --warp $direction
-            ;;
-    esac
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _yabai window --warp "$direction" || return 1
+    _ui_action "$action_name"
 }
 
 function warp_display {
@@ -195,7 +240,6 @@ function warp_display {
     maybe_back_to_normal "$back_flag" "$action_name"
     case "$direction" in
         *)
-          alert.sh simple "$direction"
           # TODO: also change focus there
           local current_window_id="$(yabai -m query --windows --window | jq '.id')"
           yabai -m window --display $direction
@@ -220,18 +264,14 @@ function config {
     esac
 
     maybe_back_to_normal "$back_flag" "$action_name"
-    yabai -m config layout $type
-    alert.sh simple "Layout mode: $type"
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _yabai config layout "$type" || return 1
+    _ui_action "$action_name"
 }
 
 function reload_config {
     local back_flag="$1"
     maybe_back_to_normal "$back_flag" "Reload"
     source ~/.yabairc
-    alert.sh simple "Reloading config..."
     if [ "$back_flag" != "back_to_default" ]; then
         _hs_action "Reload"
     fi
@@ -253,11 +293,8 @@ function create_stack {
     esac
 
     maybe_back_to_normal "$back_flag" "$action_name"
-    yabai -m window --stack $direction
-    alert.sh simple "Stacking $direction"
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "$action_name"
-    fi
+    _yabai window --stack "$direction" || return 1
+    _ui_action "$action_name"
 }
 
 function unstack {
@@ -280,13 +317,11 @@ function toggle_stack_all {
   count=$(echo "$managed" | jq 'length')
 
   if [ "$count" -lt 2 ]; then
-    alert.sh simple "Need 2+ managed windows"
-    if [ "$back_flag" != "back_to_default" ]; then
-        _hs_action "Stack All"
-    fi
-    return
+    _hs_error "Need 2+ managed windows"
+    return 1
   fi
 
+  local result
   local any_stacked
   any_stacked=$(echo "$managed" | jq '[.[] | select(."stack-index" > 0)] | length')
 
@@ -298,7 +333,7 @@ function toggle_stack_all {
       yabai -m window "$id" --toggle float
       yabai -m window "$id" --toggle float
     done < <(echo "$managed" | jq -r '.[].id')
-    alert.sh simple "Unstack all"
+    result="Unstack All"
   else
     # Stack everything onto the focused managed window (or the first one).
     local target
@@ -311,20 +346,33 @@ function toggle_stack_all {
       [ "$id" = "$target" ] && continue
       yabai -m window "$id" --stack "$target"
     done < <(echo "$managed" | jq -r '.[].id')
-    alert.sh simple "Stack all"
+    result="Stack All"
   fi
 
-  if [ "$back_flag" != "back_to_default" ]; then
-      _hs_action "Stack All"
-  fi
+  _ui_action "${result:-Stack All}"
 }
 
 function toggle_manage {
   local back_flag="$1"
   maybe_back_to_normal "$back_flag" "Toggle Float"
-  window=$(yabai -m query --windows --window | jq -r '.id')
-  yabai -m window $window --toggle float
-  alert.sh simple "Toggling Managed Status"
+
+  # Not every window yabai lists is addressable: windows without an
+  # AX-reference (role misreported, or app never exposed one) appear in
+  # `query --windows` but cannot be acted upon. Surface that instead of
+  # silently no-op'ing.
+  local window
+  window=$(yabai -m query --windows --window 2>/dev/null | jq -r '.id // empty')
+  if [ -z "$window" ]; then
+      _hs_error "No addressable window"
+      return 1
+  fi
+
+  local err
+  if ! err=$(yabai -m window "$window" --toggle float 2>&1); then
+      _hs_error "${err:-toggle failed}"
+      return 1
+  fi
+
   if [ "$back_flag" != "back_to_default" ]; then
       _hs_action "Toggle Float"
   fi
@@ -493,15 +541,14 @@ function auto_hide_dock {
     "show")
       osascript -e 'tell application "System Events" to set the autohide of the dock preferences to false'
       yabai -m config left_padding 8
-      alert.sh simple "Show dock"
       ;;
     "hide")
       osascript -e 'tell application "System Events" to set the autohide of the dock preferences to true'
       yabai -m config left_padding 8
-      alert.sh simple "Hide dock"
       ;;
     *)
-      alert.sh simple "Unknown dock option $action"
+      _hs_error "Unknown dock option $action"
+      return 1
       ;;
   esac
   if [ "$back_flag" != "back_to_default" ]; then
