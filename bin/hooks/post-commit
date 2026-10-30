@@ -33,6 +33,21 @@ if [[ ! -d "$dotfiles" ]]; then
   exit 0
 fi
 
+# 1b. Macs are PULL-ONLY for ~/dotfiles, so repacking here is useless at best.
+#     Any one of these is sufficient on its own:
+#       - dotsync2 refuses to run on macOS without --run-on-mac and has no
+#         daemon there, so a repack would never be published
+#       - `dotsync2 push` cannot be scoped to a path, and .config/.claude here
+#         are dots-owned symlinks: publishing them restores DANGLING on Linux
+#         (/Users/... targets), a symptom already debugged from the other side
+#       - pi's seatbelt sandbox denies writes to ~/dotfiles, so the pack would
+#         fail part-way and surface only in a log nobody reads
+#     A box that cannot publish must never try to repack.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  say "macOS is pull-only for ~/dotfiles -> nothing to do"
+  exit 0
+fi
+
 # 2. dotfiles exists but carries no bundle (or an older layout).
 if [[ ! -x "$packer" ]]; then
   say "no executable $packer -> nothing to do"
