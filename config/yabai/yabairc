@@ -105,6 +105,13 @@ yabai -m signal --add label=ghostty_tab_fix app='^Ghostty$' event=window_created
 '
 
 
+# ariachat reports its AX role as AXHelpTag rather than AXWindow, so yabai
+# refuses to manage it ("ignoring incorrectly marked window"). manage=on is the
+# documented escape hatch for misreported roles. Note the name must be the one
+# from CopyProcessName ("ariachat"); `yabai -m query --windows` shows the BSD
+# executable name ("aria-slack") for AX-less windows, which rules cannot match.
+yabai -m rule --add label="ariachat" app="^(ariachat|aria-slack)$" manage=on
+
 # Apply all rules
 yabai -m rule --apply
 
