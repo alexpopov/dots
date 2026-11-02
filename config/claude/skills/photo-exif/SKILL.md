@@ -7,6 +7,8 @@ description: Backfill EXIF on Alp's film-scan JPEGs — camera, lens, sequenced 
 
 Alp shoots film, sends rolls to a lab, and receives JPEGs scanned by a Noritsu Koki HS-1800. The scanner writes its *own* identity into EXIF (`Make=NORITSU KOKI`, `Model=EZ Controller`) and leaves `DateTimeOriginal` / `CreateDate` empty. Before these import into Photos.app cleanly, EXIF needs backfilling.
 
+This skill edits loose files before import. To fix location, date or timezone on photos already in Photos.app, use the `apple-photos-gpx` skill (osxphotos).
+
 ## The script
 
 `set-exif.sh` wraps exiftool with three batched concerns:
@@ -112,3 +114,46 @@ Quality reference (from earlier benchmarks on a 5034×3437, 108 MB TIF):
 `DateTimeOriginal` is a wall-clock string with no zone. Photos.app uses the file's location to infer the zone, but setting `OffsetTimeOriginal` explicitly avoids surprises. Common values for Alp:
 - Zürich summer (CEST): `+02:00`
 - Zürich winter (CET): `+01:00`
+
+## Archiving R5 II negative scans without keeping the TIFs
+
+Never write EXIF onto the CR3s: darktable picks its raw decoder and colour matrix from Make/Model. Tag the darktable-exported TIF, import it into Photos, and then you can delete the TIF. Archive these three files in `iCloud Drive/Pictures/RAWs/<year>/<Month>/<session>/`:
+
+- `IMG_xxxx.CR3`: the digitizing capture
+- `IMG_xxxx.CR3.xmp`: darktable edit history (inversion etc.)
+- `IMG_xxxx.CR3.exif.json`: the film-camera tags we added
+
+Dump the tags (after tagging the TIF):
+```bash
+TAGS='-IFD0:Make -IFD0:Model -IFD0:ImageDescription -ExifIFD:all -GPS:all -IPTC:all -XMP-exif:all -XMP-dc:all -XMP-xmpMM:DerivedFrom'
+exiftool -json -G1 -b $TAGS IMG_xxxx.tif | sed 's|"SourceFile": "[^"]*"|"SourceFile": "*"|' > IMG_xxxx.CR3.exif.json
+```
+(The `SourceFile: "*"` rewrite lets `-json=` apply the dump to any target filename.)
+
+Regenerate the TIF:
+```bash
+/Applications/darktable.app/Contents/MacOS/darktable-cli IMG_xxxx.CR3 IMG_xxxx.CR3.xmp out.tif \
+  --core --library :memory: --conf plugins/imageio/format/tiff/bpp=16 --conf plugins/imageio/format/tiff/compress=0
+exiftool -overwrite_original -json=IMG_xxxx.CR3.exif.json out.tif
+```
+Verified 2026-10-05 on 2026_06_21/IMG_0001: 0 differing pixels against the original export, and tags identical apart from the order of IPTC entries. The export is uncompressed because Darkroom can't open darktable's deflate TIFFs.
+
+If the darktable GUI is open, darktable-cli fails with "can't acquire database lock". Add `--configdir <scratch dir>` to give it its own config.
+
+To start a new folder from an existing edit, copy a finished `.CR3.xmp` next to each new CR3 before importing into darktable. Strip `exif:DateTimeOriginal`, `darktable:import_timestamp`, `darktable:change_timestamp` and `darktable:history_current_hash`, and set `xmpMM:DerivedFrom` to the new file name. darktable applies the sidecar on import.
+
+To re-edit an archived frame (e.g. healing dust), copy its CR3 and `.xmp` out of iCloud into a working folder and import from there. Don't edit inside the archive. After the user exports, apply the archived `.exif.json` to the new TIF. Then copy the edited `.xmp` back over the archived one, first moving the old `.xmp` to the Trash. Every re-export writes the R5's EXIF again, so re-tag after each one. A second export of the same image gets a `_01` suffix, so tag the newest file.
+
+### Dust on negatives
+
+- **Dark specks in the positive** were clear on the negative, so something blocked light on the emulsion during exposure. That is usually dust in the holder, and the specks are part of the film.
+- **Bright specks or fibres in the positive** blocked the backlight during digitizing. They are dust or hair on the negative or the glass, and cleaning and re-scanning removes them.
+- **To tell the two apart,** compare two scans: specks that move with the image are on the film.
+
+In darktable, use the **retouch** module:
+- **heal** for open, smooth areas.
+- **clone** near high-contrast edges. Heal smears dark edges into bright water.
+- **brush** for hairs.
+- **Right-click** a shape to delete it.
+
+darktable has no automatic dust detection. When a frame has many specks, offer a detection script instead of making the user click each one.
