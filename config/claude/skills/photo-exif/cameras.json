@@ -86,6 +86,14 @@
         "Keywords+": "Fomapan 100",
         "UserComment": "Fomapan 100"
       }
+    },
+    "arista-edu-400": {
+      "description": "Arista EDU Ultra 400 (4x5 B&W negative, ISO 400)",
+      "exif": {
+        "Keywords-": "Arista EDU Ultra 400",
+        "Keywords+": "Arista EDU Ultra 400",
+        "UserComment": "Arista EDU Ultra 400"
+      }
     }
   }
 }
