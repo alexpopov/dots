@@ -39,5 +39,20 @@
       "mcp==1.29.1",
       "blender-mcp"
     ]
+  },
+  "figma": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "figma-developer-mcp@0.13.2",
+      "--stdio"
+    ],
+    "env": {
+      "FIGMA_API_KEY": "${FIGMA_API_KEY}"
+    }
+  },
+  "penpot": {
+    "type": "http",
+    "url": "${PENPOT_MCP_URL}"
   }
 }
