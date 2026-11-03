@@ -89,7 +89,8 @@ function kobo_sync_to_device {
     return 1
   fi
 
-  rsync -av --size-only --progress \
+  rsync -rv --size-only --progress \
+    --exclude='.DS_Store' \
     --exclude='*.sdr/' \
     --exclude='Audiobooks/' \
     --exclude='German/' \
