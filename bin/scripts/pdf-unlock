@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# pdf-unlock: write a decrypted copy of a password-protected PDF you own.
+#
+#   pdf-unlock in.pdf [out.pdf]        # prompts for the password (not echoed)
+#   printf '%s' "$pw" | pdf-unlock in.pdf
+#
+# The password is passed to qpdf on stdin, never on the command line, so it stays out of
+# shell history and `ps`. Needs qpdf (brew install qpdf / dnf install qpdf).
+set -euo pipefail
+
+in=${1:?usage: pdf-unlock in.pdf [out.pdf]}
+out=${2:-${in%.[pP][dD][fF]}-unlocked.pdf}
+
+if [[ -t 0 ]]; then
+  read -rsp "Password for $(basename "$in"): " pw
+  echo
+else
+  IFS= read -r pw || true
+fi
+
+printf '%s' "$pw" | qpdf --password-file=- --decrypt "$in" "$out"
+
+# qpdf can exit 0 on a file that was never encrypted; either way, confirm the output is clean.
+if qpdf --show-encryption "$out" | grep -q 'File is not encrypted'; then
+  echo "Unlocked: $out"
+else
+  echo "Output is still encrypted: $out" >&2
+  exit 1
+fi
