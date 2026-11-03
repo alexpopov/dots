@@ -11,6 +11,17 @@ The anki MCP tools are **deferred** — load schemas with `ToolSearch` before ca
 `ToolSearch("select:mcp__anki__findNotes,mcp__anki__notesInfo,mcp__anki__updateNoteFields,mcp__anki__sync")`.
 Commonly needed: `listDecks`, `modelNames`, `modelFieldNames`, `modelTemplates`, `modelStyling`, `findNotes`, `notesInfo`, `updateNoteFields`, `addModelField`, `updateModelTemplates`, `updateModelStyling`, `sync`.
 
+## Profiles
+
+Anki has separate profiles: **Alex** (Alp's — the deck below lives here) and **Cayleigh** (Cay's), plus Jayde. AnkiConnect only sees the **active** profile, so check before editing:
+
+```bash
+curl -s localhost:8765 -d '{"action":"getActiveProfile","version":6}'
+curl -s localhost:8765 -d '{"action":"loadProfile","version":6,"params":{"name":"Alex"}}'
+```
+
+Switching triggers Anki's auto-sync for both profiles; an "Email or password was incorrect" popup comes from whichever profile isn't logged in — harmless to local edits.
+
 ## The German deck
 
 - **Deck:** `Deutsch: 4000 German Words by Frequency`
