@@ -20,6 +20,13 @@
         "Make": "Sinar",
         "Model": "Sinar F2"
       }
+    },
+    "chamonix-45f-2": {
+      "description": "Chamonix 45F-2 (4x5 large-format field camera)",
+      "exif": {
+        "Make": "Chamonix",
+        "Model": "Chamonix 45F-2"
+      }
     }
   },
   "lenses": {
