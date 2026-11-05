@@ -833,14 +833,17 @@ function install_brew_bundle {
   # the one being installed" and the whole bundle reports failure. Scoped to
   # this one command -- HOMEBREW_CASK_OPTS is appended to *every* cask
   # subcommand, and `brew list --cask --adopt` is an error.
-  HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade \
+  # --verbose: stream brew's own output (downloads, pkg installers, sudo
+  # prompts). Without it bundle prints "Installing <cask>" and then nothing
+  # until that cask is done, which looks like a hang.
+  HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade --verbose \
     || _log_warn "Some Brewfile entries failed; see ${color_blue}brew bundle check --file=$brewfile --verbose"
 
   _install_google_chrome
 
   # Casks whose payload is an installer .pkg need a real sudo prompt, so they
   # can never be installed from a script running over a non-interactive ssh.
-  local pkg_casks="karabiner-elements choosy"
+  local pkg_casks="karabiner-elements"
   local still_missing="" c
   for c in $pkg_casks; do
     brew list --cask "$c" >/dev/null 2>&1 || still_missing="$still_missing $c"

@@ -50,7 +50,6 @@ for app in \
     "Captin" \
     "Cisco" \
     "Cisco Secure Client" \
-    "Choosy.*" \
     "Bartender.*" \
     "GeoTag" \
     "Google Drive" \

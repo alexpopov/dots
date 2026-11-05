@@ -36,7 +36,6 @@ cask "divvy"
 cask "maccy"                # clipboard history
 cask "rocket"               # :emoji: anywhere
 cask "captin"               # caps-lock state HUD
-cask "choosy"               # per-link browser picker (pkg installer, needs sudo)
 cask "keycastr"             # on-screen keystrokes, for recordings
 cask "keymapp"              # ZSA keyboard config (Wally has no cask)
 
@@ -68,4 +67,3 @@ cask "discord"
 cask "superwhisper"
 cask "steam"
 cask "textual"              # IRC
-cask "there"                # timezones in the menu bar
