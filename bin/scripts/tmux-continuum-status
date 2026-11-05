@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# tmux-continuum-status — when did continuum last save, and roughly what is
+# in the save? Read-only: never touches the server or the save files.
+# Newer resurrect uses the XDG dir; fall back to the legacy ~/.tmux path.
+R="$HOME/.local/share/tmux/resurrect"
+[ -d "$R" ] || R="$HOME/.tmux/resurrect"
+last="$(ls -t "$R"/tmux_resurrect_*.txt 2>/dev/null | head -n 1)"
+if [ -z "$last" ]; then echo "no continuum saves in $R"; exit 1; fi
+echo "last save:  $(stat -c '%y' "$last") ($(($(date +%s) - $(stat -c '%Y' "$last")))s ago)"
+echo "file:       $last ($(stat -c '%s' "$last") bytes)"
+echo "interval:   $(tmux show -gv @continuum-save-interval 2>/dev/null) min | restore: $(tmux show -gv @continuum-restore 2>/dev/null)"
+echo "sessions:   $(awk -F'\t' '/^pane\t/{print $2}' "$last" | sort -u | wc -l) | windows: $(awk -F'\t' '/^pane\t/{print $2":"$3}' "$last" | sort -u | wc -l) | panes: $(grep -c '^pane' "$last")"
+echo "--- panes per session ---"
+awk -F'\t' '/^pane\t/{print $2":"$3}' "$last" | sort | uniq -c | sort -rn | head -n 20
+echo "--- pane commands (what would come back) ---"
+awk -F'\t' '/^pane\t/{print $NF}' "$last" | sort | uniq -c | sort -rn | head -n 20
