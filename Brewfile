@@ -36,34 +36,31 @@ cask "divvy"
 cask "maccy"                # clipboard history
 cask "rocket"               # :emoji: anywhere
 cask "captin"               # caps-lock state HUD
-cask "keycastr"             # on-screen keystrokes, for recordings
-cask "keymapp"              # ZSA keyboard config (Wally has no cask)
+# choosy, keycastr, keymapp: removed Nov 2026, unused.
 
 # terminals (all have configs in dots/config)
-cask "kitty"
-cask "iterm2"
 # ghostty: removed Nov 2026 (uninstalled; kitty is the daily driver). Config
 # still lives in dots/config/ghostty if it ever comes back.
+# iterm2: removed Nov 2026, never used.
 # wezterm: the stable cask is pinned to a 2024 build and refuses to install
 # over a newer WezTerm.app ("bundle short version ... is 0.1.0"), which is
 # exactly what a provisioned Mac has. Use `brew install --cask wezterm@nightly`
 # or leave the existing one alone.
+cask "kitty"
 
 # dev
 # google-chrome is deliberately NOT here. On a Meta-provisioned Mac it is
 # installed and updated by MDM/Managed Software Center; adopting that copy
 # needs sudo and fights the thing that keeps it patched. bootstrap.sh installs
 # it only on a personal Mac that does not already have it.
-cask "android-studio"
 cask "cyberduck"
-# intellij-idea, figma: removed Nov 2026, unused.
+# android-studio, intellij-idea, figma: removed Nov 2026, unused.
 
 # personal
 cask "anki"
 cask "notion"
 cask "telegram"
-cask "whatsapp"
 cask "discord"
-cask "superwhisper"
 cask "steam"
 cask "textual"              # IRC
+# whatsapp, superwhisper, there: removed Nov 2026, unused.

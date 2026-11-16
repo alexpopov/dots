@@ -92,18 +92,6 @@ for app in \
     yabai -m rule --add app="$app" manage=off
 done
 
-# Native-tab apps: tabs appear as new windows to yabai, which disrupts
-# BSP layout and destroys stacks. Finder is unmanaged by default.
-# For Ghostty: first window is managed normally; subsequent windows on
-# the same space (tabs) are floated to avoid layout disruption.
-yabai -m signal --add label=ghostty_tab_fix app='^Ghostty$' event=window_created action='
-  count=$(yabai -m query --windows | jq "[.[] | select(.app == \"Ghostty\" and .\"is-floating\" == false)] | length")
-  if [ "$count" -gt 1 ]; then
-    yabai -m window $YABAI_WINDOW_ID --toggle float 2>/dev/null
-  fi
-'
-
-
 # ariachat reports its AX role as AXHelpTag rather than AXWindow, so yabai
 # refuses to manage it ("ignoring incorrectly marked window"). manage=on is the
 # documented escape hatch for misreported roles. Note the name must be the one
