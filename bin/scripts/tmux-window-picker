@@ -2,13 +2,23 @@
 #
 # tmux-window-picker <client-tty>: fuzzy-pick any window in any session and
 # jump to it. For when there are more tabs than prefix-0..9 can reach or the
-# status bar can show. Runs inside a popup (tmux.conf: prefix f, and in the
-# prefix-i menu); the client tty arg says which client to switch.
+# status bar can show. tmux.conf: prefix f, and in the prefix-i menu.
+#
+# Call it via `run-shell "... '#{client_tty}'"`: run-shell fills in the
+# format, display-popup (and its -e) does NOT, and a bare switch-client in
+# the popup moves the most recently active client, which is the wrong one when
+# the Mac and a devserver are both attached. So this script opens its own
+# popup on that client and re-runs itself inside it.
 #
 # Rows: a yellow ● for windows with a waiting agent (see tmux-agent-waiting),
 # a * for the window you're on, then session:index, name, and cwd.
 
 client="$1"
+if [ "$2" != --in-popup ]; then
+  exec tmux display-popup ${client:+-c "$client"} -E -w 70% -h 60% -b rounded \
+    -T "#[align=centre] windows " "'$0' '$client' --in-popup"
+fi
+
 yellow=$(printf '\033[33m'); dim=$(printf '\033[2m'); off=$(printf '\033[0m')
 
 # Field 1 (hidden) is the target; fzf shows and searches the rest.
