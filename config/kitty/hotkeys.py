@@ -741,20 +741,24 @@ def _bi_copy(action, rc, target, fd=None, bg=None):
     return f"\u2713 copied {text.count(chr(10))} lines / {len(text)} chars"
 
 
-# ── open Meta artifacts (Dxxxxxxx / Txxxxxxx / Pxxxxxxx) — ported from the
+# ── open Meta artifacts (Dxxxxxxx / Txxxxxxx / Pxxxxxxx / Sxxxxxx) — ported from the
 # iTerm2 Smart Selection rules in ~/dots/config/iterm2. This is the in-menu
 # version of what used to be a standalone `kitten hints` binding: it scans the
-# target window's visible text for diff/task/paste refs and opens them in the
+# target window's visible text for diff/task/paste/SEV refs and opens them in the
 # browser. Doing it here (rather than launching the hints kitten) avoids
 # nesting an interactive kitten under this overlay, and works the same inside
 # tmux / over ssh because it reads the rendered screen. Left \b would still
 # allow a match inside a longer identifier (the S,D in "SD1234567"), so use a
 # negative lookbehind instead.
-ARTIFACT_RE = re.compile(r"(?<![A-Za-z0-9])([DTP])(\d{7,})")
+# One alternative per prefix, because the digit counts differ: SEVs are six
+# digits where a diff/task/paste is seven or more, and a shared {6,} would
+# start matching things that merely look like refs.
+ARTIFACT_RE = re.compile(r"(?<![A-Za-z0-9])([DTP]\d{7,}|S\d{6,})")
 ARTIFACT_URLS = {
     "D": "https://www.internalfb.com/diff/D{num}",
     "T": "https://www.internalfb.com/tasks/?t={num}",
     "P": "https://www.internalfb.com/intern/paste/P{num}/",
+    "S": "https://www.internalfb.com/sevmanager/view/{num}",
 }
 
 # Plain URLs, so this picker doubles as `open_url_with_hints` -- which matters
@@ -970,9 +974,10 @@ def _scan_segment(lines, cols, artifacts=True, urls=True):
                     continue
                 if any(s <= m.start() < e for s, e in spans.get(i, ())):
                     continue
+                tok = m.group(0)
                 hits.append(Hit(row=i + 1, col=m.end(),  # ON the ref's last digit
-                                url=ARTIFACT_URLS[m.group(1)].format(num=m.group(2)),
-                                tok=m.group(0), text=m.group(0)))
+                                url=ARTIFACT_URLS[tok[0]].format(num=tok[1:]),
+                                tok=tok, text=tok))
     hits.sort(key=lambda h: (h.row, h.col))
     return hits
 
@@ -1050,12 +1055,12 @@ def _artifact_labels(n):
     return ["".join(p) for p in itertools.product(_LEAP_ALPHABET, repeat=2)][:n]
 
 
-_WHAT_LABEL = {"all": "link / D\u2026 / T\u2026 / P\u2026", "links": "link",
-               "artifacts": "D\u2026 / T\u2026 / P\u2026"}
+_WHAT_LABEL = {"all": "link / D\u2026 / T\u2026 / P\u2026 / S\u2026", "links": "link",
+               "artifacts": "D\u2026 / T\u2026 / P\u2026 / S\u2026"}
 
 
 def _bi_pick(action, rc, target, fd=None, bg=None):
-    """Leap-style picker: label every URL / D\u2026 / T\u2026 / P\u2026 ref in place on our
+    """Leap-style picker: label every URL / D\u2026 / T\u2026 / P\u2026 / S\u2026 ref in place on our
     OWN backdrop (no second kitten, so nothing can cover the labels), then act
     on the pick. With multi=True, keep the picker open and collect picks
     (queued labels turn green); esc acts on the whole queue.

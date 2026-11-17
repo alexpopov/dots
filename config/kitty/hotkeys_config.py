@@ -86,7 +86,7 @@ def open_artifact(multi=False, what="all"):
     # Scan the terminal's visible text for openable things and label each one
     # leap-style; the key you type opens it in the browser.
     #
-    #   what="artifacts"  Meta refs -- Dxxxxxxx / Txxxxxxx / Pxxxxxxx (the
+    #   what="artifacts"  Meta refs -- Dxxxxxxx / Txxxxxxx / Pxxxxxxx / Sxxxxxx (the
     #                     in-menu port of iTerm's ⌘-click Smart Selection)
     #   what="links"      plain URLs (http(s), www., mailto:, ssh, file, …)
     #   what="all"        both (default)
@@ -130,7 +130,7 @@ MODES = {
             "o": ("open link/diff/task ↗",      open_artifact()),
             "O": ("open many links/diffs ↗",    open_artifact(multi=True)),
             "u": ("open URL only ↗",            open_artifact(what="links")),
-            "d": ("open diff/task/paste ↗",     open_artifact(what="artifacts")),
+            "d": ("open diff/task/paste/SEV ↗", open_artifact(what="artifacts")),
             "r": ("reload kitty config", act("load_config_file")),
         },
     },
