@@ -99,9 +99,22 @@ def open_artifact(multi=False, what="all"):
     # templates live in hotkeys.py (_scan_hits / ARTIFACT_URLS).
     #
     # multi=True keeps the picker open, opening each pick in the background.
-    d = {"kind": "builtin", "name": "open_artifact", "what": what}
+    return pick(multi=multi, what=what)
+
+
+def copy_pick(multi=False, what="all", sep=", "):
+    # Same picker UI, but the label you type copies instead of opening: the
+    # D-number for a ref, the full URL for a link. multi=True queues picks and
+    # copies them joined by `sep`, in the order you typed them.
+    return pick(multi=multi, what=what, do="copy", sep=sep)
+
+
+def pick(multi=False, what="all", do="open", sep=", "):
+    d = {"kind": "builtin", "name": "pick", "what": what, "do": do}
     if multi:
         d["multi"] = True
+    if do == "copy":
+        d["sep"] = sep
     return d
 
 
@@ -153,6 +166,8 @@ MODES = {
             "o": ("last output only",      copy("output")),
             "s": ("whole screen",          copy("screen")),
             "a": ("screen + scrollback",   copy("all")),
+            "r": ("a ref / link on screen", copy_pick()),
+            "R": ("many refs / links",      copy_pick(multi=True)),
         },
     },
 }

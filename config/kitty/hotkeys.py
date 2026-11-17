@@ -875,6 +875,7 @@ class Hit:
     col: int
     url: str
     tok: str
+    text: str = ""      # what `copy` yields. tok is display-only and elided.
     label: str = ""
 
 
@@ -961,7 +962,7 @@ def _scan_segment(lines, cols, artifacts=True, urls=True):
                 # Label on the URL's first char: the tail is often off at the
                 # right edge (or on another row entirely) after a wrap.
                 hits.append(Hit(row=i + 1, col=m.start() + 1,
-                                url=url, tok=short))
+                                url=url, tok=short, text=url))
     if artifacts:
         for i, line in enumerate(lines):
             for m in ARTIFACT_RE.finditer(line):
@@ -971,7 +972,7 @@ def _scan_segment(lines, cols, artifacts=True, urls=True):
                     continue
                 hits.append(Hit(row=i + 1, col=m.end(),  # ON the ref's last digit
                                 url=ARTIFACT_URLS[m.group(1)].format(num=m.group(2)),
-                                tok=m.group(0)))
+                                tok=m.group(0), text=m.group(0)))
     hits.sort(key=lambda h: (h.row, h.col))
     return hits
 
@@ -1053,22 +1054,40 @@ _WHAT_LABEL = {"all": "link / D\u2026 / T\u2026 / P\u2026", "links": "link",
                "artifacts": "D\u2026 / T\u2026 / P\u2026"}
 
 
-def _bi_open_artifact(action, rc, target, fd=None, bg=None):
+def _bi_pick(action, rc, target, fd=None, bg=None):
     """Leap-style picker: label every URL / D\u2026 / T\u2026 / P\u2026 ref in place on our
-    OWN backdrop (no second kitten, so nothing can cover the labels), then open
-    the pick. With multi=True, keep the picker open and open each pick in the
-    background (opened labels turn green); esc when done.
+    OWN backdrop (no second kitten, so nothing can cover the labels), then act
+    on the pick. With multi=True, keep the picker open and collect picks
+    (queued labels turn green); esc acts on the whole queue.
 
     action["what"] selects the scan: "all" (default), "links", "artifacts".
+    action["do"]   selects the verb: "open" (default) or "copy".
+    action["sep"]  joins a multi copy (default ", ").
 
     Labels identify a REFERENCE, not a screen position: if D1234567 appears
     five times, all five occurrences carry the same letter (and light up green
     together once queued). Assignment walks the screen bottom-up, so the
-    shortest//easiest labels land on the most recent output."""
+    shortest//easiest labels land on the most recent output.
+
+    `copy` yields hit.text -- the D-number for an artifact, the full URL for a
+    link. Deliberately not hit.tok, which is truncated for display."""
     multi = bool(action.get("multi"))
     what = action.get("what", "all")
+    copying = action.get("do", "open") == "copy"
+    sep = action.get("sep", ", ")
+    verb = "copy" if copying else "open"
     if target is None:
         return "\u26a0 couldn't find the terminal window"
+
+    def act_on(picks):
+        if not copying:
+            _open_urls([h.url for h in picks], background=True)
+            return True
+        payload = sep.join(h.text for h in picks)
+        if not _set_clipboard(payload):
+            return False
+        log(f"copied {len(picks)} hit(s): {payload[:120]!r}")
+        return True
     cols, rows = _term_size()
     hits = _scan_hits(_screen_lines(rc, target), cols,
                       artifacts=what in ("all", "artifacts"),
@@ -1081,16 +1100,19 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
     # One label per distinct artifact, assigned bottom-up (newest output gets
     # the first letters of the alphabet). Within a row we still go left to
     # right -- that's how the line reads.
+    # Identity follows the payload, so two spellings of one URL still copy as
+    # two distinct strings.
+    key_of = (lambda h: h.text) if copying else (lambda h: h.url)
     by_label = {}
     label_of = {}
-    labels = _artifact_labels(len({h.url for h in hits}))
+    labels = _artifact_labels(len({key_of(h) for h in hits}))
     for h in sorted(hits, key=lambda h: (-h.row, h.col)):
-        ref = h.url
+        ref = key_of(h)
         lab = label_of.get(ref)
         if lab is None:
             lab = labels[len(label_of)]
             label_of[ref] = lab
-            by_label[lab] = h      # representative occurrence; only the url is used
+            by_label[lab] = h      # representative occurrence
         h.label = lab
 
     queued = []      # hits picked in multi mode; all opened at once on esc
@@ -1110,9 +1132,9 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         if multi:                              # tiny mode indicator, top-right corner
             tag = f" SELECT \u00b7 {len(queued)} queued "
             _out(f"\x1b[1;{max(1, cols - len(tag) + 1)}H" + MODE_TAG + tag + RESET)
-            hint = " type labels to queue \u00b7 esc opens them "
+            hint = f" type labels to queue \u00b7 esc {verb}s them "
         else:
-            hint = " open " + _WHAT_LABEL.get(what, "match") + " \u00b7 type a label \u00b7 esc cancels "
+            hint = f" {verb} " + _WHAT_LABEL.get(what, "match") + " \u00b7 type a label \u00b7 esc cancels "
         _out(f"\x1b[{rows};1H" + BG_PANEL + FG_HINT + hint + RESET + "\x1b[?7h")
 
     draw_labels()
@@ -1123,8 +1145,8 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             typed = ""
             continue
         if k in ("quit", "back") or (multi and k == "enter"):  # esc / \u21b5 / \u2303C: done
-            if queued:                          # open the whole queue at once
-                _open_urls([h.url for h in queued], background=True)
+            if queued and not act_on(queued):   # act on the whole queue at once
+                return "\u26a0 clipboard unavailable"
             return _CLOSE
         if k in ("enter", "ignore") or len(k) != 1:
             continue
@@ -1136,6 +1158,8 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
         if typed in by_label and len(cands) == 1:
             h = by_label[typed]
             if not multi:
+                if copying:
+                    return _CLOSE if act_on([h]) else "\u26a0 clipboard unavailable"
                 _open_hit(h)
                 return _CLOSE
             if typed not in picked:             # queue it; opened together on esc
@@ -1145,7 +1169,7 @@ def _bi_open_artifact(action, rc, target, fd=None, bg=None):
             draw_labels()                       # reflect queued (green) + count
 
 
-BUILTINS = {"copy": _bi_copy, "open_artifact": _bi_open_artifact}
+BUILTINS = {"copy": _bi_copy, "pick": _bi_pick}
 
 
 # ── error page (so failures don't just flash) ────────────────────────────
