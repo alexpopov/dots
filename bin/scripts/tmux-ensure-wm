@@ -64,8 +64,11 @@ pick_pane() {
   local slot="$1" cur
   if pane_exists "$slot"; then
     cur="$(pane_cmd "$target.$slot")"
+    # Name the shells. A `*sh` glob also matches `ssh` (and `fish`), so a pane
+    # sitting in an ssh session counted as free -- we would C-c whatever was
+    # running on the far end and then type `yabai --start-service` into it.
     case "$cur" in
-      *sh) printf '%s.%s' "$target" "$slot"; return 0 ;;
+      bash|zsh|sh|fish|dash|ksh) printf '%s.%s' "$target" "$slot"; return 0 ;;
     esac
   fi
   if [ "$DRY" = 1 ]; then printf '%s.<new>' "$target"; return 0; fi
@@ -83,7 +86,15 @@ ensure() {
     say "would start $proc in $pane: $cmd"
   else
     say "starting $proc in $pane"
-    tmux send-keys -t "$pane" "$cmd" C-m
+    # C-c FIRST: the post-restore hook runs pi-tmux-sessions BEFORE this
+    # script, so a pane can already have a resume command pre-TYPED (not
+    # run) at its prompt. Sending `$cmd` straight in appends to it —
+    # `pi --session 01a19b7dyabai` + Enter — which runs pi (fails), never
+    # starts the WM, and eats the pretype. C-c discards the typed line;
+    # the banner naming the session stays in scrollback. Only panes sitting
+    # at a shell prompt are ever picked (see pick_pane), so C-c cannot
+    # interrupt a running program here.
+    tmux send-keys -t "$pane" C-c "$cmd" C-m
   fi
 }
 
