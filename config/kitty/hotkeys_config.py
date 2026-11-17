@@ -163,9 +163,9 @@ MODES = {
         "keys": {
             "y": ("last command + output", copy("cmd_output")),
             "o": ("last output only",      copy("output")),
-            "s": ("whole screen",          copy("screen")),
-            "a": ("screen + scrollback",   copy("all")),
-            "r": ("a ref / link on screen", copy_pick()),
+            "s": ("screen",                copy("screen")),
+            "a": ("all (screen + scrollback)", copy("all")),
+            "r": ("ref / link on screen",  copy_pick()),
             "R": ("many refs / links",      copy_pick(multi=True)),
         },
     },
