@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# tmux-window-picker <client-tty>: fuzzy-pick any window in any session and
+# jump to it. For when there are more tabs than prefix-0..9 can reach or the
+# status bar can show. Runs inside a popup (tmux.conf: prefix f, and in the
+# prefix-i menu); the client tty arg says which client to switch.
+#
+# Rows: a yellow ● for windows with a waiting agent (see tmux-agent-waiting),
+# a * for the window you're on, then session:index, name, and cwd.
+
+client="$1"
+yellow=$(printf '\033[33m'); dim=$(printf '\033[2m'); off=$(printf '\033[0m')
+
+# Field 1 (hidden) is the target; fzf shows and searches the rest.
+sel=$(tmux list-windows -a -F "#{session_name}:#{window_index}	#{?#{P:#{@agent_waiting}},${yellow}●${off}, }#{?#{&&:#{window_active},#{session_attached}},*, } #{p6:#{session_name}:#{window_index}}#{p24:#{=/22/…:window_name}}${dim}#{s|^$HOME|~|:pane_current_path}${off}" |
+  fzf --ansi --delimiter='	' --with-nth=2.. --reverse --no-info --no-scrollbar \
+      --prompt='window> ' --pointer='▶' --padding=0,1 --cycle) || exit 0
+
+tmux switch-client ${client:+-c "$client"} -t "${sel%%	*}"
