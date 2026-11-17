@@ -72,15 +72,19 @@ cmd_arm() {
   if [ -n "$now" ] && [ "$now" = "$prev" ]; then
     # Same server we already restored into: leave the halt file in place so
     # this config re-source does NOT trigger a second restore.
+    log "arm: same server $now, halt file left in place"
     exit 0
   fi
   rm -f "$HALT_FILE"
+  log "arm: new server $now (prev: ${prev:-none}), halt file removed"
 }
 
 cmd_done() {
   mkdir -p "$STATE_DIR" 2>/dev/null
-  server_id > "$PID_FILE" 2>/dev/null
+  local sid; sid="$(server_id)"
+  printf '%s' "$sid" > "$PID_FILE" 2>/dev/null
   : > "$HALT_FILE"
+  log "done: restored server $sid, halt file set"
   cmd_check --repair
 }
 
