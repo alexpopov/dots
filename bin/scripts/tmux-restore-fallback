@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+#
+# tmux-restore-fallback — a second, deterministic chance at the cold-start
+# restore that tmux-continuum is supposed to do, for when continuum's own
+# attempt silently never fires.
+#
+# Why this exists (Nov 2026): continuum's auto-restore is a single shot
+# gated by (a) the server having started within @continuum-restore-max-delay
+# seconds (default 10) when its plugin code runs, and (b) a check that no
+# "other tmux server" is running — implemented as counting ALL tmux
+# processes for the user (`ps | grep ^tmux`), across every socket, clients
+# included. Any transient tmux client alive at that instant (its own
+# parent plugin's `tmux set-option`, a polling script, another tab
+# attaching, another server's client) makes the count >1 and the restore
+# is skipped, permanently, with no log anywhere. The 10:30 cold start
+# after the Nov 16 reboot did exactly that: @continuum-save-last-timestamp
+# proves continuum.tmux ran at +3s, the halt file was cleared, no second
+# server existed — and no restore happened.
+#
+# This script runs delayed (30s, `run-shell -b` from tmux.conf, after tpm)
+# — well before continuum's first 15-minute save, which OVERWRITES the
+# `last` symlink with the current (empty starter) state and thereby
+# destroys the only pointer to the good save. A restore attempted after
+# that first save finds only the degraded state; the timestamped good
+# file still exists in the resurrect dir, but nothing points at it.
+# It restores ONLY if the server is still in the exact from-scratch state
+# a skipped restore leaves behind: one session, one pane, none of the
+# saved sessions present, and this server not already recorded as
+# restored by the guard. Every decision, including every no-op, is logged
+# to <resurrect-dir>/restore-fallback.log, so the next failure is
+# diagnosable instead of silent. It never touches the halt file and never
+# records the server as restored itself — a real restore's
+# post-restore-all hook (tmux-restore-guard done) does that.
+#
+# Safety: if the user has already made panes, opened another session, or
+# closed the restored session on purpose, the from-scratch checks fail
+# and this does nothing. `prefix R` (resurrect directly) is unaffected.
+
+set -uo pipefail
+
+HALT_FILE="$HOME/tmux_no_auto_restore"
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pi-tmux"
+PID_FILE="$STATE_DIR/restored-server-pid"
+DRY_RUN=0
+[ "${1:-}" = "--check" ] && DRY_RUN=1
+
+resurrect_dir() {
+  local opt
+  opt="$(tmux show-option -gqv @resurrect-dir 2>/dev/null)"
+  if [ -n "$opt" ]; then printf '%s' "${opt/#\~/$HOME}"
+  else printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/tmux/resurrect"; fi
+}
+
+restore_script_path() {
+  local opt
+  opt="$(tmux show-option -gqv @resurrect-restore-script-path 2>/dev/null)"
+  if [ -n "$opt" ]; then printf '%s' "$opt"
+  else printf '%s' "$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"; fi
+}
+
+server_id() { tmux display-message -p '#{pid}:#{start_time}' 2>/dev/null; }
+
+log() {
+  local dir; dir="$(resurrect_dir)"
+  mkdir -p "$dir" 2>/dev/null
+  printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$dir/restore-fallback.log" 2>/dev/null
+  printf '%s\n' "$*"
+}
+
+main() {
+  local sid prev last_file restore_script
+  sid="$(server_id)"
+  prev="$(cat "$PID_FILE" 2>/dev/null)"
+  last_file="$(resurrect_dir)/last"
+
+  # One fallback per server at a time; the lock is keyed by server pid, so
+  # a stale lock can never block a later (different) server.
+  local lock_dir="/tmp/tmux-restore-fallback-${sid%%:*}.lock"
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    log "fallback: no-op, another fallback is already running for server $sid"
+    exit 0
+  fi
+  trap 'rmdir "$lock_dir" 2>/dev/null' EXIT
+
+  if [ -n "$sid" ] && [ "$sid" = "$prev" ]; then
+    log "fallback: no-op, server $sid already recorded as restored (guard pid file)"
+    exit 0
+  fi
+  if [ -f "$HALT_FILE" ]; then
+    log "fallback: no-op, halt file $HALT_FILE present (server $sid)"
+    exit 0
+  fi
+  if [ ! -r "$last_file" ]; then
+    log "fallback: no-op, no readable save file at $last_file (server $sid)"
+    exit 0
+  fi
+
+  # Saved session names, from the save file itself (not hardcoded "Main").
+  local saved_sessions live_sessions
+  saved_sessions="$(awk -F'\t' '$1=="pane" || $1=="window" {print $2}' "$last_file" 2>/dev/null | sort -u)"
+  live_sessions="$(tmux list-sessions -F '#{session_name}' 2>/dev/null)"
+  local s
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    if printf '%s\n' "$live_sessions" | grep -qxF "$s"; then
+      log "fallback: no-op, saved session '$s' already exists (server $sid)"
+      exit 0
+    fi
+  done <<EOF
+$saved_sessions
+EOF
+
+  # From-scratch state only: exactly one session holding exactly one pane.
+  # If continuum is mid-restore, or the user has already worked in the
+  # starter session, this is >1 and we leave everything alone.
+  local n_sessions n_panes
+  n_sessions="$(printf '%s\n' "$live_sessions" | grep -c .)"
+  n_panes="$(tmux list-panes -a 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "$n_sessions" != "1" ] || [ "$n_panes" != "1" ]; then
+    log "fallback: no-op, server $sid not in from-scratch state (sessions=$n_sessions panes=$n_panes)"
+    exit 0
+  fi
+
+  if [ "$DRY_RUN" = 1 ]; then
+    log "fallback: CHECK only — would restore from $last_file (server $sid, saved: $(printf '%s' "$saved_sessions" | tr '\n' ' '))"
+    exit 0
+  fi
+
+  restore_script="$(restore_script_path)"
+  if [ ! -x "$restore_script" ]; then
+    log "fallback: ABORT, restore script not executable at $restore_script (server $sid)"
+    exit 1
+  fi
+  log "fallback: RESTORING server $sid from $last_file via $restore_script (continuum did not)"
+  local rc=0
+  "$restore_script" >> "$(resurrect_dir)/restore-fallback.log" 2>&1 || rc=$?
+  log "fallback: restore script exited $rc (server $sid); sessions now: $(tmux list-sessions -F '#{session_name}' 2>/dev/null | tr '\n' ' ')"
+  exit "$rc"
+}
+
+main

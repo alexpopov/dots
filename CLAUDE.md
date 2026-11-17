@@ -33,6 +33,7 @@ bin/scripts/              # Utility scripts (yabai_utils, tmux_claude, git helpe
   pi-tmux-sessions        # saves pane -> pi session map for tmux-resurrect; prints resume hints after a restore
   tmux-restore-guard      # one resurrect restore per tmux server (continuum re-restores on every config reload) + layout repair
   tmux-ensure-wm          # starts skhd/yabai if they aren't running (resurrect only restores what it saw in a pane)
+  tmux-restore-fallback   # second chance at the cold-start restore when continuum's single shot silently never fires
 ```
 
 ## Conventions
