@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# tmux-agent-waiting on|off|seen|toggle: flag THIS tmux pane as "a coding agent here is
+# waiting for you", so tmux.conf can colour its window tab.
+#
+# The whole contract is one pane option, @agent_waiting. Agents set it when
+# they finish a turn with nothing left running, and clear it when the next
+# turn starts or they exit. tmux.conf's window-status formats test
+# #{P:#{@agent_waiting}} (any pane in the window flagged), so several agents
+# in one window just work. Outside tmux this is a silent no-op.
+#
+# Wiring:
+#
+#   pi:  ~/dotfiles/pi/base/extensions/tmux-agent-waiting.ts calls this on
+#        agent_settled (when no bg-bash job is still running) / agent_start /
+#        session_shutdown, and clears it on your first keystroke in the pane
+#        (just selecting the window doesn't count).
+#
+#   Claude Code: add to ~/.claude/settings.json (merge into any existing
+#   "hooks"). Stop = turn finished, Notification = blocked on a permission
+#   prompt or idle, UserPromptSubmit = you answered, SessionEnd = gone:
+#
+#     "hooks": {
+#       "Stop":             [{"hooks": [{"type": "command", "command": "tmux-agent-waiting on"}]}],
+#       "Notification":     [{"hooks": [{"type": "command", "command": "tmux-agent-waiting on"}]}],
+#       "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "tmux-agent-waiting off"}]}],
+#       "SessionEnd":       [{"hooks": [{"type": "command", "command": "tmux-agent-waiting off"}]}]
+#     }
+#
+#   Claude has no keystroke hook, so there the tab stays yellow until you
+#   submit. (Hooks inherit $TMUX_PANE from the claude process, which is what pins the
+#   flag to the right pane. Use the full path if ~/.local/bin/scripts isn't on
+#   the hook's PATH.)
+#
+#   Clearing by looking: tmux.conf's session-window-changed hook runs
+#   `tmux-agent-waiting seen <window>`, which clears every pane in that window
+#   if it is STILL the current window SEEN_DELAY seconds later, so cycling past
+#   with prefix n/p doesn't count but landing on it does.
+#
+#   By hand: prefix-i menu "Highlight tab" runs `toggle <window> <pane>`: clear
+#   the window if any pane is flagged, else flag the current pane (a "come back
+#   to this" marker; it clears the same way, by landing on it or typing).
+#
+#   Anything else: run `tmux-agent-waiting on` when it's your turn to type,
+#   `tmux-agent-waiting off` when it isn't.
+
+SEEN_DELAY=2
+
+clear_window() {
+  tmux list-panes -t "$1" -F '#{pane_id}' 2>/dev/null | while read -r p; do
+    tmux set-option -pqu -t "$p" @agent_waiting
+  done
+}
+
+case "$1" in
+  seen)
+    [ -n "$2" ] || exit 0
+    sleep "$SEEN_DELAY"
+    [ "$(tmux display-message -p -t "$2" '#{window_active}' 2>/dev/null)" = 1 ] && clear_window "$2"
+    exit 0 ;;
+  toggle)
+    [ -n "$2" ] && [ -n "$3" ] || exit 2
+    if [ -n "$(tmux display-message -p -t "$2" '#{P:#{@agent_waiting}}')" ]; then
+      clear_window "$2"
+    else
+      tmux set-option -pq -t "$3" @agent_waiting 1
+    fi
+    exit 0 ;;
+esac
+
+[ -n "$TMUX_PANE" ] || exit 0
+case "$1" in
+  on)  exec tmux set-option -pq -t "$TMUX_PANE" @agent_waiting 1 ;;
+  off) exec tmux set-option -pqu -t "$TMUX_PANE" @agent_waiting ;;
+  *)   echo "usage: tmux-agent-waiting on|off | seen <window> | toggle <window> <pane>" >&2; exit 2 ;;
+esac
