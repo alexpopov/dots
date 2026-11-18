@@ -4,6 +4,10 @@
 # NOTE: Mode labels and key descriptions are mirrored in
 # hammerspoon/alex/skhd_ui.lua (the MODES table). Keep them in sync.
 
+# skhd runs every binding through `$SHELL -c`. $SHELL is /opt/homebrew/bin/bash
+# here, which costs ~14.3ms to start vs ~8.2ms for system bash. Paid per keypress.
+.shell "/bin/bash"
+
 :: default : open -g "hammerspoon://skhdExit"
 
 # Mode: Hyper
