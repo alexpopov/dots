@@ -1,22 +1,16 @@
 return {
   {
-    'axkirillov/easypick.nvim',
-    dependencies = { "nvim-telescope/telescope.nvim" },
-    cmd = "EasyPick",  -- lazy: was loading at startup and dragging telescope in eagerly
+    "nvim-telescope/telescope-fzf-native.nvim",
+    lazy = true,
+    build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
   },
-  {
-    'nvim-telescope/telescope-fzf-native.nvim',
-    build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release'
-  },
-
-
   {
     "nvim-telescope/telescope.nvim",
-    dependencies = { "nvim-lua/plenary.nvim", "junegunn/fzf", "nvim-telescope/telescope-fzf-native.nvim" },
-    -- Preload just after startup (off the critical path) rather than on first
-    -- keypress, so opening a picker has no module-load lag. The keys below
-    -- still work; VeryLazy just wins the race in practice.
-    event = "VeryLazy",
+    cmd = "Telescope",
+    dependencies = {
+      { "nvim-lua/plenary.nvim", lazy = true },
+      "nvim-telescope/telescope-fzf-native.nvim",
+    },
     keys = {
       { "<Leader>fH", ":Telescope help_tags<CR>", desc = "Help tags" },
       {
@@ -46,7 +40,6 @@ return {
       },
     },
     config = function()
-      -- Allow multi select https://github.com/nvim-telescope/telescope.nvim/issues/1048
       local actions = require("telescope.actions")
       local action_state = require("telescope.actions.state")
       local custom_actions = {}
@@ -61,7 +54,7 @@ return {
           else
             cwd = string.format("%s/", cwd)
           end
-          vim.cmd("bw!") -- wipe the prompt buffer
+          vim.cmd("bw!")
           for _, entry in ipairs(picker:get_multi_selection()) do
             vim.cmd(string.format("%s %s%s", open_cmd, cwd, entry.value))
           end
@@ -103,10 +96,8 @@ return {
               ["<esc>"] = actions.close,
               ["<C-j>"] = actions.move_selection_next,
               ["<C-k>"] = actions.move_selection_previous,
-              ["<tab>"] = actions.toggle_selection
-                  + actions.move_selection_next,
-              ["<s-tab>"] = actions.toggle_selection
-                  + actions.move_selection_previous,
+              ["<tab>"] = actions.toggle_selection + actions.move_selection_next,
+              ["<s-tab>"] = actions.toggle_selection + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -114,10 +105,8 @@ return {
             },
             n = {
               ["<esc>"] = actions.close,
-              ["<tab>"] = actions.toggle_selection
-                  + actions.move_selection_next,
-              ["<s-tab>"] = actions.toggle_selection
-                  + actions.move_selection_previous,
+              ["<tab>"] = actions.toggle_selection + actions.move_selection_next,
+              ["<s-tab>"] = actions.toggle_selection + actions.move_selection_previous,
               ["<cr>"] = custom_actions.multi_selection_open,
               ["<c-v>"] = custom_actions.multi_selection_open_vsplit,
               ["<c-s>"] = custom_actions.multi_selection_open_split,
@@ -128,22 +117,15 @@ return {
         },
         extensions = {
           fzf = {
-            fuzzy = true,                   -- false will only do exact matching
-            override_generic_sorter = true, -- override the generic sorter
-            override_file_sorter = true,    -- override the file sorter
-            case_mode = "smart_case",       -- or "ignore_case" or "respect_case"
-            -- the default case_mode is "smart_case"
-          }
-        }
+            fuzzy = true,
+            override_generic_sorter = true,
+            override_file_sorter = true,
+            case_mode = "smart_case",
+          },
+        },
       })
 
-      -- To get fzf loaded and working with telescope, you need to call
-      -- load_extension, somewhere after setup function:
-      require('telescope').load_extension('fzf')
-
-      -- Preload the builtin pickers so the first :Telescope open doesn't pay
-      -- the "loading the fetchers" cost (runs on VeryLazy, off the startup path).
-      require('telescope.builtin')
+      require("telescope").load_extension("fzf")
     end,
   },
 }

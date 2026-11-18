@@ -8,6 +8,40 @@ function M.save_session()
   require("persistence").save()
 end
 
+function M.enable_lsp()
+  require("lsp").setup()
+end
+
+function M.mason()
+  vim.cmd("Mason")
+end
+
+-- Close buffer without closing split window (replaces vim-bufkill :BD)
+function M.close_buffer(force)
+  local target = vim.api.nvim_get_current_buf()
+  local alt = vim.fn.bufnr("#")
+  local fallback = (alt > 0 and alt ~= target and vim.fn.buflisted(alt) == 1) and alt or nil
+
+  if not fallback then
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if buf ~= target and vim.fn.buflisted(buf) == 1 then
+        fallback = buf
+        break
+      end
+    end
+  end
+
+  if not fallback then
+    fallback = vim.api.nvim_create_buf(true, false)
+  end
+
+  for _, win in ipairs(vim.fn.win_findbuf(target)) do
+    vim.api.nvim_win_set_buf(win, fallback)
+  end
+
+  pcall(vim.api.nvim_buf_delete, target, { force = force or false })
+end
+
 function M.create_scratch_buffer()
   local dir = "/tmp/nvim." .. os.getenv("USER")
   vim.fn.mkdir(dir, "p")
@@ -25,7 +59,7 @@ function M.safe_require(module_name)
 end
 
 function M.show_notify_history()
-  local ok, notify = pcall(require, "notify")
+  local ok = pcall(require, "notify")
   if ok then
     require("telescope").extensions.notify.notify()
   else
@@ -78,7 +112,6 @@ function M.add_to_para_inbox()
 
       vim.cmd("edit " .. vim.fn.fnameescape(path))
 
-      -- Pre-fill from template if the file is empty (new)
       if vim.api.nvim_buf_line_count(0) <= 1 and vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == "" then
         local lines = vim.fn.readfile(template)
         if #lines > 0 then

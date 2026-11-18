@@ -1,4 +1,3 @@
-local wk = require("which-key")
 local map = vim.keymap.set
 
 -- Write/quit typo commands
@@ -7,11 +6,17 @@ vim.api.nvim_create_user_command("Wq", "wq", {})
 vim.api.nvim_create_user_command("W", "w", {})
 vim.api.nvim_create_user_command("Q", "q", {})
 
+-- Buffer close without closing split (replaces vim-bufkill)
+vim.api.nvim_create_user_command("BD", function(o) require("utils").close_buffer(o.bang) end, { bang = true })
+vim.api.nvim_create_user_command("BW", function(o) require("utils").close_buffer(o.bang) end, { bang = true })
+
+-- On-demand LSP
+vim.api.nvim_create_user_command("LspEnable", function() require("utils").enable_lsp() end, {})
+
 vim.g.mapleader = ","
 vim.g.maplocalleader = "\\"
 
 -- Window Movement
--- TODO: do I still use C-K for window movement? It conflicts with LSP signature_help
 map('n', '<C-J>', '<C-W><C-J>', { desc = "move to split south" })
 map('n', '<C-H>', '<C-W><C-H>', { desc = "move to split west" })
 map('n', '<C-K>', '<C-W><C-K>', { desc = "move to split north" })
@@ -21,50 +26,40 @@ map('n', '<C-L>', '<C-W><C-L>', { desc = "move to split east" })
 map('n', '<C-x>', ':nohl<CR>', { silent = true, desc = "clear search" })
 map('n', '<Leader>r', ':nohl<CR>', { silent = true, desc = "clear search" })
 
--- All which-key registrations
-wk.add({
-  -- Leader: find
-  { "<Leader>f",  group = "find" },
-  { "<Leader>fc", "/<<<<<<<\\||||||||\\|=======\\|>>>>>>><CR>", desc = "find conflicts" },
+-- Leader: find
+map('n', '<Leader>fc', '/<<<<<<<\\||||||||\\|=======\\|>>>>>>><CR>', { desc = "find conflicts" })
 
-  -- Leader: comment (recursive for normal and visual)
-  { "<Leader>c",        group = "comment", remap = true },
-  { "<Leader>c<space>", ":Commentary<CR>",  desc = "toggle", mode = { "v", "n" }, remap = true },
+-- Leader: comment (uses Neovim 0.10+ built-in gc / gcc)
+map('n', '<Leader>c<space>', 'gcc', { remap = true, desc = "toggle comment" })
+map('v', '<Leader>c<space>', 'gc', { remap = true, desc = "toggle comment" })
 
-  -- Leader: LSP (group only, keymaps set in lsp.lua on LspAttach)
-  { "<Leader>a",  group = "LSP" },
-  { "<Leader>aw", group = "workspace" },
-  { "<Leader>ac", group = "code" },
+-- Localleader: edit files fast (via Telescope instead of fzf.vim)
+map('n', '<localleader>ed', function()
+  require("telescope.builtin").find_files({ cwd = vim.fn.expand("~/dots") })
+end, { desc = "dots config files" })
+map('n', '<localleader>ev', function()
+  require("telescope.builtin").find_files({ cwd = vim.fn.expand("~/.config/nvim") })
+end, { desc = "vim files" })
+map('n', '<localleader>es', function()
+  require("telescope.builtin").find_files({ cwd = vim.fn.expand("~/fbsource/users/al/alexpopov") })
+end, { desc = "personal scripts" })
 
-  -- Leader: trouble
-  { "<Leader>t",  group = "trouble" },
+-- Localleader: buffers
+map('n', '<localleader>bd', function() require("utils").delete_hidden_buffers() end, { desc = "delete hidden buffers" })
+map('n', '<localleader>bk', function() require("utils").close_buffer() end, { desc = "close buffer (keep split)" })
 
-  -- Localleader: edit files fast
-  { "<localleader>e",  group = "edit" },
-  { "<localleader>ed", ":FZF ~/dots/<CR>",                                desc = "dots config files" },
-  { "<localleader>ev", ":FZF ~/.config/nvim/<CR>",                        desc = "vim files" },
-  { "<localleader>es", ":FZF ~/fbsource/users/al/alexpopov/<CR>", desc = "personal scripts" },
+-- Localleader: utilities (includes utils.enable_lsp, utils.mason, etc.)
+map('n', '<localleader>u', function() require("telescope.pick_function")() end, { desc = "function picker" })
 
-  -- Localleader: buffers
-  { "<localleader>b",  group = "buffers" },
-  { "<localleader>bd", function() require("utils").delete_hidden_buffers() end, desc = "delete hidden buffers" },
+-- Localleader: config
+map('n', '<localleader>qn', ':lua vim.opt.number = true; vim.opt.relativenumber = true<CR>', { desc = "line numbers" })
 
-  -- Localleader: utilities
-  { "<localleader>u", function() require("telescope.pick_function")() end, desc = "function picker" },
+-- Localleader: reload
+map('n', '<localleader>rv', function() require("telescope.reload_module")() end, { desc = "reload vim module" })
 
-  -- Localleader: config
-  { "<localleader>q",  group = "config" },
-  { "<localleader>qn", ":lua vim.opt.number = true; vim.opt.relativenumber = true<CR>", desc = "line numbers" },
+-- Localleader: tabs
+map('n', '<localleader>tn', ':tabnew<CR>', { desc = "new tab" })
 
-  -- Localleader: reload
-  { "<localleader>r",  group = "reload" },
-  { "<localleader>rv", function() require("telescope.reload_module")() end, desc = "reload vim module" },
-
-  -- Localleader: tabs
-  { "<localleader>t",  group = "tabs" },
-  { "<localleader>tn", ":tabnew<CR>", desc = "new tab" },
-
-  -- Localleader: yank to system clipboard (+ register, synced via OSC52)
-  { "<localleader>y", "\"+y",  desc = "yank to system clipboard", mode = { "n", "v" } },
-  { "<localleader>Y", "\"+yy", desc = "yank whole line to system clipboard" },
-})
+-- Localleader: yank to system clipboard (+ register, synced via OSC52)
+map({ 'n', 'v' }, '<localleader>y', '"+y', { desc = "yank to system clipboard" })
+map('n', '<localleader>Y', '"+yy', { desc = "yank whole line to system clipboard" })

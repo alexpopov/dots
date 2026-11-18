@@ -64,6 +64,7 @@ vim.api.nvim_create_autocmd({ "VimEnter", "BufEnter" }, { callback = _disable_mo
 opt.list = true
 opt.listchars = { tab = ">-" }
 vim.fn.matchadd("Error", "\\t") -- highlight tabs as errors
+vim.fn.matchadd("Todo", "@nocommit.*")
 
 if vim.fn.getenv("COLORTERM") ~= vim.NIL then
   -- Millions and millions of colors

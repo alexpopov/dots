@@ -1,24 +1,20 @@
 return {
   {
-    "mason-org/mason-lspconfig.nvim",
+    "mason-org/mason.nvim",
+    cmd = "Mason",
     opts = {
-      ensure_installed = {
-        "lua_ls",
-        -- "shellcheck",
+      pip = {
+        install_args = { "--index-url", "https://pypi.org/simple" },
       },
     },
-    dependencies = {
-      {
-        "mason-org/mason.nvim",
-        opts = {
-          pip = {
-            install_args = { "--index-url", "https://pypi.org/simple" }
-          }
-        },
-      },
-      -- nvim-lspconfig is still useful for server command/filetype defaults
-      -- but no longer required for the core LSP functionality in 0.11+
-      "neovim/nvim-lspconfig",
-    },
+  },
+  {
+    "neovim/nvim-lspconfig",
+    lazy = true,
+  },
+  {
+    "mason-org/mason-lspconfig.nvim",
+    lazy = true,
+    dependencies = { "mason-org/mason.nvim", "neovim/nvim-lspconfig" },
   },
 }

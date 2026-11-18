@@ -2,7 +2,7 @@
 vim.g.loaded_node_provider = 0
 vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
-vim.g.python3_host_prog = vim.fn.getenv("NVIM_PYTHON")
+vim.g.loaded_python3_provider = 0
 
 -- Source private fb stuff if available
 local admin_scripts = vim.fn.getenv("ADMIN_SCRIPTS")
@@ -44,5 +44,5 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
 })
 
 -- Clang-format mapping
-vim.keymap.set('n', '<Leader>afc', ':%py3f /usr/local/share/clang/clang-format.py<CR>',
+vim.keymap.set('n', '<Leader>afc', ':%!clang-format<CR>',
   { silent = true, desc = "clang-format file" })

@@ -6,7 +6,6 @@ alp.utils = require("utils")
 require("config.lazy")
 require("options")
 require("mappings")
-require("lsp")
 require("globals")
 
 -- Meta-only nvim tooling (the `meta` plugin, task-oil, etc.) loads via

@@ -99,6 +99,10 @@ export PATH
 export NODE_PATH="/usr/local/lib/node_modules"
 export NVIM_PYTHON="$HOME/.local/virtualenvs/nvim/bin/python3"
 
+# Skip Neovim 0.12+'s pre-config terminal queries (OSC 11 background + DSR wait);
+# lua_xcode sets background="light" explicitly and $COLORTERM handles truecolor.
+export NVIM_NOTTYFAST=1
+
 # Set editor to nvim if available, otherwise vim
 if command -v nvim >/dev/null 2>&1; then
   export EDITOR=nvim

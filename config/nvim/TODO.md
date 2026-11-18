@@ -97,24 +97,19 @@
 
 ## Open
 
-25. [ ] **Delete old vimscript colorschemes** - `colors/`
-    - `xcode.vim`, `xcode_new.vim`, `xcode_debug.vim` are legacy files
-    - Still reference dead groups like `pythonCustomFunc`
-    - Decide: delete or keep for historical reference?
+25. [x] **Delete old vimscript colorschemes** - `colors/`
+    - Deleted legacy `xcode.vim`, `xcode_new.vim`, `xcode_debug.vim`
 
-26. [ ] **nvim-autopairs `init` defeats lazy loading** - `monolithic.lua`
-    - `init` calls `require('nvim-autopairs.rule')` which forces load before `InsertEnter` event
-    - Same bug pattern as nvim-notify (fixed). Move rule setup into `config`.
+26. [x] **nvim-autopairs `init` defeats lazy loading** - `monolithic.lua`
+    - Moved rule setup from `init` into `config` so `InsertEnter` lazy loading works
 
-27. [ ] **`honza/vim-snippets` lazy with no trigger** - `monolithic.lua`
-    - `lazy = true` but no `keys`, `ft`, or `cmd` trigger
-    - Will never load unless something else requires it. Remove or add trigger.
+27. [x] **`honza/vim-snippets` / legacy snippets** - `config/nvim/`
+    - Deleted legacy `UltiSnips/` and `snippets/` directories
 
 28. [ ] **Bootstrap: add brew cask installs for Mac apps**
     - Alfred, Maccy, Divvy, Rocket, Karabiner, Hammerspoon, Captin
     - Also skhd, yabai
     - Existing TODO in bootstrap.sh
 
-29. [ ] **Treesitter: make `ensure_installed` configurable**
-    - Existing TODO in treesitter.lua
-    - Env var to skip parser installation on slow/metered machines?
+29. [x] **Treesitter: skip startup parser scan**
+    - `nvim-treesitter` is now cmd-lazy (`:TSUpdate`/`:TSInstall`); native `vim.treesitter.start` runs on `FileType` with zero startup plugin load

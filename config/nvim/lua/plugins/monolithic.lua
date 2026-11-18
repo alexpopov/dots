@@ -1,45 +1,27 @@
 local specs = {
-  { "guns/xterm-color-table.vim" }, -- color table
-  { "junegunn/fzf.vim" },
-  { "Vimjas/vim-python-pep8-indent" }, -- sane indentation for python
   {
-    "voldikss/vim-floaterm",
-    keys = {
-      { "<F5>", desc = "Toggle floaterm" },
-      { "<F7>", desc = "New floaterm" },
-      { "<F8>", desc = "Prev floaterm" },
-      { "<F9>", desc = "Next floaterm" },
-    },
-    cmd = { "FloatermNew", "FloatermToggle" },
-    config = function()
-      vim.g.floaterm_keymap_new = '<F7>'
-      vim.g.floaterm_keymap_prev = '<F8>'
-      vim.g.floaterm_keymap_next = '<F9>'
-      vim.g.floaterm_keymap_toggle = '<F5>'
-      vim.g.floaterm_position = 'center'
-      vim.g.floaterm_width = 0.6
-    end,
+    "guns/xterm-color-table.vim",
+    cmd = { "XtermColorTable" },
   },
 
-  { "dylon/vim-antlr",      ft = "antlr", },
-  { "solarnz/thrift.vim",   ft = "thrift", },
-  { "qpkorr/vim-bufkill",   cmd = { "BD", "BUN", "BW", "BB", "BF" }, },
-  { "wesQ3/vim-windowswap", keys = { "<Leader>ww" }, },
-  { "gburca/vim-logcat",    ft = "logcat", },
+  { "wesQ3/vim-windowswap", keys = { "<Leader>ww" } },
+  { "gburca/vim-logcat",    ft = "logcat" },
+  { "mechatroner/rainbow_csv", ft = { "csv", "tsv" } },
 
   {
     "nvimtools/none-ls.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
+    lazy = true,
+    dependencies = { { "nvim-lua/plenary.nvim", lazy = true } },
   },
 
   {
     "hrsh7th/nvim-cmp",
-    event = "InsertEnter",  -- lazy: completion only needed once you start typing
+    event = "InsertEnter",
     dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
-      "hrsh7th/cmp-buffer",
-      "hrsh7th/cmp-path",
-      "hrsh7th/cmp-nvim-lua",
+      { "hrsh7th/cmp-nvim-lsp", lazy = true },
+      { "hrsh7th/cmp-buffer",   lazy = true },
+      { "hrsh7th/cmp-path",     lazy = true },
+      { "hrsh7th/cmp-nvim-lua", lazy = true },
     },
     config = function()
       local cmp = require("cmp")
@@ -51,10 +33,10 @@ local specs = {
           ["<C-f>"] = cmp.mapping.scroll_docs(4),
           ["<C-Space>"] = cmp.mapping.complete(),
           ["<C-e>"] = cmp.mapping.close(),
-          ["<C-y>"] = cmp.mapping.confirm {
+          ["<C-y>"] = cmp.mapping.confirm({
             behavior = cmp.ConfirmBehavior.Insert,
             select = true,
-          },
+          }),
           ["<CR>"] = cmp.mapping.confirm({
             behavior = cmp.ConfirmBehavior.Replace,
           }),
@@ -77,7 +59,7 @@ local specs = {
           { name = "nvim_lsp" },
           { name = "nvim_lua" },
           { name = "path" },
-          { name = "buffer",  keyword_length = 5 },
+          { name = "buffer", keyword_length = 5 },
         },
         view = {
           entries = "custom",
@@ -86,186 +68,89 @@ local specs = {
     end,
   },
 
-
   {
-    'windwp/nvim-autopairs',
+    "windwp/nvim-autopairs",
     event = "InsertEnter",
-    config = true,
-    init = function()
-      local Rule = require('nvim-autopairs.rule')
+    config = function()
       local npairs = require("nvim-autopairs")
+      local Rule = require("nvim-autopairs.rule")
+      npairs.setup({})
       npairs.remove_rule("`")
-      npairs.add_rule(Rule("```", "```", {"markdown", "conf", "text", "gitcommit"}))
+      npairs.add_rule(Rule("```", "```", { "markdown", "conf", "text", "gitcommit" }))
     end,
   },
 
   {
     "folke/which-key.nvim",
     event = "VeryLazy",
-    opts = {},
-  },
-
-  {
-    "folke/trouble.nvim",
-    cmd = "Trouble",
-    opts = {},
-    keys = {
-      {
-        "<leader>txx",
-        "<cmd>Trouble diagnostics toggle<cr>",
-        desc = "Diagnostics (Trouble)",
-      },
-      {
-        "<leader>txX",
-        "<cmd>Trouble diagnostics toggle filter.buf=0<cr>",
-        desc = "Buffer Diagnostics (Trouble)",
-      },
-      {
-        "<leader>tcs",
-        "<cmd>Trouble symbols toggle focus=false<cr>",
-        desc = "Symbols (Trouble)",
-      },
-      {
-        "<leader>tcl",
-        "<cmd>Trouble lsp toggle focus=false win.position=right<cr>",
-        desc = "LSP Definitions / references / ... (Trouble)",
-      },
-      {
-        "<leader>txL",
-        "<cmd>Trouble loclist toggle<cr>",
-        desc = "Location List (Trouble)",
-      },
-      {
-        "<leader>txQ",
-        "<cmd>Trouble qflist toggle<cr>",
-        desc = "Quickfix List (Trouble)",
+    opts = {
+      spec = {
+        { "<Leader>f", group = "find" },
+        { "<Leader>c", group = "comment" },
+        { "<Leader>a", group = "LSP" },
+        { "<Leader>aw", group = "workspace" },
+        { "<Leader>ac", group = "code" },
+        { "<localleader>e", group = "edit" },
+        { "<localleader>b", group = "buffers" },
+        { "<localleader>q", group = "config" },
+        { "<localleader>r", group = "reload" },
+        { "<localleader>t", group = "tabs" },
       },
     },
   },
 
-  { "tpope/vim-commentary" },
-  { "tpope/vim-repeat" },
   {
     "kylechui/nvim-surround",
     version = "*",
     event = "VeryLazy",
     config = function()
-      require("nvim-surround").setup({
-        -- Configuration here, or leave empty to use defaults
-      })
+      require("nvim-surround").setup({})
     end,
   },
-
 
   {
     "nvim-lualine/lualine.nvim",
-    dependencies = { "kyazdani42/nvim-web-devicons" },
     config = function()
       local onelight = require("lualine.themes.onelight")
-
       require("lualine").setup({
         options = {
           theme = onelight,
+          icons_enabled = false,
         },
         sections = {
-          lualine_b = {
-            "diff"
-          },
+          lualine_b = { "diff" },
           lualine_c = {
-            {
-              "filename",
-              path = 1,
-            },
+            { "filename", path = 1 },
           },
-          lualine_x = { 'encoding', 'filetype' }
+          lualine_x = { "encoding", "filetype" },
         },
       })
-    end,
-  },
-
-  {
-    "kyazdani42/nvim-tree.lua",
-    dependencies = { "kyazdani42/nvim-web-devicons", "folke/which-key.nvim" },
-    config = function()
-      require("nvim-tree").setup({
-        view = {
-          adaptive_size = true,
-        },
-        actions = {
-          open_file = {
-            window_picker = {
-              enable = false,
-            },
-          },
-        },
-      })
-      local wk = require("which-key")
-      wk.add(
-        {
-          { "<localleader>f",  group = " file tree" },
-          { "<localleader>fc", ":NvimTreeFindFile<CR>", desc = "show current" },
-          { "<localleader>ff", ":NvimTreeFocus<CR>",    desc = "focus tree" },
-          { "<localleader>fh", ":NvimTreeCollapse<CR>", desc = "collapse (hide) folder" },
-          { "<localleader>ft", ":NvimTreeToggle<CR>",   desc = "show tree" },
-        }
-      )
     end,
   },
 
   {
     url = "https://codeberg.org/andyg/leap.nvim",
-    event = "VeryLazy",  -- lazy: loaded just after startup (flit pulls it in too)
+    event = "VeryLazy",
     config = function()
       local leap = require("leap")
-      vim.keymap.set({'n', 'x', 'o'}, 's', function ()
-          leap.leap {}
+      vim.keymap.set({ "n", "x", "o" }, "s", function()
+        leap.leap({})
       end)
-      vim.keymap.set({'n', 'x', 'o'}, 'S', function ()
-          leap.leap {backward = true}
+      vim.keymap.set({ "n", "x", "o" }, "S", function()
+        leap.leap({ backward = true })
       end)
-      leap.opts.equivalence_classes = { ' \t\r\n', '([{', ')]}', '\'"`' }
-    end
+      leap.opts.equivalence_classes = { " \t\r\n", "([{", ")]}", "'\"`" }
+    end,
   },
   {
     "ggandor/flit.nvim",
-    event = "VeryLazy",  -- lazy: keep in sync with leap (flit.setup requires leap)
+    event = "VeryLazy",
     config = function()
-      -- flit still passes the removed `case_sensitive = true` into leap, which
-      -- now only emits a deprecation warning (leap ignores the flag; case
-      -- sensitivity is driven by `vim_opts['go.ignorecase']`). flit merges its
-      -- opts with 'keep', so ours win: set `case_sensitive = false` to silence
-      -- the warning, and restore the old native case-sensitive f/t via leap's
-      -- new per-call vim_opts mechanism (we run ignorecase+smartcase globally,
-      -- which would otherwise silently make f/t smart-case).
       require("flit").setup({
-        -- Keep pressing the trigger key (f/F/t/T) to jump to the next/prev
-        -- match instead of needing `;`/`,`.
         clever_repeat = true,
         opts = {
           case_sensitive = false,
           vim_opts = { ["go.ignorecase"] = false },
-        },
-      })
-    end
-  },
-
-  { "mechatroner/rainbow_csv" },
-
-  {
-    "folke/paint.nvim",
-    config = function()
-      require("paint").setup({
-        ---@type PaintHighlight[]
-        highlights = {
-          {
-
-            -- filter can be a table of buffer options that should match,
-            -- or a function called with buf as param that should return true.
-            -- any use of @nocommit will become colored red
-            filter = function() return true end,
-            pattern = "@nocommit.*",
-            hl = "Todo",
-          },
         },
       })
     end,
@@ -273,69 +158,39 @@ local specs = {
 
   {
     "folke/persistence.nvim",
-    event = "BufReadPre", -- this will only start session saving when an actual file was opened
+    event = "BufReadPre",
     opts = {},
   },
 
-  { "powerman/vim-plugin-AnsiEsc" },
-
-  -- Open alternative files for the current buffer
   {
-    "rgroli/other.nvim",
-    config = function()
-      require("other-nvim").setup({})
-    end,
-  },
-
-  {
-    "gbprod/yanky.nvim",
-    config = function()
-      require("yanky").setup({})
-      vim.keymap.set({ "n", "x" }, "p", "<Plug>(YankyPutAfter)")
-      vim.keymap.set({ "n", "x" }, "P", "<Plug>(YankyPutBefore)")
-      vim.keymap.set({ "n", "x" }, "gp", "<Plug>(YankyGPutAfter)")
-      vim.keymap.set({ "n", "x" }, "gP", "<Plug>(YankyGPutBefore)")
-      vim.keymap.set("n", "<c-n>", "<Plug>(YankyCycleForward)")
-      vim.keymap.set("n", "<c-p>", "<Plug>(YankyCycleBackward)")
-    end,
-  },
-  {
-    'stevearc/oil.nvim',
-    ---@module 'oil'
-    ---@type oil.SetupOpts
-    opts = {},
-    dependencies = { "kyazdani42/nvim-web-devicons" },
-    cmd = "Oil",
-    keys = { { "-", "<cmd>Oil<CR>", desc = "Open parent dir (oil)" } },
+    "MeanderingProgrammer/render-markdown.nvim",
+    lazy = true,
     init = function()
-      -- Keep `nvim <dir>` opening oil (netrw hijack) without loading oil at
-      -- startup for normal file edits: only pull it in when the sole argument
-      -- is a directory.
-      if vim.fn.argc(-1) == 1 then
-        local stat = (vim.uv or vim.loop).fs_stat(vim.fn.argv(0))
-        if stat and stat.type == "directory" then require("oil") end
-      end
+      -- Load asynchronously after the markdown buffer paints so Ctrl-G prompt
+      -- edits open instantly and markdown rendering pops in ~15ms later.
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "markdown",
+        once = true,
+        callback = function()
+          vim.defer_fn(function()
+            require("lazy").load({ plugins = { "render-markdown.nvim" } })
+          end, 15)
+        end,
+      })
     end,
-  },
-
-
-  {
-    'MeanderingProgrammer/render-markdown.nvim',
-    dependencies = { 'nvim-treesitter/nvim-treesitter', 'echasnovski/mini.nvim' },
     ---@module 'render-markdown'
     ---@type render.md.UserConfig
     opts = {
       code = {
         conceal_delimiters = false,
-        border = 'none',
+        border = "none",
         language = false,
       },
       bullet = {
-        icons = { '•', '◦', '•', '◦' },
+        icons = { "•", "◦", "•", "◦" },
       },
     },
   },
-
 }
 
 return specs
