@@ -606,22 +606,6 @@ function M:action(name)
 
         current_action = name
 
-        -- Already exiting? Then skhd switched mode itself (a `; default`
-        -- binding fires skhdExit) and our skhdAction simply lost the race:
-        -- two backgrounded `open -g` calls, order down to scheduling. exit()
-        -- leaves current_mode set until hide() runs DONE_HOLD+FADE_DURATION
-        -- later, so the guard above does not catch this and we would repaint
-        -- the bar with no "Done" pill -- the action name visibly REPLACING
-        -- "Done". Redraw with the pill instead, and leave the fade alone, so
-        -- both arrival orders end at: mode > action > Done.
-        if fade_timer then
-            if not cv_bar then return end
-            local path = build_breadcrumb_path(current_mode)
-            cv_bar:delete()
-            cv_bar = build_bar(path, "Done", current_action)
-            return
-        end
-
         -- Reset options timer — each keypress restarts the delay
         if options_timer then options_timer:stop(); options_timer = nil end
         if cv_options then cv_options:delete(); cv_options = nil end
