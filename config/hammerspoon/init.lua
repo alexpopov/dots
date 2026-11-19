@@ -19,6 +19,7 @@ alex = require("alex")
 gridOverlay = require("alex.grid_overlay")
 skhdUI = require("alex.skhd_ui")
 errorAlert = require("alex.error_alert")
+wrap = require("alex.wrap")
 
 function getCurrentApp()
   return hs.application.frontmostApplication()
@@ -133,6 +134,8 @@ alp.actions = {
     end,
   },
 }
+
+alp.wrap80 = function() wrap.selection(80) end
 
 alp.shortcuts = {
   ["Google Chrome"] = {

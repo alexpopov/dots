@@ -209,6 +209,10 @@ m_actions < t [
 "Google Chrome" : alert.sh simple "New Tab After"; yabai_utils.sh run_hs 'alp.actions.chrome.newTabAfterCurrent()' back_to_default
 ]
 
+# Replaces the "Wrap @ 80" Automator service (1.5-2.5s of Automator startup
+# for a 5ms `fold`). In-process in Hammerspoon instead.
+m_actions < w : yabai_utils.sh run_hs 'alp.wrap80()' back_to_default
+
 m_actions < d : yabai_utils.sh dock show back_to_default
 m_actions < shift - d : yabai_utils.sh dock hide back_to_default
 
