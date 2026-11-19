@@ -91,3 +91,6 @@ tags
 
 # pi/fabric runtime state written into the cwd
 .pi/
+
+# Claude Code per-project state (settings.local.json is machine-local by design)
+.claude/
