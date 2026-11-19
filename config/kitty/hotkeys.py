@@ -1078,8 +1078,9 @@ def _bi_pick(action, rc, target, fd=None, bg=None):
     together once queued). Assignment walks the screen bottom-up, so the
     shortest//easiest labels land on the most recent output.
 
-    `copy` yields hit.text -- the D-number for an artifact, the full URL for a
-    link. Deliberately not hit.tok, which is truncated for display."""
+    Both verbs put hit.text on the clipboard -- the D-number for an artifact,
+    the full URL for a link; `open` copies as well as opening, with no way to
+    turn that off. Deliberately not hit.tok, which is truncated for display."""
     multi = bool(action.get("multi"))
     what = action.get("what", "all")
     copying = action.get("do", "open") == "copy"
@@ -1088,14 +1089,21 @@ def _bi_pick(action, rc, target, fd=None, bg=None):
     if target is None:
         return "\u26a0 couldn't find the terminal window"
 
-    def act_on(picks):
-        if not copying:
-            _open_urls([h.url for h in picks], background=True)
-            return True
+    def act_on(picks, background=True):
         payload = sep.join(h.text for h in picks)
-        if not _set_clipboard(payload):
-            return False
-        log(f"copied {len(picks)} hit(s): {payload[:120]!r}")
+        if copying:
+            if not _set_clipboard(payload):
+                return False
+            log(f"copied {len(picks)} hit(s): {payload[:120]!r}")
+            return True
+        if len(picks) == 1 and not background:
+            _open_hit(picks[0])
+        else:
+            _open_urls([h.url for h in picks], background=True)
+        # Opening copies the ref as well, always. Best effort by design: the
+        # browser is already on its way, so a clipboard failure here must not
+        # turn a successful open into an error.
+        _set_clipboard(payload)
         return True
     cols, rows = _term_size()
     hits = _scan_hits(_screen_lines(rc, target), cols,
@@ -1169,7 +1177,7 @@ def _bi_pick(action, rc, target, fd=None, bg=None):
             if not multi:
                 if copying:
                     return _CLOSE if act_on([h]) else "\u26a0 clipboard unavailable"
-                _open_hit(h)
+                act_on([h], background=False)
                 return _CLOSE
             if typed not in picked:             # queue it; opened together on esc
                 picked.add(typed)
