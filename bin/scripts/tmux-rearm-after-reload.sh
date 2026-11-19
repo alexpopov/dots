@@ -10,6 +10,6 @@
 #   3. Re-apply the gold-bold active-tab style (same clobber reason).
 sleep 8
 tmux show -gqv status-right | grep -q continuum_save || tmux set-option -g status-right "#(~/.tmux/plugins/tmux-continuum/scripts/continuum_save.sh)$(tmux show -gqv status-right)"
-tmux set-option -g message-style "fg=white,bg=#004796,fill=#004796"
-tmux set-option -g message-command-style "fg=white,bg=#004796,fill=#004796"
+tmux set-option -g message-style "fg=white,bg=#193549,fill=#193549"
+tmux set-option -g message-command-style "fg=white,bg=#193549,fill=#193549"
 tmux set-option -gw window-status-current-style "fg=#193549,bg=#FFBE33,bold"
