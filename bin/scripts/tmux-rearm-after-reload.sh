@@ -9,6 +9,11 @@
 #      theme Apply overwrites them without fill on reload).
 #   3. Re-apply the gold-bold active-tab style (same clobber reason).
 sleep 8
+# Fresh hosts (new OnDemand) may not have tpm plugins installed yet — in
+# that case continuum_save.sh doesn't exist and installing the hook would
+# point every status redraw at a missing file. Bail quietly; a later reload
+# (after prefix+I installs plugins) will arm it.
+[ -x "$HOME/.tmux/plugins/tmux-continuum/scripts/continuum_save.sh" ] || exit 0
 tmux show -gqv status-right | grep -q continuum_save || tmux set-option -g status-right "#(~/.tmux/plugins/tmux-continuum/scripts/continuum_save.sh)$(tmux show -gqv status-right)"
 tmux set-option -g message-style "fg=white,bg=#193549,fill=#193549"
 tmux set-option -g message-command-style "fg=white,bg=#193549,fill=#193549"
