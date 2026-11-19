@@ -127,7 +127,7 @@ MODES = {
             "f": ("Font",                go("font")),
             ",": ("rename tab",          ask("New tab title", rc("set-tab-title"))),
             "y": ("yank ref / link",     copy_pick()),
-            "Y": ("Copy",                go("copy")),
+            "Y": ("Yank Menu…",          go("copy")),
             "o": ("open link/diff/task ↗",      open_artifact()),
             "O": ("open many links/diffs ↗",    open_artifact(multi=True)),
             "u": ("open URL only ↗",            open_artifact(what="links")),
@@ -160,7 +160,7 @@ MODES = {
     },
 
     "copy": {
-        "title": "Copy",
+        "title": "Yank",
         "keys": {
             "y": ("last command + output", copy("cmd_output")),
             "o": ("last output only",      copy("output")),
