@@ -41,8 +41,9 @@ cask "keymapp"              # ZSA keyboard config (Wally has no cask)
 
 # terminals (all have configs in dots/config)
 cask "kitty"
-cask "ghostty"
 cask "iterm2"
+# ghostty: removed Nov 2026 (uninstalled; kitty is the daily driver). Config
+# still lives in dots/config/ghostty if it ever comes back.
 # wezterm: the stable cask is pinned to a 2024 build and refuses to install
 # over a newer WezTerm.app ("bundle short version ... is 0.1.0"), which is
 # exactly what a provisioned Mac has. Use `brew install --cask wezterm@nightly`
@@ -54,9 +55,8 @@ cask "iterm2"
 # needs sudo and fights the thing that keeps it patched. bootstrap.sh installs
 # it only on a personal Mac that does not already have it.
 cask "android-studio"
-cask "intellij-idea"
 cask "cyberduck"
-cask "figma"
+# intellij-idea, figma: removed Nov 2026, unused.
 
 # personal
 cask "anki"
