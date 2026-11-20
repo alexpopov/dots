@@ -82,8 +82,22 @@ function _log_btw {
   echo -e "${color_grey}BTW:  ${color_reset}$1${color_reset}"
 }
 
+_BOOTSTRAP_CAVEATS=()
+
 function _log_warn {
   echo -e "${color_yellow}WARN: ${color_reset}$1${color_reset}"
+  _BOOTSTRAP_CAVEATS+=("$1")
+}
+
+# Everything _log_warn said, repeated at the end where it is still on screen.
+function print_caveats {
+  (( ${#_BOOTSTRAP_CAVEATS[@]} )) || return 0
+  echo
+  echo -e "${color_yellow}Caveats (${#_BOOTSTRAP_CAVEATS[@]}):${color_reset}"
+  local c
+  for c in "${_BOOTSTRAP_CAVEATS[@]}"; do
+    echo -e "  ${color_yellow}-${color_reset} $c${color_reset}"
+  done
 }
 
 function _install_package {
@@ -822,8 +836,17 @@ function install_brew_bundle {
   # --verbose: stream brew's own output (downloads, pkg installers, sudo
   # prompts). Without it bundle prints "Installing <cask>" and then nothing
   # until that cask is done, which looks like a hang.
-  HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade --verbose \
-    || _log_warn "Some Brewfile entries failed; see ${color_blue}brew bundle check --file=$brewfile --verbose"
+  local bundle_log
+  bundle_log=$(mktemp)
+  HOMEBREW_CASK_OPTS="--adopt" brew bundle install --file="$brewfile" --no-upgrade --verbose 2>&1 | tee "$bundle_log"
+  if grep -q '^Failed to install' "$bundle_log"; then
+    local line
+    while IFS= read -r line; do
+      _log_warn "brew: $line"
+    done < <(grep '^Failed to install\|^Run `brew trust' "$bundle_log")
+    _log_warn "Re-check with ${color_blue}brew bundle check --file=$brewfile --verbose"
+  fi
+  rm -f "$bundle_log"
 
   _install_google_chrome
 
@@ -1244,8 +1267,11 @@ function ensure_homebrew {
     || { _fail_error "${color_blue}brew${color_reset} still not on PATH after shellenv"; return 1; }
 }
 
+# Things 3 is App-Store-only, so brew can't get it; only nag if it's missing.
+is_mac && [[ ! -d /Applications/Things3.app ]] \
+  && _log_warn "Install ${color_blue}Things 3${color_reset} from the Mac App Store (no brew cask)"
+
 TODOs=(
-  "Mac App Store apps still need a human: Things 3, MindNode, Final Cut Pro"
   "File with platform-specific TODOs and only print per platform"
   "Use tuned on Fedora to use less power?"
 )
@@ -1336,3 +1362,5 @@ _log_info "Bootstrapping complete! 🎉 "
 if is_wsl; then
   _log_warn "You're running in WSL! Run ${color_blue}~/dots/bootstrap_windows.sh${color_reset} to set up Windows apps and WSL extras."
 fi
+
+print_caveats
