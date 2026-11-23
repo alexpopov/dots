@@ -99,16 +99,15 @@ main() {
   local saved_sessions live_sessions
   saved_sessions="$(awk -F'\t' '$1=="pane" || $1=="window" {print $2}' "$last_file" 2>/dev/null | sort -u)"
   live_sessions="$(tmux list-sessions -F '#{session_name}' 2>/dev/null)"
-  local s
-  while IFS= read -r s; do
-    [ -n "$s" ] || continue
-    if printf '%s\n' "$live_sessions" | grep -qxF "$s"; then
-      log "fallback: no-op, saved session '$s' already exists (server $sid)"
-      exit 0
-    fi
-  done <<EOF
-$saved_sessions
-EOF
+
+  # NB: there used to be a "bail if any saved session name is already live"
+  # check here. It made the fallback useless in the most common case: a plain
+  # `tmux` creates session "0", and any save taken while an ad-hoc unnamed
+  # session existed contains a session "0" too, so the fallback always
+  # no-op'd (23 Nov 2026, 09:47). It was also redundant -- the from-scratch
+  # test below (exactly one session, exactly one pane) already proves nothing
+  # of the user's is at risk, and resurrect restores into an existing session
+  # of the same name just fine.
 
   # From-scratch state only: exactly one session holding exactly one pane.
   # If continuum is mid-restore, or the user has already worked in the
