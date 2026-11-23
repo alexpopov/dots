@@ -16,14 +16,16 @@
 client="$1"
 if [ "$2" != --in-popup ]; then
   exec tmux display-popup ${client:+-c "$client"} -E -w 70% -h 60% -b rounded \
-    -T "#[align=centre] windows " "'$0' '$client' --in-popup"
+    -s "bg=#193549,fg=white" -S "fg=#007EF8,bg=#193549" \
+    -T "#[align=centre,fg=#32D330,bold] windows " "'$0' '$client' --in-popup"
 fi
 
-yellow=$(printf '\033[33m'); dim=$(printf '\033[2m'); off=$(printf '\033[0m')
+pink=$(printf '\033[38;2;255;86;129m'); dim=$(printf '\033[2m'); off=$(printf '\033[0m')
 
 # Field 1 (hidden) is the target; fzf shows and searches the rest.
-sel=$(tmux list-windows -a -F "#{session_name}:#{window_index}	#{?#{P:#{@agent_waiting}},${yellow}●${off}, }#{?#{&&:#{window_active},#{session_attached}},*, } #{p6:#{session_name}:#{window_index}}#{p24:#{=/22/…:window_name}}${dim}#{s|^$HOME|~|:pane_current_path}${off}" |
+sel=$(tmux list-windows -a -F "#{session_name}:#{window_index}	#{?#{P:#{@agent_waiting}},${pink}●${off}, }#{?#{&&:#{window_active},#{session_attached}},*, } #{p6:#{session_name}:#{window_index}}#{p24:#{=/22/…:window_name}}${dim}#{s|^$HOME|~|:pane_current_path}${off}" |
   fzf --ansi --delimiter='	' --with-nth=2.. --reverse --no-info --no-scrollbar \
+      --color='bg:#193549,fg:#ffffff,bg+:#FFBE33,fg+:#193549,hl:#32D330,hl+:#004796,prompt:#32D330,pointer:#193549,gutter:#193549,query:#ffffff:bold' \
       --prompt='window> ' --pointer='▶' --padding=0,1 --cycle) || exit 0
 
 tmux switch-client ${client:+-c "$client"} -t "${sel%%	*}"
