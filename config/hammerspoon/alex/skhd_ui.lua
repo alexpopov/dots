@@ -176,7 +176,20 @@ local SLOT_RADIUS    = S(6)       -- inner slot corners (smaller than bar)
 local SLOT_PAD_X     = S(4)       -- slot edge → first/last block (horizontal)
 local SLOT_PAD_Y     = S(4)       -- slot edge → block top/bottom (vertical)
 local BLOCK_TEXT_PAD = S(16)      -- text padding inside each block (horizontal)
-local TEXT_NUDGE_Y   = S(2)       -- text vertical offset within block (+ = down)
+-- hs.canvas draws text at the TOP of its frame, so text is centred vertically
+-- from its measured glyph height (vcenter() below) rather than a fixed nudge.
+-- TEXT_NUDGE_Y remains as a manual tweak on top of that; 0 = true centre.
+local TEXT_NUDGE_Y   = 0          -- extra vertical offset within block (+ = down)
+
+-- Vertically centre a styled text inside a box of height `box_h` starting at
+-- `top`. Returns the frame's y and h. hs.canvas top-aligns text within its
+-- frame, so without this everything sits high in its block.
+-- NOTE: must be defined AFTER TEXT_NUDGE_Y, or it closes over a nil global.
+local function vcenter(st, top, box_h)
+    local _, th = measure_text(st)
+    if th <= 0 or th > box_h then return top + TEXT_NUDGE_Y, box_h - TEXT_NUDGE_Y end
+    return top + (box_h - th) / 2 + TEXT_NUDGE_Y, th
+end
 local BAR_HEIGHT     = S(44)
 local BLOCK_RADIUS   = S(4)       -- block corners (smallest)
 local BLOCK_GAP      = S(4)       -- gap between blocks
@@ -346,15 +359,12 @@ local function build_bar(path, done_text, action_text, done_color)
             roundedRectRadii = { xRadius = BLOCK_RADIUS, yRadius = BLOCK_RADIUS },
         })
 
+        local block_st = make_block_text(label)
+        local bty, bth = vcenter(block_st, by, block_h)
         cv:appendElements({
             type = "text",
-            text = make_block_text(label),
-            frame = {
-                x = bx,
-                y = by + TEXT_NUDGE_Y,
-                w = bw,
-                h = block_h - TEXT_NUDGE_Y,
-            },
+            text = block_st,
+            frame = { x = bx, y = bty, w = bw, h = bth },
         })
 
         bx = bx + bw + BLOCK_GAP
@@ -376,15 +386,11 @@ local function build_bar(path, done_text, action_text, done_color)
             color = ACTION_TEXT_CLR,
             paragraphStyle = { alignment = "center", lineBreakMode = "truncatingTail" },
         })
+        local aty, ath = vcenter(action_st, by, block_h)
         cv:appendElements({
             type = "text",
             text = action_st,
-            frame = {
-                x = bx,
-                y = by + TEXT_NUDGE_Y,
-                w = action_block_w,
-                h = block_h - TEXT_NUDGE_Y,
-            },
+            frame = { x = bx, y = aty, w = action_block_w, h = ath },
         })
 
         bx = bx + action_block_w + BLOCK_GAP
@@ -406,15 +412,11 @@ local function build_bar(path, done_text, action_text, done_color)
             color = DONE_TEXT_CLR,
             paragraphStyle = { alignment = "center", lineBreakMode = "truncatingTail" },
         })
+        local dty, dth = vcenter(done_st, by, block_h)
         cv:appendElements({
             type = "text",
             text = done_st,
-            frame = {
-                x = bx,
-                y = by + TEXT_NUDGE_Y,
-                w = done_block_w,
-                h = block_h - TEXT_NUDGE_Y,
-            },
+            frame = { x = bx, y = dty, w = done_block_w, h = dth },
         })
     end
 
@@ -480,24 +482,21 @@ local function build_options(bar_w, bar_bottom)
             paragraphStyle = { lineBreakMode = "truncatingTail" },
         })
 
+        local kty, kth = vcenter(key_st, row_y, OPT_ROW_H)
         cv:appendElements({
             type = "text",
             text = key_st,
-            frame = {
-                x = OPT_PAD,
-                y = row_y + TEXT_NUDGE_Y,
-                w = KEY_COL_W,
-                h = OPT_ROW_H - TEXT_NUDGE_Y,
-            },
+            frame = { x = OPT_PAD, y = kty, w = KEY_COL_W, h = kth },
         })
+        local dsy, dsh = vcenter(desc_st, row_y, OPT_ROW_H)
         cv:appendElements({
             type = "text",
             text = desc_st,
             frame = {
                 x = OPT_PAD + KEY_COL_W,
-                y = row_y + TEXT_NUDGE_Y,
+                y = dsy,
                 w = opt_w - OPT_PAD - KEY_COL_W - OPT_PAD,
-                h = OPT_ROW_H - TEXT_NUDGE_Y,
+                h = dsh,
             },
         })
 
