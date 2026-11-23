@@ -75,8 +75,18 @@ cmd_arm() {
     log "arm: same server $now, halt file left in place"
     exit 0
   fi
+  # New server: pin the save we booted with. If the restore then misses,
+  # continuum's first periodic save (15 min later) overwrites `last` with
+  # the empty starter state and the only pointer to the good save is gone
+  # (23 Nov 2026: restore skipped, 09:19 save lost at 10:17, recovered only
+  # because a copy happened to be in /tmp). This pointer survives that.
+  #   recover with: ln -sf "$(cat <resurrect-dir>/last-prerestore)" <dir>/last
+  local rdir; rdir="$(resurrect_dir)"
+  if [ -L "$rdir/last" ]; then
+    readlink "$rdir/last" > "$rdir/last-prerestore"
+  fi
   rm -f "$HALT_FILE"
-  log "arm: new server $now (prev: ${prev:-none}), halt file removed"
+  log "arm: new server $now (prev: ${prev:-none}), halt file removed, pinned $(cat "$rdir/last-prerestore" 2>/dev/null || echo none)"
 }
 
 cmd_done() {
