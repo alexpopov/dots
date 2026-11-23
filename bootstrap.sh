@@ -435,11 +435,20 @@ function setup_neovim_venv {
     fi
   fi
 
-  # Create venv if it doesn't exist
-  if [[ ! -d "$nvim_venv_path" ]]; then
-    _log_info "Creating neovim Python virtual environment using ${color_blue}$python_bin"
+  # Create the venv if it doesn't exist -- or if its interpreter is dead.
+  # A venv's bin/python3 is a symlink into a specific Cellar version, so a
+  # Homebrew minor bump (python@3.14 -> python@3.15, Nov 2026) leaves the
+  # directory there with every symlink dangling. Testing for the directory
+  # alone declared that "already created" forever and nvim stayed broken
+  # ("WARNING: NVIM_PYTHON set but invalid"), so test the interpreter.
+  if ! "$nvim_venv_path/bin/python3" -c pass >/dev/null 2>&1; then
+    if [[ -d "$nvim_venv_path" ]]; then
+      _log_warn "nvim venv interpreter is dead (Python upgrade?) - recreating with ${color_blue}$python_bin"
+    else
+      _log_info "Creating neovim Python virtual environment using ${color_blue}$python_bin"
+    fi
     mkdir -p "$HOME/.local/virtualenvs"
-    "$python_bin" -m venv "$nvim_venv_path"
+    "$python_bin" -m venv --clear "$nvim_venv_path"
   else
     _log_btw "Already created: ${color_blue}nvim virtual env${color_reset}. Skipping!"
   fi

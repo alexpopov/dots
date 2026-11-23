@@ -80,13 +80,15 @@ cmd_arm() {
   # the empty starter state and the only pointer to the good save is gone
   # (23 Nov 2026: restore skipped, 09:19 save lost at 10:17, recovered only
   # because a copy happened to be in /tmp). This pointer survives that.
-  #   recover with: ln -sf "$(cat <resurrect-dir>/last-prerestore)" <dir>/last
-  local rdir; rdir="$(resurrect_dir)"
-  if [ -L "$rdir/last" ]; then
-    readlink "$rdir/last" > "$rdir/last-prerestore"
-  fi
+  #   recover with: ln -sf "$(cat <resurrect-dir>/last.prerestore)" <dir>/last
+  # pi-sessions_last.txt is the same story: the hints for which pi session
+  # belonged in which pane get replaced by the starter state's two panes.
+  local rdir f; rdir="$(resurrect_dir)"
+  for f in last pi-sessions_last.txt; do
+    [ -L "$rdir/$f" ] && readlink "$rdir/$f" > "$rdir/$f.prerestore"
+  done
   rm -f "$HALT_FILE"
-  log "arm: new server $now (prev: ${prev:-none}), halt file removed, pinned $(cat "$rdir/last-prerestore" 2>/dev/null || echo none)"
+  log "arm: new server $now (prev: ${prev:-none}), halt file removed, pinned $(cat "$rdir/last.prerestore" 2>/dev/null || echo none)"
 }
 
 cmd_done() {
