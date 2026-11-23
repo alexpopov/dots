@@ -46,8 +46,10 @@ local function S(n) return math.floor(n * SCALE) end
 
 local ERROR_RED       = { red = 0.78, green = 0.28, blue = 0.28 }
 local ERROR_TEXT_CLR  = { white = 1.0 }
-local PANEL_BG        = { white = 0.91, alpha = 0.97 }  -- skhd_ui OUTSIDE_COLOR
-local DETAIL_TEXT_CLR = { white = 0.35 }                -- ~skhd_ui DESC_CLR
+-- The detail panel is the same red as the pill, with white text, so the two
+-- read as one card rather than a red pill bolted onto a grey skhd_ui panel.
+local PANEL_BG        = ERROR_RED
+local DETAIL_TEXT_CLR = ERROR_TEXT_CLR
 
 -- ---------------------------------------------------------------------------
 -- Layout
@@ -58,14 +60,15 @@ local PILL_RADIUS    = S(8)
 local PILL_TEXT_PAD  = S(18)
 local PILL_FONT_SZ   = S(18)
 local PILL_MIN_W     = S(160)
-local PILL_NUDGE_Y   = S(2)
+-- (no manual nudge: pill text is centred from its measured height)
 
 local DETAIL_GAP     = S(6)       -- pill bottom -> panel top (skhd_ui OPT_GAP)
 local DETAIL_PAD     = S(14)      -- skhd_ui OPT_PAD
 local DETAIL_RADIUS  = S(10)      -- skhd_ui OPT_RADIUS
 local DETAIL_FONT_SZ = S(12)      -- skhd_ui OPT_FONT_SZ
 local DETAIL_LINE_H  = S(17)
-local DETAIL_MAX_W   = S(460)     -- wrap beyond this
+local DETAIL_MAX_W   = S(460)     -- wrap detail text beyond this
+local CARD_MAX_W     = DETAIL_MAX_W + 2 * S(14)   -- hard cap on the card width
 
 local Y_RATIO        = 0.30       -- skhd_ui's bar sits at 0.38
 
@@ -118,13 +121,17 @@ local function detail_text(s)
     return styledtext.new(s, {
         font  = { name = ".AppleSystemUIFont", size = DETAIL_FONT_SZ },
         color = DETAIL_TEXT_CLR,
-        paragraphStyle = { alignment = "left", lineBreakMode = "clip" },
+        -- centred so the detail lines up under the pill title
+        paragraphStyle = { alignment = "center", lineBreakMode = "clip" },
     })
 end
 
+-- returns width, height -- height is needed to centre text vertically, since
+-- hs.canvas draws text at the TOP of its frame, not the middle.
 local function measure(st)
     local size = drawing.getTextDrawingSize(st)
-    return size and size.w or 0
+    if not size then return 0, 0 end
+    return size.w or 0, size.h or 0
 end
 
 -- Greedy word wrap. getTextDrawingSize only reports a string's natural width,
@@ -155,9 +162,10 @@ end
 -- Build
 -- ---------------------------------------------------------------------------
 
-local function build_pill(title)
+-- build_pill(title, w) -- w is the shared card width, computed by the caller
+-- so the pill and the detail panel are always exactly the same width.
+local function build_pill(title, w)
     local st = pill_text(title)
-    local w  = math.max(PILL_MIN_W, measure(st) + 2 * PILL_TEXT_PAD)
     local x, y = origin_for(w)
 
     local cv = canvas.new({ x = x, y = y, w = w, h = PILL_H })
@@ -171,27 +179,22 @@ local function build_pill(title)
         roundedRectRadii = { xRadius = PILL_RADIUS, yRadius = PILL_RADIUS },
     })
 
+    -- hs.canvas draws text at the TOP of its frame, so centre it ourselves
+    -- from the measured glyph height instead of a hand-tuned nudge.
+    local _, th = measure(st)
     cv:appendElements({
         type = "text", text = st,
-        frame = { x = 0, y = PILL_NUDGE_Y, w = w, h = PILL_H - PILL_NUDGE_Y },
+        frame = { x = 0, y = (PILL_H - th) / 2, w = w, h = th },
     })
 
     cv:show()
-    return cv, w, y + PILL_H
+    return cv, y + PILL_H
 end
 
-local function build_detail(msg, pill_w, top_y)
-    if msg == nil or msg == "" then return nil end
+-- build_detail(msg, w, top_y) -- w is the shared card width, already decided.
+local function build_detail(msg, lines, w, top_y)
+    if msg == nil or msg == "" or lines == nil then return nil end
 
-    local lines = wrap_detail(msg, DETAIL_MAX_W)
-
-    local widest = 0
-    for _, l in ipairs(lines) do
-        local lw = measure(detail_text(l))
-        if lw > widest then widest = lw end
-    end
-
-    local w = math.max(pill_w, widest + 2 * DETAIL_PAD)
     local h = 2 * DETAIL_PAD + #lines * DETAIL_LINE_H
 
     local x = select(1, origin_for(w))
@@ -250,11 +253,36 @@ function M:show(detail, hold, title)
 
         teardown()
 
-        local pill_w, pill_bottom
-        cv_pill, pill_w, pill_bottom = build_pill(title)
+        --
+        -- Decide ONE width for the whole card, so the pill and the detail
+        -- panel are always flush. Wrap the detail first to find its natural
+        -- width, take the wider of the two, then re-wrap if that width ended
+        -- up narrower than the longest line wanted (i.e. we hit DETAIL_MAX_W).
+        --
+        local title_w = select(1, measure(pill_text(title))) + 2 * PILL_TEXT_PAD
+
+        local lines, detail_w = nil, 0
+        if detail ~= "" then
+            lines = wrap_detail(detail, DETAIL_MAX_W)
+            for _, l in ipairs(lines) do
+                local lw = select(1, measure(detail_text(l)))
+                if lw > detail_w then detail_w = lw end
+            end
+            detail_w = detail_w + 2 * DETAIL_PAD
+        end
+
+        local card_w = math.max(PILL_MIN_W, title_w, detail_w)
+        if card_w > CARD_MAX_W then card_w = CARD_MAX_W end
+
+        if lines then
+            lines = wrap_detail(detail, card_w - 2 * DETAIL_PAD)
+        end
+
+        local pill_bottom
+        cv_pill, pill_bottom = build_pill(title, card_w)
 
         local function show_detail()
-            cv_detail = build_detail(detail, pill_w, pill_bottom)
+            cv_detail = build_detail(detail, lines, card_w, pill_bottom)
         end
 
         if DETAIL_DELAY <= 0 then
