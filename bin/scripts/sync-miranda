@@ -1,0 +1,74 @@
+#!/bin/bash
+# Mirror ~/iCloud/Books -> Public/Books for Miranda, minus the exclusions below.
+# Usage: sync-miranda       (dry run: shows what would change)
+#        sync-miranda go    (actually sync)
+set -uo pipefail  # no -e: one failed file shouldn't skip the German sync; rerun to retry
+ICLOUD="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+SRC="$ICLOUD/Books/"
+DST="$ICLOUD/Public/Books for Miranda/"
+GERMAN_SRC="$ICLOUD/Books/PDFs/German/"
+GERMAN_DST="$ICLOUD/Public/German/"
+
+[[ "${1:-}" == go ]] && DRY= || DRY=--dry-run
+
+# One pattern per line, relative to Books/. Leading / = anchored at Books root.
+# Excluded things are also DELETED from Miranda's folder if already there.
+rsync -a --delete --delete-excluded $DRY --itemize-changes \
+  --exclude-from=- "$SRC" "$DST" <<'EOF'
+.DS_Store
+/Audiobooks/
+/PDFs/
+/Pages/
+/Afanasyev, Alexander Nikolayevich/
+/Beneker;, Plutarch;Jeffrey/
+/Blanton, Brad/
+/Booth, Alan/
+/Brodsky, Joseph/
+/Browning, Christopher R_/
+/Bulgakov, Mikhail Afanasyevich/
+/Burbea, Rob/
+/Burkeman, Oliver/
+/Chekhov, Anton Pavlovich/
+/Ciardi, John/
+/Dostoevsky, Fyodor Mikhailovich/
+/Dr Daniel J. Siegel, M. D. & Dr Tina Payne Bryson, Ph.D_/
+/Ferriss, Timothy/
+/Flanagan, Tom/
+/Frankl, Viktor E_/
+/Gogol, Nikolai Vasilyevich/
+/Gorky, Maxim/
+/Haines, Steven/
+/Harchol-Balter, Mor/
+/James Fadiman, Ph.D_/
+/Kova, Elise/
+/Leffingwell, Dean/
+/Manson, Mark/
+/Peterson, Jordan B_/
+/Peterson,Jordan B_/
+/Pushkin, Alexander Sergeyevich/
+/Roth, Benjamin/
+/Rowling, Joanne K_/
+/Shan, Darren/
+/Sheckley, Robert/
+/Solzhenitsyn, Aleksandr Isayevich/
+/Strugatsky, Arkady Natanovich & Strugatsky, Boris Natanovich/
+/Tarrant, John/
+/Tolstoy, Lev Nikolayevich/
+/Wyner, Gabriel/
+/Zhukovsky, Vasily Andreyevich/
+/Colfer, Eoin/And Another Thing__/
+/Hugo, Victor/Les Misérables/
+/Poe, Edgar Allan/Poe’s Tales of Mystery and Imagination/
+/Porter, Katherine Anne/Collected Stories of Katherine Anne Porter, The/
+/Weir, Andy/Martian (Baby Edition), The/
+EOF
+
+# German course material -> its own shared folder (~15 GB, mostly audio)
+rsync -a --delete --delete-excluded $DRY --itemize-changes \
+  --exclude-from=- "$GERMAN_SRC" "$GERMAN_DST" <<'EOF'
+.DS_Store
+Thumbs.db
+desktop.ini
+/My Workbooks/
+EOF
+[[ -n "$DRY" ]] && echo "(dry run — run 'sync-miranda go' to apply)"
