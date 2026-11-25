@@ -1,23 +1,31 @@
 ---
 name: anki-recipes
-description: 'Use this skill when adding, querying, or updating cards in Alp''s Anki collection — especially the German "Deutsch: 4000 German Words by Frequency" deck. Covers the custom Grammar/Notes/Conjugation fields and their card templates, the anki MCP workflow, the schema-change → full-sync gotcha, the HTML/CSS conventions, and the content style for grammar notes.'
+description: 'Use this skill when adding, querying, or updating cards in Alp''s Anki collection — especially the German "Deutsch: 4000 German Words by Frequency" deck. Covers the custom Grammar/Notes/Conjugation fields and their card templates, the AnkiConnect helper script (anki.py), the schema-change → full-sync gotcha, the HTML/CSS conventions, and the content style for grammar notes.'
 ---
 
 # Alp's Anki
 
-For reading and enriching cards in Alp's Anki collection via the **`mcp__anki__*`** MCP server (a wrapper around the AnkiConnect add-on). Anki **desktop must be running** with AnkiConnect installed, or every call fails.
+For reading and enriching cards in Alp's Anki collection by talking to the **AnkiConnect** add-on directly (HTTP on `localhost:8765`) through **`anki.py`** in this skill's directory. No MCP server — it was removed in favour of this (full API, no connect timeouts). Anki **desktop must be running**; if a call gets "Connection refused", `open -a Anki` and retry for ~20 s.
 
-The anki MCP tools are **deferred** — load schemas with `ToolSearch` before calling, e.g.
-`ToolSearch("select:mcp__anki__findNotes,mcp__anki__notesInfo,mcp__anki__updateNoteFields,mcp__anki__sync")`.
-Commonly needed: `listDecks`, `modelNames`, `modelFieldNames`, `modelTemplates`, `modelStyling`, `findNotes`, `notesInfo`, `updateNoteFields`, `addModelField`, `updateModelTemplates`, `updateModelStyling`, `sync`.
+```bash
+A=~/.claude/skills/anki-recipes/anki.py
+python3 -I $A sync
+python3 -I $A notes 'German:einkaufen'                 # find + summarize notes in the German deck (fields, card due positions)
+python3 -I $A notesInfo '{"notes":[1421053897312]}'    # any AnkiConnect action; params as a JSON arg…
+python3 -I $A updateNoteFields <<'EOF'                 # …or on stdin — use this for HTML field content
+{"note":{"id":1421053897312,"fields":{"Notes":"…"}}}
+EOF
+```
+
+For multi-note edits, write a short Python script that does `sys.path.insert(0, os.path.expanduser("~/.claude/skills/anki-recipes")); from anki import call, DECK` and calls `call("updateNoteFields", note={...})`. Don't hand-build JSON in inline `curl` — the system bash is 3.2 and nested quoting breaks (Claude Code refuses some such commands outright). `python3 -I $A apiReflect '{"scopes":["actions"],"actions":null}'` lists every action the installed AnkiConnect supports.
 
 ## Profiles
 
 Anki has separate profiles: **Alex** (Alp's — the deck below lives here) and **Cayleigh** (Cay's), plus Jayde. AnkiConnect only sees the **active** profile, so check before editing:
 
 ```bash
-curl -s localhost:8765 -d '{"action":"getActiveProfile","version":6}'
-curl -s localhost:8765 -d '{"action":"loadProfile","version":6,"params":{"name":"Alex"}}'
+python3 -I $A getActiveProfile
+python3 -I $A loadProfile '{"name":"Alex"}'
 ```
 
 Switching triggers Anki's auto-sync for both profiles; an "Email or password was incorrect" popup comes from whichever profile isn't logged in — harmless to local edits.
@@ -82,11 +90,11 @@ All three are wrapped in `{{#Field}}…{{/Field}}` conditionals, so a card with 
 
 Anki syncs at the **object level**: reviewing a card (scheduling/revlog) and editing its fields (note object) are different objects, so a **normal sync merges both** — Alp's phone review progress and Mac content edits coexist with no conflict, no direction to pick.
 
-**Content-only edits** (`updateNoteFields`) sync cleanly via `mcp__anki__sync`.
+**Content-only edits** (`updateNoteFields`) sync cleanly via `python3 -I $A sync`.
 
-**Schema/structural changes** — `addModelField`, `updateModelTemplates`, adding a note type — bump the collection's schema time and force a **full one-way sync**. `mcp__anki__sync` then returns **`Sync status 2` (ChangesRequired)** and cannot proceed. Recovery, in order (avoids losing un-synced phone reviews):
+**Schema/structural changes** — `addModelField`, `updateModelTemplates`, adding a note type — bump the collection's schema time and force a **full one-way sync**. `sync` then errors (full sync required — the old MCP reported it as `Sync status 2` / ChangesRequired) and cannot proceed. Recovery, in order (avoids losing un-synced phone reviews):
 1. **Alp syncs the iPhone first** (push its reviews to AnkiWeb).
-2. Make the schema change on the Mac via MCP.
+2. Make the schema change on the Mac via `anki.py`.
 3. **Alp** opens Anki **desktop** → Sync → chooses **Upload to AnkiWeb**.
 4. Alp re-syncs the phone to pull.
 
@@ -94,7 +102,12 @@ Always tell Alp this is coming *before* a schema change, and have him sync the p
 
 ## Gotchas
 
-- **`findNotes` over a whole deck can exceed the output token limit** — it saves to a file. Probe with `jq 'length' <file>` / extract IDs with `jq '.noteIds[0:3][]'` rather than reading raw; or hand it to a subagent.
+- **A whole-deck `findNotes`/`findCards` returns ~4000 IDs** — never print it raw; pipe through `jq 'length'` / `jq '.[0:3]'`, or do the filtering inside a Python script.
+- **Moving new cards to the front can't be done via AnkiConnect.** There's no reposition action, and `setSpecificValueOfCard` on `due` is refused ("Use native scheduling commands for protected state"). `setDueDate "0"` would turn new cards into review cards (skipping learning steps) — don't. Instead open the browser on them (`guiBrowse '{"query":"…"}'`) and have Alp do ⌘A → Cards → Reposition (⌘⇧S). Previously front-loaded cards sit at low due numbers (~27–40) with both templates sharing a number; check with `is:new card:1` sorted by `due` and pick a start just below the lowest. (`forgetCards` doesn't help: it's a no-op on new cards and restores original positions anyway.)
+- **Both directions are paired**: since 2026-11-23 each note's E→G and G→E new cards share the same `due` (the Memrise import had parked all G→E cards at +1,000,000). Keep it that way when repositioning — select both cards of a note.
+- **Bulk position edits = direct SQLite, Anki closed** (done once for the pairing, worked cleanly): quit Anki → copy `~/Library/Application Support/Anki2/Alex/collection.anki2` to `~/Documents/Anki Backups/` → Python `sqlite3` (the `sqlite3` CLI can't open it here) → `db.create_collation("unicase", …)` first or touching `col` fails → set `due`, `mod=now`, `usn=-1` on changed cards **and** `update col set mod=<now ms>` so sync sees changes → reopen, `sync` (normal sync, no full upload for card-only edits).
+- **Per-deck "This deck" limit overrides beat the preset** and AnkiConnect can neither read nor set them. If a new/review count doesn't match the preset's `perDay`, decode the deck's `kind` protobuf from the `decks` table (DeckKind.normal → field 7 `new_limit`, 6 `review_limit`, 8/9 the `*_today` variants; read a backup copy — the live DB is locked while Anki runs) or just have Alp check Deck Options → Daily Limits → "This deck" tab. Deutsch 4000 had `new_limit 7` (found 2026-11-23).
+- **Deck presets**: Deutsch 4000 uses its own **German** preset (12 new/day = 6 words × 2 directions; Alp wants ~5–7 words/day); everything else is on **Default** (10/day). All non-German decks are suspended (archived for travel) — unsuspend per deck when needed.
 - **Don't view a note in the Anki browser while `updateNoteFields` runs** — the update won't stick. Close the browser / switch notes first.
 - `updateModelStyling` **replaces all CSS** — always pass the full stylesheet, not a fragment.
 
