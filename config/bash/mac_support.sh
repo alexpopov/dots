@@ -184,3 +184,10 @@ function kobo_backup_to_mac {
     "$kobo_path" \
     "$backup_path"
 }
+
+# macOS wallpaper agent caches a ~35MB BMP per image a rotating wallpaper shows
+# and never prunes (hit 10GB, 2026-11). Runs from the shell because the
+# container is TCC-protected: launchd jobs get "Operation not permitted", the
+# terminal app has the grant. Backgrounded so it never delays the prompt.
+( find "$HOME/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches/com.apple.wallpaper.caches" \
+    -type f -mtime +7 -delete 2>/dev/null & )
