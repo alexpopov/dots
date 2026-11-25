@@ -1,0 +1,43 @@
+#!/bin/bash
+# Drive a running darktable through its D-Bus "Lua" method.
+#   dt-remote launch          start darktable attached to a private session bus
+#   dt-remote lua '<code>'    run Lua inside the running darktable, print the result
+#   dt-remote open FILE       import FILE and show it, only if the darkroom is already active
+# macOS has no session bus by default, so this runs its own dbus-daemon on a fixed socket.
+set -euo pipefail
+SOCK="$HOME/.cache/dt-remote/bus.sock"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$SOCK"
+
+bus_up() { gdbus call --session -d org.freedesktop.DBus -o /org/freedesktop/DBus -m org.freedesktop.DBus.GetId >/dev/null 2>&1; }
+
+case "${1:-}" in
+  launch)
+    mkdir -p "$(dirname "$SOCK")"
+    if ! bus_up; then
+      rm -f "$SOCK"
+      /opt/homebrew/bin/dbus-daemon --session --address="$DBUS_SESSION_BUS_ADDRESS" --fork --nopidfile
+    fi
+    # Run the binary directly: `open` does not pass the environment to the app.
+    nohup /Applications/darktable.app/Contents/MacOS/darktable "${@:2}" >"$HOME/.cache/dt-remote/darktable.log" 2>&1 &
+    ;;
+  lua)
+    gdbus call --session -d org.darktable.service -o /darktable -m org.darktable.service.Remote.Lua "$2"
+    ;;
+  open)
+    # Import a file and show it in the darkroom. Each step is its own call, and the image is only
+    # touched once the darkroom is really active: darktable 5.4.1 segfaults if Lua stringifies the
+    # image returned by display_image() while no image is loaded (e.g. right after a view switch).
+    f="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+    "$0" lua "local dt = require 'darktable'; dt.database.import('$f'); return 'imported'" >/dev/null
+    view() { "$0" lua "local dt = require 'darktable'; return dt.gui.current_view().id"; }
+    if [[ "$(view)" != *darkroom* ]]; then
+      echo "not in the darkroom; switch to it in the app (remote view switching is not used on purpose)" >&2; exit 1
+    fi
+    "$0" lua "local dt = require 'darktable'
+      for _, img in ipairs(dt.database) do
+        if img.path .. '/' .. img.filename == '$f' then dt.gui.views.darkroom.display_image(img); return 'shown' end
+      end
+      return 'not found'"
+    ;;
+  *) sed -n '2,6p' "$0"; exit 2 ;;
+esac
