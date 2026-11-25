@@ -101,6 +101,14 @@
         "Keywords+": "Arista EDU Ultra 400",
         "UserComment": "Arista EDU Ultra 400"
       }
+    },
+    "fuji-hr-u": {
+      "description": "Fuji HR-U X-ray film (double-sided, blue base, B&W negative)",
+      "exif": {
+        "Keywords-": "Fuji HR-U",
+        "Keywords+": "Fuji HR-U",
+        "UserComment": "Fuji HR-U"
+      }
     }
   }
 }
