@@ -23,7 +23,7 @@ Options:
   --quality Q   HEIC quality 0-100 (default: $QUALITY)
   --parallel N  workers (default: $PARALLEL)
 
-Output files: <DEST_DIR>/<basename>.heic, with sips not upscaling smaller inputs.
+Output files: <DEST_DIR>/<basename>.heic, images smaller than --max are UPSCALED to it (sips -Z); pass the image's own long edge to keep the original size.
 EOF
   exit 1
 }
